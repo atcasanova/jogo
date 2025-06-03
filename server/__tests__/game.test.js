@@ -49,4 +49,35 @@ describe('Game class', () => {
     expect(result.action).toBe('move');
     expect(piece.position).toEqual({ row: 0, col: 9 });
   });
+
+  test('enterHomeStretch blocks movement past occupied squares', () => {
+    const game = new Game('room5');
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+    const blocker = game.pieces.find(p => p.id === 'p0_2');
+
+    piece.inPenaltyZone = false;
+    piece.position = { row: 0, col: 4 };
+
+    blocker.inPenaltyZone = false;
+    blocker.inHomeStretch = true;
+    blocker.position = { row: 2, col: 4 };
+
+    expect(() => game.enterHomeStretch(piece, 3)).toThrow();
+  });
+
+  test('moveInHomeStretch cannot pass another piece', () => {
+    const game = new Game('room6');
+    const mover = game.pieces.find(p => p.id === 'p0_1');
+    const blocker = game.pieces.find(p => p.id === 'p0_2');
+
+    mover.inPenaltyZone = false;
+    mover.inHomeStretch = true;
+    mover.position = { row: 1, col: 4 };
+
+    blocker.inPenaltyZone = false;
+    blocker.inHomeStretch = true;
+    blocker.position = { row: 3, col: 4 };
+
+    expect(() => game.moveInHomeStretch(mover, 3)).toThrow();
+  });
 });
