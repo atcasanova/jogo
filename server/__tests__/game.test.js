@@ -80,4 +80,67 @@ describe('Game class', () => {
 
     expect(() => game.moveInHomeStretch(mover, 3)).toThrow();
   });
+
+  test('leavePenaltyZone is blocked by own piece', () => {
+    const game = new Game('room7');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+
+    const leaving = game.pieces.find(p => p.id === 'p0_1');
+    const blocker = game.pieces.find(p => p.id === 'p0_2');
+
+    blocker.inPenaltyZone = false;
+    blocker.position = { row: 0, col: 8 };
+
+    expect(() => game.leavePenaltyZone(leaving)).toThrow();
+  });
+
+  test('leavePenaltyZone captures opponent on exit', () => {
+    const game = new Game('room8');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+
+    const leaving = game.pieces.find(p => p.id === 'p0_1');
+    const opponent = game.pieces.find(p => p.id === 'p1_1');
+
+    opponent.inPenaltyZone = false;
+    opponent.position = { row: 0, col: 8 };
+
+    const result = game.leavePenaltyZone(leaving);
+
+    expect(result.action).toBe('leavePenalty');
+    expect(result.captures).toHaveLength(1);
+    expect(result.captures[0].action).toBe('opponentCapture');
+    expect(opponent.inPenaltyZone).toBe(true);
+    expect(leaving.position).toEqual({ row: 0, col: 8 });
+  });
+
+  test('leavePenaltyZone captures partner on exit', () => {
+    const game = new Game('room9');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+
+    const leaving = game.pieces.find(p => p.id === 'p0_1');
+    const partner = game.pieces.find(p => p.id === 'p2_1');
+
+    partner.inPenaltyZone = false;
+    partner.position = { row: 0, col: 8 };
+
+    const result = game.leavePenaltyZone(leaving);
+
+    expect(result.action).toBe('leavePenalty');
+    expect(result.captures).toHaveLength(1);
+    expect(result.captures[0].action).toBe('partnerCapture');
+    expect(partner.position).toEqual({ row: 18, col: 14 });
+    expect(leaving.position).toEqual({ row: 0, col: 8 });
+  });
 });

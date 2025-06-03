@@ -355,28 +355,50 @@ discardCard(cardIndex) {
 
   leavePenaltyZone(piece) {
     // Implementar saída da zona de castigo
-    piece.inPenaltyZone = false;
-   
-    // Posicionar na casa de saída correspondente ao jogador
     const startPositions = [
-      {row: 0, col: 8},  // Jogador 0 (topo)
-      {row: 8, col: 18}, // Jogador 1 (direita)
-      {row: 18, col: 10}, // Jogador 2 (fundo)
-      {row: 10, col: 0}  // Jogador 3 (esquerda)
+      { row: 0, col: 8 },   // Jogador 0 (topo)
+      { row: 8, col: 18 },  // Jogador 1 (direita)
+      { row: 18, col: 10 }, // Jogador 2 (fundo)
+      { row: 10, col: 0 }   // Jogador 3 (esquerda)
     ];
     const exitPosition = startPositions[piece.playerId];
-    
-      // Verificar se há alguma peça na posição de saída
-  const blockingPiece = this.pieces.find(p => 
-    p.position.row === exitPosition.row && 
-    p.position.col === exitPosition.col
-  );
-  if (blockingPiece) {
-    throw new Error("Não é possível sair do castigo. A posição de saída está ocupada.");
-  }
+
+    // Verificar se há alguma peça na posição de saída
+    const occupyingPiece = this.pieces.find(p =>
+      p.id !== piece.id &&
+      p.position.row === exitPosition.row &&
+      p.position.col === exitPosition.col
+    );
+
+    let captures;
+
+    if (occupyingPiece) {
+      if (occupyingPiece.playerId === piece.playerId) {
+        // Não pode sair se a própria peça estiver na posição de saída
+        throw new Error(
+          'Não é possível sair do castigo. A posição de saída está ocupada por sua própria peça.'
+        );
+      }
+
+      captures = [];
+      const isPartner = this.isPartner(piece.playerId, occupyingPiece.playerId);
+
+      if (isPartner) {
+        const result = this.handlePartnerCapture(occupyingPiece);
+        captures.push({ pieceId: occupyingPiece.id, action: 'partnerCapture', result });
+      } else {
+        this.sendToPenaltyZone(occupyingPiece);
+        captures.push({ pieceId: occupyingPiece.id, action: 'opponentCapture' });
+      }
+    }
+
     piece.inPenaltyZone = false;
     piece.position = exitPosition;
-    
+
+    if (captures) {
+      return { success: true, action: 'leavePenalty', captures };
+    }
+
     return { success: true, action: 'leavePenalty' };
   }
 
