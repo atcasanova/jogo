@@ -25,4 +25,15 @@ describe('Game class', () => {
       expect(p.cards).toHaveLength(5);
     });
   });
+
+  test('handlePartnerCapture moves piece to entrance before home stretch', () => {
+    const game = new Game('room3');
+    const piece = game.pieces.find(p => p.id === 'p2_1');
+
+    const result = game.handlePartnerCapture(piece);
+
+    expect(result.position).toEqual({ row: 18, col: 14 });
+    expect(piece.position).toEqual({ row: 18, col: 14 });
+    expect(piece.inHomeStretch).toBe(false);
+  });
 });

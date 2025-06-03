@@ -764,93 +764,49 @@ discardCard(cardIndex) {
   }
 
   handlePartnerCapture(piece) {
-    // Implementar regra de captura de parceiro
-    const homeStretches = [
-      // Jogador 0 - topo-esquerda
-      [
-        {row: 1, col: 4},
-        {row: 2, col: 4},
-        {row: 3, col: 4},
-        {row: 4, col: 4},
-        {row: 5, col: 4}
-      ],
-      // Jogador 1 - topo-direita
-      [
-        {row: 4, col: 17},
-        {row: 4, col: 16},
-        {row: 4, col: 15},
-        {row: 4, col: 14},
-        {row: 4, col: 13}
-      ],
-      // Jogador 2 - fundo-direita
-      [
-        {row: 17, col: 14},
-        {row: 16, col: 14},
-        {row: 15, col: 14},
-        {row: 14, col: 14},
-        {row: 13, col: 14}
-      ],
-      // Jogador 3 - fundo-esquerda
-      [
-        {row: 14, col: 1},
-        {row: 14, col: 2},
-        {row: 14, col: 3},
-        {row: 14, col: 4},
-        {row: 14, col: 5}
-      ]
+    // Regra de captura de parceiro: a peça deve ir para a casa
+    // imediatamente antes da entrada do seu corredor de chegada.
+
+    const entrances = [
+      { row: 0, col: 4 },   // Jogador 0
+      { row: 4, col: 18 },  // Jogador 1
+      { row: 18, col: 14 }, // Jogador 2
+      { row: 14, col: 0 }   // Jogador 3
     ];
-    
-    const homeStretch = homeStretches[piece.playerId];
 
-    // Tentar posicionar a peça no início do corredor de chegada
-    for (let i = 0; i < homeStretch.length; i++) {
-      const pos = homeStretch[i];
+    const target = entrances[piece.playerId];
 
-      const occupyingPiece = this.pieces.find(p =>
-        p.id !== piece.id &&
-        p.position.row === pos.row &&
-        p.position.col === pos.col
-      );
+    const occupyingPiece = this.pieces.find(p =>
+      p.id !== piece.id &&
+      !p.completed &&
+      !p.inPenaltyZone &&
+      p.position.row === target.row &&
+      p.position.col === target.col
+    );
 
-      if (!occupyingPiece) {
-        piece.position = pos;
-        piece.inHomeStretch = true;
-        if (i === homeStretch.length - 1) {
-          piece.completed = true;
-        }
-        return { position: pos, completed: piece.completed };
-      }
-
-      // Casa ocupada - aplicar regra de captura
-      const captures = [];
+    let captures;
+    if (occupyingPiece) {
+      captures = [];
       const isPartner = this.isPartner(piece.playerId, occupyingPiece.playerId);
 
       if (isPartner) {
         const result = this.handlePartnerCapture(occupyingPiece);
-        captures.push({
-          pieceId: occupyingPiece.id,
-          action: 'partnerCapture',
-          result
-        });
+        captures.push({ pieceId: occupyingPiece.id, action: 'partnerCapture', result });
       } else {
         this.sendToPenaltyZone(occupyingPiece);
-        captures.push({
-          pieceId: occupyingPiece.id,
-          action: 'opponentCapture'
-        });
+        captures.push({ pieceId: occupyingPiece.id, action: 'opponentCapture' });
       }
-
-      piece.position = pos;
-      piece.inHomeStretch = true;
-      if (i === homeStretch.length - 1) {
-        piece.completed = true;
-      }
-      return { position: pos, completed: piece.completed, captures };
     }
 
-    // Se não encontrou casa disponível, mandar para zona de castigo
-    this.sendToPenaltyZone(piece);
-    return { penaltyZone: true };
+    piece.position = target;
+    piece.inHomeStretch = false;
+    piece.inPenaltyZone = false;
+
+    if (captures) {
+      return { position: target, captures };
+    }
+
+    return { position: target };
   }
 
   sendToPenaltyZone(piece) {
