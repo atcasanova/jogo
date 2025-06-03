@@ -403,9 +403,12 @@ function updateBoard() {
   
   // Marcar células especiais
   markSpecialCells();
-  
+
   // Posicionar peças
   positionPieces();
+
+  // Reaplicar rotação para ajustar a orientação das peças
+  rotateBoard();
   
   console.log('Tabuleiro atualizado');
 }

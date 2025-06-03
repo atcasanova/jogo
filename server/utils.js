@@ -89,11 +89,12 @@ boardLayout[4][16] = 'e';
 boardLayout[4][17] = 'e';
 
 // Fundo-Direita
-boardLayout[13][14] = 'e';
-boardLayout[14][14] = 'e';
-boardLayout[15][14] = 'e';
-boardLayout[16][14] = 'e';
-boardLayout[17][14] = 'e';
+// Ajuste da coluna para alinhar com o corredor utilizado na lógica do jogo
+boardLayout[13][15] = 'e';
+boardLayout[14][15] = 'e';
+boardLayout[15][15] = 'e';
+boardLayout[16][15] = 'e';
+boardLayout[17][15] = 'e';
 
 // Fundo-Esquerda
 boardLayout[14][1] = 'e';
