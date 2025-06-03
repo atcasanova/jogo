@@ -229,7 +229,7 @@ discardCard(cardIndex) {
 
 
 // No arquivo server.js - Adicione este evento
-  makeMove(pieceId, cardIndex) {
+  makeMove(pieceId, cardIndex, enterHome = null) {
     const player = this.getCurrentPlayer();
     const card = player.cards[cardIndex];
     
@@ -248,7 +248,12 @@ discardCard(cardIndex) {
     }
     
     // Verificar se o movimento é válido e executá-lo
-    const moveResult = this.executeMove(piece, card);
+    const moveResult = this.executeMove(piece, card, enterHome);
+
+    if (moveResult && moveResult.action === 'homeEntryChoice') {
+      moveResult.cardIndex = cardIndex;
+      return moveResult;
+    }
     
     // Descartar a carta usada
     this.discardPile.push(card);
@@ -308,7 +313,7 @@ discardCard(cardIndex) {
     return { success: true };
   }
 
-  executeMove(piece, card) {
+  executeMove(piece, card, enterHome = null) {
     // Implementar regras de movimento baseadas na carta
     const value = card.value;
     
@@ -324,7 +329,6 @@ discardCard(cardIndex) {
     // Peça está no tabuleiro
     switch (value) {
       case 'A':
-        return this.movePieceForward(piece, 1);
       case '2':
       case '3':
       case '4':
@@ -332,7 +336,7 @@ discardCard(cardIndex) {
       case '6':
       case '9':
       case 'T': // 10
-        return this.movePieceForward(piece, parseInt(value === 'T' ? 10 : value));
+        return this.movePieceForward(piece, parseInt(value === 'T' ? 10 : value), enterHome);
       case '7':
         throw new Error("Carta 7 requer movimento especial");
       case '8':
@@ -340,7 +344,7 @@ discardCard(cardIndex) {
       case 'J':
       case 'Q':
       case 'K':
-        return this.movePieceForward(piece, 10);
+        return this.movePieceForward(piece, 10, enterHome);
       case 'JOKER':
         return this.moveToOccupiedSpace(piece);
       default:
@@ -375,7 +379,7 @@ discardCard(cardIndex) {
     return { success: true, action: 'leavePenalty' };
   }
 
-  movePieceForward(piece, steps) {
+  movePieceForward(piece, steps, enterHome = null) {
     // Implementar movimento no sentido horário
     if (piece.completed) {
       throw new Error("Esta peça já completou o percurso");
@@ -394,9 +398,18 @@ discardCard(cardIndex) {
       throw new Error("Não pode ultrapassar sua própria peça");
     }
 
-    // Verificar se deve entrar no corredor de chegada
+    // Verificar se deve entrar no corredor de chegada diretamente
     if (this.shouldEnterHomeStretch(piece, newPosition)) {
       return this.enterHomeStretch(piece, steps);
+    }
+
+    const homeOption = this.checkHomeEntryOption(piece, steps);
+    if (homeOption && enterHome === null) {
+      return { success: false, action: 'homeEntryChoice', pieceId: piece.id, cardSteps: steps, boardPosition: homeOption.boardPosition, homePosition: homeOption.homePosition };
+    }
+
+    if (homeOption && enterHome) {
+      return this.enterHomeStretch(piece, homeOption.remainingSteps);
     }
     
     // Mover para a nova posição
@@ -716,6 +729,77 @@ discardCard(cardIndex) {
     }
 
     return false;
+  }
+
+  stepsToEntrance(piece) {
+    const track = this.getTrackCoordinates();
+    const entrances = [
+      { row: 0, col: 4 },
+      { row: 4, col: 18 },
+      { row: 18, col: 14 },
+      { row: 14, col: 0 }
+    ];
+    const entrance = entrances[piece.playerId];
+    const startIndex = track.findIndex(pos => pos.row === piece.position.row && pos.col === piece.position.col);
+    const entranceIndex = track.findIndex(pos => pos.row === entrance.row && pos.col === entrance.col);
+    if (startIndex === -1 || entranceIndex === -1) return null;
+    return (entranceIndex - startIndex + track.length) % track.length;
+  }
+
+  homeStretchForPlayer(playerId) {
+    const stretches = [
+      [
+        { row: 1, col: 4 },
+        { row: 2, col: 4 },
+        { row: 3, col: 4 },
+        { row: 4, col: 4 },
+        { row: 5, col: 4 }
+      ],
+      [
+        { row: 4, col: 17 },
+        { row: 4, col: 16 },
+        { row: 4, col: 15 },
+        { row: 4, col: 14 },
+        { row: 4, col: 13 }
+      ],
+      [
+        { row: 17, col: 14 },
+        { row: 16, col: 14 },
+        { row: 15, col: 14 },
+        { row: 14, col: 14 },
+        { row: 13, col: 14 }
+      ],
+      [
+        { row: 14, col: 1 },
+        { row: 14, col: 2 },
+        { row: 14, col: 3 },
+        { row: 14, col: 4 },
+        { row: 14, col: 5 }
+      ]
+    ];
+    return stretches[playerId];
+  }
+
+  checkHomeEntryOption(piece, steps) {
+    const stepsToEnt = this.stepsToEntrance(piece);
+    if (stepsToEnt === null) return null;
+    if (steps > stepsToEnt) {
+      const remaining = steps - stepsToEnt;
+      const stretch = this.homeStretchForPlayer(piece.playerId);
+      if (remaining <= stretch.length) {
+        const boardPos = this.calculateNewPosition(piece.position, steps, true);
+        const target = stretch[remaining - 1];
+        const occupyingPiece = this.pieces.find(p =>
+          p.id !== piece.id &&
+          p.position.row === target.row &&
+          p.position.col === target.col
+        );
+        if (!occupyingPiece) {
+          return { remainingSteps: remaining, boardPosition: boardPos, homePosition: target };
+        }
+      }
+    }
+    return null;
   }
 
   checkCapture(piece, oldPosition) {

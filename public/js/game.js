@@ -119,6 +119,7 @@ function initSocketWithPlayerData(playerData) {
   socket.on('gameOver', handleGameOver);
   socket.on('gameAborted', handleGameAborted);
   socket.on('updateCards', handleUpdateCards);
+  socket.on('homeEntryChoice', handleHomeEntryChoice);
   socket.on('error', handleError);
 }
 
@@ -262,6 +263,16 @@ function handleUpdateCards(data) {
   if (data && data.cards) {
     updateCards(data.cards);
   }
+}
+
+function handleHomeEntryChoice(data) {
+  const choice = confirm('Sua peça pode entrar na zona de vitória. Deseja entrar?');
+  socket.emit('confirmHomeEntry', {
+    roomId,
+    pieceId: data.pieceId,
+    cardIndex: data.cardIndex,
+    enterHome: choice
+  });
 }
    
 

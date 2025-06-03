@@ -453,7 +453,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
 
   // Jogador seleciona peça e carta
 // No arquivo server.js - Modifique o evento makeMove
-socket.on('makeMove', ({ roomId, pieceId, cardIndex }) => {
+socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
   console.log(`Jogador ${socket.id} tentando mover peça ${pieceId} com carta ${cardIndex}`);
   const game = rooms.get(roomId);
 
@@ -481,7 +481,12 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex }) => {
   }
 
   try {
-    const moveResult = game.makeMove(pieceId, cardIndex);
+    const moveResult = game.makeMove(pieceId, cardIndex, enterHome);
+
+    if (moveResult && moveResult.action === 'homeEntryChoice') {
+      socket.emit('homeEntryChoice', moveResult);
+      return;
+    }
     console.log(`Movimento realizado:`, moveResult);
     
     // Adicionar log detalhado da posição da peça após o movimento
@@ -520,6 +525,54 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex }) => {
     socket.emit('error', error.message);
   }
 });
+
+ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
+   const game = rooms.get(roomId);
+
+   if (!game || !game.isActive) {
+     socket.emit('error', 'Jogo não está ativo');
+     return;
+   }
+
+   const currentPlayer = game.getCurrentPlayer();
+   if (!currentPlayer || currentPlayer.id !== socket.id) {
+     socket.emit('error', 'Não é sua vez');
+     return;
+   }
+
+   try {
+     const moveResult = game.makeMove(pieceId, cardIndex, enterHome);
+
+     console.log(`Movimento confirmado:`, moveResult);
+
+     const movedPiece = game.pieces.find(p => p.id === pieceId);
+     console.log(`Nova posição da peça ${pieceId}: (${movedPiece.position.row}, ${movedPiece.position.col})`);
+
+     const updatedState = game.getGameState();
+     io.to(roomId).emit('gameStateUpdate', updatedState);
+
+     socket.emit('updateCards', {
+       cards: currentPlayer.cards
+     });
+
+     if (game.checkWinCondition()) {
+       io.to(roomId).emit('gameOver', {
+         winners: game.getWinningTeam()
+       });
+       return;
+     }
+
+     const nextPlayer = game.getCurrentPlayer();
+     nextPlayer.cards.push(game.drawCard());
+
+     io.to(nextPlayer.id).emit('yourTurn', {
+       cards: nextPlayer.cards
+     });
+   } catch (error) {
+     console.error('Erro ao confirmar entrada na vitória:', error);
+     socket.emit('error', error.message);
+   }
+ });
 
 
 
