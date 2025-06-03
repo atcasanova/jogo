@@ -329,6 +329,7 @@ discardCard(cardIndex) {
     // Peça está no tabuleiro
     switch (value) {
       case 'A':
+        return this.movePieceForward(piece, 1, enterHome);
       case '2':
       case '3':
       case '4':
@@ -336,7 +337,7 @@ discardCard(cardIndex) {
       case '6':
       case '9':
       case 'T': // 10
-        return this.movePieceForward(piece, parseInt(value === 'T' ? 10 : value), enterHome);
+        return this.movePieceForward(piece, value === 'T' ? 10 : parseInt(value), enterHome);
       case '7':
         throw new Error("Carta 7 requer movimento especial");
       case '8':
