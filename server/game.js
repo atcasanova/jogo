@@ -250,7 +250,7 @@ discardCard(cardIndex) {
     // Verificar se o movimento é válido e executá-lo
     const moveResult = this.executeMove(piece, card, enterHome);
 
-    if (moveResult && moveResult.action === 'homeEntryChoice') {
+    if (moveResult && (moveResult.action === 'homeEntryChoice' || moveResult.action === 'choosePosition')) {
       moveResult.cardIndex = cardIndex;
       return moveResult;
     }
