@@ -36,4 +36,17 @@ describe('Game class', () => {
     expect(piece.position).toEqual({ row: 18, col: 14 });
     expect(piece.inHomeStretch).toBe(false);
   });
+
+  test('executeMove interprets Ace as one step forward', () => {
+    const game = new Game('room4');
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+
+    piece.inPenaltyZone = false;
+    piece.position = { row: 0, col: 8 };
+
+    const result = game.executeMove(piece, { value: 'A' });
+
+    expect(result.action).toBe('move');
+    expect(piece.position).toEqual({ row: 0, col: 9 });
+  });
 });
