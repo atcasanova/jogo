@@ -476,7 +476,7 @@ function rotateBoard() {
             // Topo-Direita
             [{row: 4, col: 13}, {row: 4, col: 14}, {row: 4, col: 15}, {row: 4, col: 16}, {row: 4, col: 17}],
             // Fundo-Direita
-            [{row: 13, col: 15}, {row: 14, col: 15}, {row: 15, col: 15}, {row: 16, col: 15}, {row: 17, col: 15}],
+            [{row: 13, col: 14}, {row: 14, col: 14}, {row: 15, col: 14}, {row: 16, col: 14}, {row: 17, col: 14}],
             // Fundo-Esquerda
             [{row: 14, col: 1}, {row: 14, col: 2}, {row: 14, col: 3}, {row: 14, col: 4}, {row: 14, col: 5}]
         ];
