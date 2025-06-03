@@ -389,15 +389,15 @@ discardCard(cardIndex) {
     
     // Calcular nova posição na pista principal
     const newPosition = this.calculateNewPosition(piece.position, steps, true);
-    
+
+    // Verificar se vai ultrapassar peça do mesmo jogador
+    if (this.wouldOverpassOwnPiece(piece, steps, true)) {
+      throw new Error("Não pode ultrapassar sua própria peça");
+    }
+
     // Verificar se deve entrar no corredor de chegada
     if (this.shouldEnterHomeStretch(piece, newPosition)) {
       return this.enterHomeStretch(piece, steps);
-    }
-    
-    // Verificar se vai ultrapassar peça do mesmo jogador
-    if (this.wouldOverpassOwnPiece(piece, newPosition)) {
-      throw new Error("Não pode ultrapassar sua própria peça");
     }
     
     // Mover para a nova posição
@@ -417,9 +417,9 @@ discardCard(cardIndex) {
     // Calcular nova posição
     const newPosition = this.calculateNewPosition(piece.position, steps, false);
     console.log(`Nova posição calculada: ${JSON.stringify(newPosition)}`);
-    
+
     // Verificar se vai ultrapassar peça do mesmo jogador
-    if (this.wouldOverpassOwnPiece(piece, newPosition)) {
+    if (this.wouldOverpassOwnPiece(piece, steps, false)) {
       throw new Error("Não pode ultrapassar sua própria peça");
     }
     
@@ -684,19 +684,38 @@ discardCard(cardIndex) {
     return { success: true, action: 'moveInHomeStretch' };
   }
 
-  wouldOverpassOwnPiece(piece, newPosition) {
+  wouldOverpassOwnPiece(piece, steps, isForward) {
     // Verificar se o movimento ultrapassaria peça do mesmo jogador
-    // Implementação simplificada - na versão completa, precisaria verificar todas as casas no caminho
-    
-    const ownPieces = this.pieces.filter(p => 
-      p.id !== piece.id && 
-      p.playerId === piece.playerId &&
-      !p.completed && 
-      !p.inPenaltyZone
+    const track = this.getTrackCoordinates();
+
+    const startIndex = track.findIndex(pos =>
+      pos.row === piece.position.row && pos.col === piece.position.col
     );
-    
-    // Verificar se alguma peça própria está no caminho
-    // Esta é uma implementação simplificada
+
+    if (startIndex === -1) {
+      // Peça não está na pista principal
+      return false;
+    }
+
+    const direction = isForward ? 1 : -1;
+    for (let i = 1; i < steps; i++) {
+      const idx = (startIndex + direction * i + track.length) % track.length;
+      const pos = track[idx];
+
+      const blockingPiece = this.pieces.find(p =>
+        p.id !== piece.id &&
+        p.playerId === piece.playerId &&
+        !p.completed &&
+        !p.inPenaltyZone &&
+        p.position.row === pos.row &&
+        p.position.col === pos.col
+      );
+
+      if (blockingPiece) {
+        return true;
+      }
+    }
+
     return false;
   }
 
