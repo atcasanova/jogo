@@ -148,71 +148,22 @@ function handleRoomJoined(data) {
   // Se for uma reconexão, solicitar o estado atual do jogo
   if (data.isReconnection) {
     console.log('Reconectado à sala, solicitando estado do jogo');
-    socket.emit('requestGameState', { 
+    const playerKey = `game_${roomId}_player`;
+    let storedName = null;
+    const stored = localStorage.getItem(playerKey);
+    if (stored) {
+      try {
+        storedName = JSON.parse(stored).name;
+      } catch (error) {
+        console.error('Erro ao ler nome do jogador no localStorage:', error);
+      }
+    }
+    socket.emit('requestGameState', {
       roomId,
-      playerName: data.playerName || localStorage.getItem('playerName'),
+      playerName: data.playerName || storedName,
       playerPosition: playerPosition
     });
   }
-}
-
-
-    // Inicializar Socket.io
-
-function initSocket() {
-  socket = io();
-
-  // Obter nome do jogador do localStorage
-  const playerName = localStorage.getItem('playerName');
-  const storedPosition = localStorage.getItem('playerPosition');
-  const storedId = localStorage.getItem('playerId');
-
-  if (storedPosition !== null) {
-    playerPosition = parseInt(storedPosition);
-    console.log(`Posição do jogador recuperada do localStorage: ${playerPosition}`);
-  }	
-
-  if (!playerName) {
-    console.error('Nome do jogador não encontrado no localStorage');
-    alert('Nome de jogador não encontrado. Redirecionando para a página inicial.');
-    window.location.href = '/';
-    return;
-  }
-
-  console.log(`Conectando como: ${playerName} (posição ${storedPosition}, ID: ${storedId})`);
-
-  // Reconectar à sala
-  socket.emit('joinRoom', { 
-    roomId, 
-    playerName,
-    originalPosition: storedPosition,
-    originalId: storedId
-  });
-
-  // Eventos do socket
-  socket.on('roomJoined', handleRoomJoined);
-  socket.on('gameStateUpdate', handleGameStateUpdate);
-  socket.on('playerInfo', handlePlayerInfo);
-  socket.on('yourTurn', handleYourTurn);
-  socket.on('gameOver', handleGameOver);
-  socket.on('gameAborted', handleGameAborted);
-  socket.on('error', handleError);
-
-	
-// No arquivo game.js - Adicione este evento
-socket.on('playerInfo', (data) => {
-  console.log('Informações do jogador recebidas:', data);
-  
-  if (data.playerPosition !== undefined) {
-    playerPosition = data.playerPosition;
-    localStorage.setItem('playerPosition', playerPosition);
-    console.log('Posição do jogador definida como:', playerPosition);
-  }
-  
-  if (data.cards) {
-    updateCards(data.cards);
-  }
-});
 }
 
 // Adicione esta função
@@ -221,7 +172,17 @@ function handlePlayerInfo(data) {
 
   if (data.playerPosition !== undefined) {
     playerPosition = data.playerPosition;
-    localStorage.setItem('playerPosition', playerPosition);
+    const playerKey = `game_${roomId}_player`;
+    const playerDataString = localStorage.getItem(playerKey);
+    if (playerDataString) {
+      try {
+        const playerData = JSON.parse(playerDataString);
+        playerData.position = playerPosition;
+        localStorage.setItem(playerKey, JSON.stringify(playerData));
+      } catch (error) {
+        console.error('Erro ao atualizar posição no localStorage:', error);
+      }
+    }
     console.log('Posição do jogador definida como:', playerPosition);
   }
 
