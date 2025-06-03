@@ -521,60 +521,6 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex }) => {
   }
 });
 
-// No arquivo server.js - Adicione este evento
-socket.on('discardCard', ({ roomId, cardIndex }) => {
-  console.log(`Jogador ${socket.id} descartando carta ${cardIndex}`);
-  const game = rooms.get(roomId);
-  
-  if (!game || !game.isActive) {
-    socket.emit('error', 'Jogo não está ativo');
-    return;
-  }
-  
-  const currentPlayer = game.getCurrentPlayer();
-  if (!currentPlayer) {
-    socket.emit('error', 'Jogador atual não encontrado');
-    return;
-  }
-  
-  if (currentPlayer.id !== socket.id) {
-    socket.emit('error', 'Não é sua vez');
-    return;
-  }
-  
-  if (cardIndex < 0 || cardIndex >= currentPlayer.cards.length) {
-    socket.emit('error', 'Índice de carta inválido');
-    return;
-  }
-  
-  const card = currentPlayer.cards[cardIndex];
-  console.log(`Jogador ${currentPlayer.name} descartando carta ${card.suit}${card.value}`);
-  
-  // Descartar a carta
-  game.discardPile.push(card);
-  currentPlayer.cards.splice(cardIndex, 1);
-  
-  // Atualizar estado do jogo para todos
-  io.to(roomId).emit('gameStateUpdate', game.getGameState());
-  
-  // Enviar cartas atualizadas para o jogador
-  socket.emit('updateCards', {
-    cards: currentPlayer.cards
-  });
-  
-  // Passar para o próximo jogador
-  game.nextTurn();
-  
-  // Notificar próximo jogador
-  const nextPlayer = game.getCurrentPlayer();
-  
-  // Comprar uma carta para o próximo jogador
-  nextPlayer.cards.push(game.drawCard());
-  
-  io.to(nextPlayer.id).emit('yourTurn', {
-    cards: nextPlayer.cards
-  });
-});
 
 
 
