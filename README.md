@@ -34,3 +34,12 @@ The application will be available at `http://localhost:3000`.
 3. Wait for four players to connect and define the two teams.
 4. Each turn, draw a card and move your pieces according to the card rules.
 5. The first team to bring all their pieces home wins.
+
+## Running Tests
+Run the automated test suite using [Jest](https://jestjs.io/):
+
+```bash
+npm test
+```
+
+This will execute all tests inside the `server/__tests__` directory.
