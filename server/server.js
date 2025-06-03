@@ -16,6 +16,20 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Armazenar salas e jogos ativos
 const rooms = new Map();
 
+function logPiecePositions(game) {
+  const info = game.pieces.map(p => {
+    const state = p.completed
+      ? 'completed'
+      : p.inPenaltyZone
+      ? 'penalty'
+      : p.inHomeStretch
+      ? 'homeStretch'
+      : 'board';
+    return `${p.id}@(${p.position.row},${p.position.col})[${state}]`;
+  }).join(' | ');
+  console.log(`Estado das peças: ${info}`);
+}
+
 function launchGame(game) {
   const roomId = game.roomId;
 
@@ -23,10 +37,12 @@ function launchGame(game) {
 
   const gameState = game.getGameState();
   io.to(roomId).emit('gameStarted', gameState);
+  logPiecePositions(game);
 
   const currentPlayer = game.getCurrentPlayer();
   if (currentPlayer && currentPlayer.id) {
     currentPlayer.cards.push(game.drawCard());
+    logPiecePositions(game);
     io.to(currentPlayer.id).emit('yourTurn', {
       cards: currentPlayer.cards
     });
@@ -261,6 +277,7 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     
     // Atualizar estado do jogo para todos
     io.to(roomId).emit('gameStateUpdate', game.getGameState());
+    logPiecePositions(game);
     
     // Enviar cartas atualizadas para o jogador
     socket.emit('updateCards', {
@@ -275,7 +292,8 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     
     // Comprar uma carta para o próximo jogador
     nextPlayer.cards.push(game.drawCard());
-    
+
+    logPiecePositions(game);
     io.to(nextPlayer.id).emit('yourTurn', {
       cards: nextPlayer.cards
     });
@@ -505,6 +523,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
     // Atualizar estado do jogo para todos
     const updatedState = game.getGameState();
     io.to(roomId).emit('gameStateUpdate', updatedState);
+    logPiecePositions(game);
 
     // Enviar cartas atualizadas para o jogador que fez o movimento
     socket.emit('updateCards', {
@@ -525,6 +544,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
     // Comprar uma carta para o próximo jogador
     nextPlayer.cards.push(game.drawCard());
 
+    logPiecePositions(game);
     io.to(nextPlayer.id).emit('yourTurn', {
       cards: nextPlayer.cards
     });
@@ -571,12 +591,13 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
        return;
      }
 
-     const nextPlayer = game.getCurrentPlayer();
-     nextPlayer.cards.push(game.drawCard());
+    const nextPlayer = game.getCurrentPlayer();
+    nextPlayer.cards.push(game.drawCard());
 
-     io.to(nextPlayer.id).emit('yourTurn', {
-       cards: nextPlayer.cards
-     });
+    logPiecePositions(game);
+    io.to(nextPlayer.id).emit('yourTurn', {
+      cards: nextPlayer.cards
+    });
    } catch (error) {
      console.error('Erro ao confirmar entrada na vitória:', error);
      socket.emit('error', error.message);
@@ -605,6 +626,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
       
       // Atualizar estado do jogo para todos
       io.to(roomId).emit('gameStateUpdate', game.getGameState());
+      logPiecePositions(game);
       
       // Verificar se o jogo acabou
       if (game.checkWinCondition()) {
@@ -619,7 +641,8 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
       
       // Comprar uma carta para o próximo jogador
       nextPlayer.cards.push(game.drawCard());
-      
+
+      logPiecePositions(game);
       io.to(nextPlayer.id).emit('yourTurn', {
         cards: nextPlayer.cards
       });
