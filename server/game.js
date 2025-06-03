@@ -501,20 +501,20 @@ discardCard(cardIndex) {
     const track = [];
     
     // Linha superior (da esquerda para direita)
-    for (let col = 0; col <= 19; col++) {
-      track.push({row: 1, col});
+    for (let col = 0; col <= 18; col++) {
+      track.push({row: 0, col});
     }
-    
+
     // Coluna direita (de cima para baixo, excluindo cantos)
     for (let row = 1; row <= 18; row++) {
       track.push({row, col: 18});
     }
-    
+
     // Linha inferior (da direita para esquerda)
-    for (let col = 18; col >= 0; col--) {
+    for (let col = 17; col >= 0; col--) {
       track.push({row: 18, col});
     }
-    
+
     // Coluna esquerda (de baixo para cima, excluindo cantos)
     for (let row = 17; row >= 1; row--) {
       track.push({row, col: 0});
@@ -526,10 +526,10 @@ discardCard(cardIndex) {
   shouldEnterHomeStretch(piece, newPosition) {
     // Verificar se a peça deve entrar no corredor de chegada
     const entrances = [
-      {row: 6, col: 6},   // Jogador 0 (topo-esquerda)
-      {row: 6, col: 14},  // Jogador 1 (topo-direita)
-      {row: 14, col: 14}, // Jogador 2 (fundo-direita)
-      {row: 14, col: 6}   // Jogador 3 (fundo-esquerda)
+      {row: 0, col: 4},   // Jogador 0 (topo-esquerda)
+      {row: 4, col: 18},  // Jogador 1 (topo-direita)
+      {row: 18, col: 15}, // Jogador 2 (fundo-direita)
+      {row: 14, col: 0}   // Jogador 3 (fundo-esquerda)
     ];
     
     const entrance = entrances[piece.playerId];
@@ -542,10 +542,38 @@ discardCard(cardIndex) {
     
     // Definir corredores de chegada para cada jogador
     const homeStretches = [
-      [{row: 2, col: 5}, {row: 3, col: 5}, {row: 4, col: 5}, {row: 5, col: 5}, {row: 6, col: 5}], // Jogador 0
-      [{row: 5, col: 14}, {row: 5, col: 15}, {row: 5, col: 16}, {row: 5, col: 17}, {row: 5, col: 18}], // Jogador 1
-      [{row: 14, col: 16}, {row: 15, col: 16}, {row: 16, col: 16}, {row: 17, col: 16}, {row: 18, col: 16}], // Jogador 2
-      [{row: 15, col: 2}, {row: 15, col: 3}, {row: 15, col: 4}, {row: 15, col: 5}, {row: 15, col: 6}]  // Jogador 3
+      // Jogador 0 - topo-esquerda
+      [
+        {row: 1, col: 4},
+        {row: 2, col: 4},
+        {row: 3, col: 4},
+        {row: 4, col: 4},
+        {row: 5, col: 4}
+      ],
+      // Jogador 1 - topo-direita
+      [
+        {row: 4, col: 17},
+        {row: 4, col: 16},
+        {row: 4, col: 15},
+        {row: 4, col: 14},
+        {row: 4, col: 13}
+      ],
+      // Jogador 2 - fundo-direita
+      [
+        {row: 17, col: 15},
+        {row: 16, col: 15},
+        {row: 15, col: 15},
+        {row: 14, col: 15},
+        {row: 13, col: 15}
+      ],
+      // Jogador 3 - fundo-esquerda
+      [
+        {row: 14, col: 1},
+        {row: 14, col: 2},
+        {row: 14, col: 3},
+        {row: 14, col: 4},
+        {row: 14, col: 5}
+      ]
     ];
     
     const homeStretch = homeStretches[piece.playerId];
@@ -582,10 +610,38 @@ discardCard(cardIndex) {
   moveInHomeStretch(piece, steps) {
     // Implementar movimento dentro do corredor de chegada
     const homeStretches = [
-      [{row: 2, col: 5}, {row: 3, col: 5}, {row: 4, col: 5}, {row: 5, col: 5}, {row: 6, col: 5}], // Jogador 0
-      [{row: 5, col: 14}, {row: 5, col: 15}, {row: 5, col: 16}, {row: 5, col: 17}, {row: 5, col: 18}], // Jogador 1
-      [{row: 14, col: 16}, {row: 15, col: 16}, {row: 16, col: 16}, {row: 17, col: 16}, {row: 18, col: 16}], // Jogador 2
-      [{row: 15, col: 2}, {row: 15, col: 3}, {row: 15, col: 4}, {row: 15, col: 5}, {row: 15, col: 6}]  // Jogador 3
+      // Jogador 0 - topo-esquerda
+      [
+        {row: 1, col: 4},
+        {row: 2, col: 4},
+        {row: 3, col: 4},
+        {row: 4, col: 4},
+        {row: 5, col: 4}
+      ],
+      // Jogador 1 - topo-direita
+      [
+        {row: 4, col: 17},
+        {row: 4, col: 16},
+        {row: 4, col: 15},
+        {row: 4, col: 14},
+        {row: 4, col: 13}
+      ],
+      // Jogador 2 - fundo-direita
+      [
+        {row: 17, col: 15},
+        {row: 16, col: 15},
+        {row: 15, col: 15},
+        {row: 14, col: 15},
+        {row: 13, col: 15}
+      ],
+      // Jogador 3 - fundo-esquerda
+      [
+        {row: 14, col: 1},
+        {row: 14, col: 2},
+        {row: 14, col: 3},
+        {row: 14, col: 4},
+        {row: 14, col: 5}
+      ]
     ];
     
     const homeStretch = homeStretches[piece.playerId];
@@ -692,10 +748,38 @@ discardCard(cardIndex) {
   handlePartnerCapture(piece) {
     // Implementar regra de captura de parceiro
     const homeStretches = [
-      [{row: 2, col: 5}, {row: 3, col: 5}, {row: 4, col: 5}, {row: 5, col: 5}, {row: 6, col: 5}], // Jogador 0
-      [{row: 5, col: 14}, {row: 5, col: 15}, {row: 5, col: 16}, {row: 5, col: 17}, {row: 5, col: 18}], // Jogador 1
-      [{row: 14, col: 16}, {row: 15, col: 16}, {row: 16, col: 16}, {row: 17, col: 16}, {row: 18, col: 16}], // Jogador 2
-      [{row: 15, col: 2}, {row: 15, col: 3}, {row: 15, col: 4}, {row: 15, col: 5}, {row: 15, col: 6}]  // Jogador 3
+      // Jogador 0 - topo-esquerda
+      [
+        {row: 1, col: 4},
+        {row: 2, col: 4},
+        {row: 3, col: 4},
+        {row: 4, col: 4},
+        {row: 5, col: 4}
+      ],
+      // Jogador 1 - topo-direita
+      [
+        {row: 4, col: 17},
+        {row: 4, col: 16},
+        {row: 4, col: 15},
+        {row: 4, col: 14},
+        {row: 4, col: 13}
+      ],
+      // Jogador 2 - fundo-direita
+      [
+        {row: 17, col: 15},
+        {row: 16, col: 15},
+        {row: 15, col: 15},
+        {row: 14, col: 15},
+        {row: 13, col: 15}
+      ],
+      // Jogador 3 - fundo-esquerda
+      [
+        {row: 14, col: 1},
+        {row: 14, col: 2},
+        {row: 14, col: 3},
+        {row: 14, col: 4},
+        {row: 14, col: 5}
+      ]
     ];
     
     const homeStretch = homeStretches[piece.playerId];
