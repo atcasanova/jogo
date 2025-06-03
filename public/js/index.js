@@ -124,7 +124,7 @@ function handleGameStarted(gameState) {
   }
   
   // Criar um identificador único para este jogador
-  const playerKey = `game_${gameState.roomId}_player`;
+  const playerKey = `game_${gameState.roomId}_player_${playerId}`;
   
   // Salvar informações do jogador de forma mais segura
   const playerData = {
@@ -140,8 +140,8 @@ function handleGameStarted(gameState) {
   console.log(`Dados do jogador salvos: ${JSON.stringify(playerData)}`);
   
   // Redirecionar para a página do jogo
-  console.log(`Redirecionando para game.html?roomId=${gameState.roomId}`);
-  window.location.href = `/game.html?roomId=${gameState.roomId}`;
+  console.log(`Redirecionando para game.html?roomId=${gameState.roomId}&playerId=${playerId}`);
+  window.location.href = `/game.html?roomId=${gameState.roomId}&playerId=${playerId}`;
 }
 
 function handleError(message) {
