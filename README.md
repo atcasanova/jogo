@@ -36,10 +36,9 @@ The application will be available at `http://localhost:3000`.
 5. The first team to bring all their pieces home wins.
 
 ## Running Tests
-Run the automated test suite using [Jest](https://jestjs.io/):
+Run the automated test suite using [Jest](https://jestjs.io/). Jest is listed as a dev dependency and will be installed automatically on the first test run:
 
 ```bash
 npm test
 ```
-
-This will execute all tests inside the `server/__tests__` directory.
+This will install any missing packages and execute all tests inside the `server/__tests__` directory.
