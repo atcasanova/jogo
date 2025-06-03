@@ -64,7 +64,10 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
       
       if (player && player.name === playerName) {
         console.log(`Reconexão do jogador ${playerName} na posição ${position}`);
-        
+
+        // Cancelar limpeza da sala se estava agendada
+        game.clearCleanupTimer();
+
         // Atualizar o ID do socket
         player.id = socket.id;
         
@@ -107,7 +110,10 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
   
   if (existingPlayerIndex !== -1) {
     console.log(`Reconexão do jogador ${playerName} na sala ${roomId}`);
-    
+
+    // Cancelar limpeza da sala se estava agendada
+    game.clearCleanupTimer();
+
     // Atualizar o ID do socket para o jogador existente
     const oldId = game.players[existingPlayerIndex].id;
     game.players[existingPlayerIndex].id = socket.id;
@@ -316,6 +322,9 @@ socket.on('requestGameState', ({ roomId, playerName }) => {
   const playerIndex = game.players.findIndex(p => p.name === playerName);
   
   if (playerIndex !== -1) {
+    // Cancelar limpeza da sala se estava agendada
+    game.clearCleanupTimer();
+
     // Atualizar o ID do socket para o jogador
     const oldId = game.players[playerIndex].id;
     game.players[playerIndex].id = socket.id;
