@@ -590,12 +590,17 @@ discardCard(cardIndex) {
     ];
     
     const homeStretch = homeStretches[piece.playerId];
-    
+
     // Verificar se os passos restantes são exatos para alguma casa
     if (remainingSteps > homeStretch.length) {
       throw new Error("Movimento excede o corredor de chegada");
     }
-    
+
+    // Verificar se o caminho até a casa alvo está livre
+    if (remainingSteps > 1 && !this.isHomeStretchPathClear(piece, 0, remainingSteps - 2)) {
+      throw new Error("Caminho do corredor de chegada bloqueado");
+    }
+
     // Mover para a casa correspondente
     const targetPosition = homeStretch[remainingSteps - 1];
     
@@ -675,11 +680,17 @@ discardCard(cardIndex) {
       throw new Error("Movimento excede o corredor de chegada");
     }
     
+    // Verificar se o caminho até a casa alvo está livre
+    if (newIndex - currentIndex > 1 &&
+        !this.isHomeStretchPathClear(piece, currentIndex + 1, newIndex - 1)) {
+      throw new Error("Caminho do corredor de chegada bloqueado");
+    }
+
     // Verificar se a casa está ocupada
     const targetPosition = homeStretch[newIndex];
-    const occupyingPiece = this.pieces.find(p => 
-      p.id !== piece.id && 
-      p.position.row === targetPosition.row && 
+    const occupyingPiece = this.pieces.find(p =>
+      p.id !== piece.id &&
+      p.position.row === targetPosition.row &&
       p.position.col === targetPosition.col
     );
     
@@ -781,6 +792,27 @@ discardCard(cardIndex) {
     return stretches[playerId];
   }
 
+  // Verifica se o caminho no corredor de chegada está livre entre dois índices
+  isHomeStretchPathClear(piece, startIndex, endIndex) {
+    const stretch = this.homeStretchForPlayer(piece.playerId);
+    if (startIndex > endIndex) return true;
+
+    for (let i = startIndex; i <= endIndex; i++) {
+      const pos = stretch[i];
+      const occupyingPiece = this.pieces.find(p =>
+        p.id !== piece.id &&
+        !p.completed &&
+        !p.inPenaltyZone &&
+        p.position.row === pos.row &&
+        p.position.col === pos.col
+      );
+      if (occupyingPiece) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   checkHomeEntryOption(piece, steps) {
     const stepsToEnt = this.stepsToEntrance(piece);
     if (stepsToEnt === null) return null;
@@ -795,7 +827,8 @@ discardCard(cardIndex) {
           p.position.row === target.row &&
           p.position.col === target.col
         );
-        if (!occupyingPiece) {
+        const pathClear = this.isHomeStretchPathClear(piece, 0, remaining - 2);
+        if (!occupyingPiece && pathClear) {
           return { remainingSteps: remaining, boardPosition: boardPos, homePosition: target };
         }
       }
