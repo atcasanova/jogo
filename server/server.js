@@ -487,6 +487,15 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
       socket.emit('homeEntryChoice', moveResult);
       return;
     }
+
+    if (moveResult && moveResult.action === 'choosePosition') {
+      socket.emit('choosePosition', {
+        pieceId,
+        cardIndex,
+        validPositions: moveResult.validPositions
+      });
+      return;
+    }
     console.log(`Movimento realizado:`, moveResult);
     
     // Adicionar log detalhado da posição da peça após o movimento
