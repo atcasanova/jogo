@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on('roomJoined', handleRoomJoined);
         socket.on('updatePlayers', handleUpdatePlayers);
         socket.on('teamsSet', handleTeamsSet);
+        socket.on('teamsReady', handleTeamsReady);
         socket.on('gameStarted', handleGameStarted);
         socket.on('error', handleError);
     }
@@ -78,6 +79,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Mostrar configuração de times se houver 4 jogadores e o usuário é o criador
         if (players.length === 4 && isRoomCreator) {
+            teamsSetup.classList.remove('hidden');
+            waitingMessage.classList.add('hidden');
+            populateTeamLists();
+        }
+    }
+
+    function handleTeamsReady() {
+        if (isRoomCreator) {
             teamsSetup.classList.remove('hidden');
             waitingMessage.classList.add('hidden');
             populateTeamLists();

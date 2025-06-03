@@ -137,11 +137,10 @@ startGame() {
   this.currentPlayerIndex = 0;
   console.log(`Primeiro jogador escolhido: índice ${this.currentPlayerIndex}`);
   
-  // Definir times: 0 e 2 vs 1 e 3
-  this.teams = [
-    [this.players[0], this.players[2]],
-    [this.players[1], this.players[3]]
-  ];
+  // Garantir que os times estejam definidos
+  if (this.teams[0].length !== 2 || this.teams[1].length !== 2) {
+    this.setupTeams();
+  }
   console.log(`Times definidos: ${this.teams[0][0].name}/${this.teams[0][1].name} vs ${this.teams[1][0].name}/${this.teams[1][1].name}`);
   
   this.isActive = true;

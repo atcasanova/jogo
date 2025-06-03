@@ -16,6 +16,23 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Armazenar salas e jogos ativos
 const rooms = new Map();
 
+function launchGame(game) {
+  const roomId = game.roomId;
+
+  game.startGame();
+
+  const gameState = game.getGameState();
+  io.to(roomId).emit('gameStarted', gameState);
+
+  const currentPlayer = game.getCurrentPlayer();
+  if (currentPlayer && currentPlayer.id) {
+    currentPlayer.cards.push(game.drawCard());
+    io.to(currentPlayer.id).emit('yourTurn', {
+      cards: currentPlayer.cards
+    });
+  }
+}
+
 io.on('connection', (socket) => {
   console.log('Novo usuário conectado:', socket.id);
 
@@ -186,44 +203,10 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
   
   console.log(`${playerName} entrou na sala ${roomId}`);
   
-  // Se a sala estiver completa, iniciar o jogo
+  // Se a sala estiver completa, avisar o criador para definir os times
   if (game.players.length === 4) {
-    console.log(`Sala ${roomId} completa com 4 jogadores, iniciando jogo`);
-    
-    try {
-      game.setupTeams();
-      console.log(`Times configurados para sala ${roomId}`);
-      
-      game.startGame();
-      console.log(`Jogo iniciado para sala ${roomId}`);
-      
-      // Enviar estado inicial do jogo para todos
-      const gameState = game.getGameState();
-      console.log(`Estado do jogo gerado para sala ${roomId}`);
-      
-      io.to(roomId).emit('gameStarted', gameState);
-      console.log(`Evento 'gameStarted' enviado para sala ${roomId}`);
-      
-      // Notificar o primeiro jogador que é sua vez
-      const currentPlayer = game.getCurrentPlayer();
-      console.log(`Jogador atual: ${currentPlayer ? currentPlayer.name : 'nenhum'}`);
-      
-      if (currentPlayer && currentPlayer.id) {
-        // Comprar uma carta para o jogador atual (primeira rodada)
-        currentPlayer.cards.push(game.drawCard());
-        console.log(`Enviando cartas para ${currentPlayer.name}:`, JSON.stringify(currentPlayer.cards));
-        
-        io.to(currentPlayer.id).emit('yourTurn', {
-          cards: currentPlayer.cards
-        });
-        console.log(`Notificação 'yourTurn' enviada para jogador ${currentPlayer.id}`);
-      } else {
-        console.log(`ERRO: Não foi possível determinar o jogador atual`);
-      }
-    } catch (error) {
-      console.error(`ERRO ao iniciar o jogo: ${error.message}`);
-      console.error(error.stack);
-    }
+    const creatorId = game.players[0].id;
+    io.to(creatorId).emit('teamsReady');
   }
 });
 
@@ -445,6 +428,27 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
     
     game.setCustomTeams(teams);
     io.to(roomId).emit('teamsSet', game.getTeamsInfo());
+
+    if (!game.isActive) {
+      launchGame(game);
+    }
+  });
+
+  // Iniciar jogo manualmente pelo criador
+  socket.on('startGame', ({ roomId }) => {
+    const game = rooms.get(roomId);
+
+    if (!game || game.players.length !== 4) {
+      socket.emit('error', 'Não é possível iniciar o jogo agora');
+      return;
+    }
+
+    if (game.isActive) {
+      socket.emit('error', 'Jogo já está ativo');
+      return;
+    }
+
+    launchGame(game);
   });
 
   // Jogador seleciona peça e carta
