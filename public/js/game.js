@@ -118,6 +118,7 @@ function initSocketWithPlayerData(playerData) {
   socket.on('yourTurn', handleYourTurn);
   socket.on('gameOver', handleGameOver);
   socket.on('gameAborted', handleGameAborted);
+  socket.on('updateCards', handleUpdateCards);
   socket.on('error', handleError);
 }
 
