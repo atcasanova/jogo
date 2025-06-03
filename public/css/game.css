@@ -40,6 +40,27 @@
     text-align: right;
 }
 
+#turn-message {
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+#turn-message.turn {
+    background-color: #2ecc71;
+    color: #ffffff;
+}
+
+#turn-message.error {
+    background-color: #e74c3c;
+    color: #ffffff;
+}
+
+#turn-message.info {
+    background-color: #3498db;
+    color: #ffffff;
+}
+
 .board-container {
     display: flex;
     justify-content: center;
