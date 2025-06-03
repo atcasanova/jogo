@@ -1,0 +1,352 @@
+.game-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 1rem;
+    max-width: 100%;
+    padding: 1rem;
+    height: 100vh;
+}
+
+.game-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0.5rem;
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.teams-info {
+    display: flex;
+    gap: 1rem;
+}
+
+.team {
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+
+.team1 {
+    background-color: rgba(52, 152, 219, 0.1);
+}
+
+.team2 {
+    background-color: rgba(231, 76, 60, 0.1);
+}
+
+.turn-info {
+    text-align: right;
+}
+
+.board-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+#board {
+    display: grid;
+    grid-template-columns: repeat(19, 1fr);
+    grid-template-rows: repeat(19, 1fr);
+    gap: 0;
+    background-color: white;
+    aspect-ratio: 1/1;
+    max-height: 80vh;
+    max-width: 80vh;
+    min-height: 500px;
+    min-width: 500px;
+    margin: 0 auto;
+}
+
+/* Remover todas as bordas por padrão */
+.cell {
+    background-color: white;
+    position: relative;
+    cursor: pointer;
+    border: none;
+}
+
+/* Aplicar bordas apenas às células especiais */
+.cell.track {
+    background-color: #f0f0f0;
+    border: 2px solid #333;
+}
+
+.cell.penalty {
+    background-color: #ffecb3;
+    border: 2px solid #ff9800;
+}
+
+.cell.home-stretch {
+    background-color: #c8e6c9;
+    border: 2px solid #4caf50;
+}
+
+.cell.discard-area {
+    background-color: #e1f5fe;
+    border: 2px solid #03a9f4;
+}
+
+.piece {
+    width: 80%;
+    height: 80%;
+    border-radius: 50%;
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.piece.player0 {
+    background-color: #3498db;
+}
+
+.piece.player1 {
+    background-color: #e74c3c;
+}
+
+.piece.player2 {
+    background-color: #2ecc71;
+}
+
+.piece.player3 {
+    background-color: #f39c12;
+}
+
+.player-hand {
+    padding: 1rem;
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+#cards-container {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.card {
+    width: 80px;
+    height: 120px;
+    background-color: white;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.2s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin: 0.5rem;
+}
+
+.card:hover {
+    transform: translateY(-10px);
+}
+
+.card.selected {
+    border: 2px solid #3498db;
+    box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+}
+
+.card-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.card-suit {
+    font-size: 2rem;
+    text-align: center;
+}
+
+.card-suit.red {
+    color: #e74c3c;
+}
+
+.card-suit.black {
+    color: #2c3e50;
+}
+
+.card-back {
+    width: 80px;
+    height: 120px;
+    background-color: #3498db;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-weight: bold;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Modifique no game.css */
+.deck-area {
+  display: flex;
+  gap: 2rem;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.discard-pile {
+    text-align: center;
+}
+
+#discard-count, #deck-count {
+    display: block;
+    margin-top: 0.5rem;
+    font-weight: bold;
+}
+
+.dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    z-index: 100;
+    max-width: 90%;
+    width: 500px;
+}
+
+.dialog h3 {
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.special-move-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.piece-move {
+    display: grid;
+    grid-template-columns: auto 1fr auto 1fr;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.total-steps {
+    text-align: right;
+    font-weight: bold;
+    margin-top: 1rem;
+}
+
+#joker-positions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.position-option {
+    padding: 0.5rem;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+}
+
+.position-option:hover {
+    background-color: #e1f0fa;
+}
+
+#game-over {
+    text-align: center;
+}
+
+#winners {
+    margin: 2rem 0;
+    font-size: 1.2rem;
+}
+
+@media (max-width: 768px) {
+    .game-info {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .turn-info {
+        text-align: left;
+    }
+    
+    #board {
+        max-height: 60vh;
+        max-width: 60vh;
+    }
+    
+    .card {
+        width: 60px;
+        height: 90px;
+    }
+    
+    .card-back {
+        width: 60px;
+        height: 90px;
+    }
+}
+
+/* Adicione ao game.css */
+.piece.my-piece {
+  box-shadow: 0 0 10px 3px gold;
+  border: 2px solid gold;
+}
+
+.piece-indicator {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+.card.discard-only {
+  border: 2px dashed #e74c3c;
+}
+.card.discard-only:hover {
+  background-color: #fadbd8;
+}
+/* Adicione ao arquivo game.css */
+.joker-mode .piece {
+  cursor: pointer;
+}
+
+.joker-target:hover {
+  box-shadow: 0 0 10px 3px gold;
+}
+
+.card.discard-only {
+  border: 2px dashed #e74c3c;
+}
+
+.card.discard-only:hover {
+  background-color: #fadbd8;
+}
+
+.piece-text {
+  display: inline-block;
+  transform: none !important; /* Impede qualquer rotação do texto */
+}

@@ -1,0 +1,662 @@
+// file: server/server.js
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+const { nanoid } = require('nanoid');
+const { Game } = require('./game');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+// Servir arquivos estáticos
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Armazenar salas e jogos ativos
+const rooms = new Map();
+
+io.on('connection', (socket) => {
+  console.log('Novo usuário conectado:', socket.id);
+
+  // Criar nova sala
+  socket.on('createRoom', (playerName) => {
+    const roomId = nanoid(6);
+    const game = new Game(roomId);
+    
+    rooms.set(roomId, game);
+    
+    // Adicionar o criador como primeiro jogador
+    game.addPlayer(socket.id, playerName);
+    
+    // Entrar na sala Socket.io
+    socket.join(roomId);
+    
+    // Enviar ID da sala para o cliente
+    socket.emit('roomCreated', { roomId, playerId: socket.id });
+    
+    // Atualizar lista de jogadores para todos na sala
+    io.to(roomId).emit('updatePlayers', game.getPlayersInfo());
+    
+    console.log(`Sala ${roomId} criada por ${playerName}`);
+  });
+
+  // Entrar em uma sala existente
+// No arquivo server.js - Substitua todo o evento joinRoom por este código
+socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => {
+  console.log(`Tentando entrar na sala ${roomId} com o nome ${playerName} (posição original: ${originalPosition})`);
+  const game = rooms.get(roomId);
+  
+  if (!game) {
+    console.log(`ERRO: Sala ${roomId} não encontrada`);
+    socket.emit('error', 'Sala não encontrada');
+    return;
+  }
+  
+  console.log(`Sala ${roomId} encontrada, jogadores atuais: ${game.players.length}`);
+  
+  // Se temos uma posição original, usá-la para encontrar o jogador
+  if (originalPosition !== undefined && originalPosition !== null) {
+    const position = parseInt(originalPosition);
+    
+    if (position >= 0 && position < game.players.length) {
+      const player = game.players[position];
+      
+      if (player && player.name === playerName) {
+        console.log(`Reconexão do jogador ${playerName} na posição ${position}`);
+        
+        // Atualizar o ID do socket
+        player.id = socket.id;
+        
+        // Entrar na sala Socket.io
+        socket.join(roomId);
+        
+        // Enviar ID da sala e posição para o cliente
+        socket.emit('roomJoined', { 
+          roomId, 
+          playerId: socket.id,
+          playerName: playerName,
+          playerPosition: position,
+          isReconnection: true
+        });
+        
+        // Enviar estado atual do jogo
+        socket.emit('gameStateUpdate', game.getGameState());
+        
+        // Enviar informações específicas do jogador
+        socket.emit('playerInfo', {
+          playerPosition: position,
+          cards: game.players[position].cards
+        });
+        
+        // Se for a vez deste jogador, notificar
+        if (game.currentPlayerIndex === position) {
+          socket.emit('yourTurn', {
+            cards: game.players[position].cards
+          });
+        }
+        
+        console.log(`Jogador ${playerName} reconectado com sucesso na posição ${position}`);
+        return;
+      }
+    }
+  }
+  
+  // Se não encontrou pela posição, tentar pelo nome
+  const existingPlayerIndex = game.players.findIndex(p => p.name === playerName);
+  
+  if (existingPlayerIndex !== -1) {
+    console.log(`Reconexão do jogador ${playerName} na sala ${roomId}`);
+    
+    // Atualizar o ID do socket para o jogador existente
+    const oldId = game.players[existingPlayerIndex].id;
+    game.players[existingPlayerIndex].id = socket.id;
+    
+    // Entrar na sala Socket.io
+    socket.join(roomId);
+    
+    // Enviar ID da sala para o cliente
+    socket.emit('roomJoined', { 
+      roomId, 
+      playerId: socket.id,
+      playerName: playerName,
+      playerPosition: existingPlayerIndex,
+      isReconnection: true
+    });
+    
+    // Enviar estado atual do jogo
+    socket.emit('gameStateUpdate', game.getGameState());
+    
+    // Enviar informações específicas do jogador
+    socket.emit('playerInfo', {
+      playerPosition: existingPlayerIndex,
+      cards: game.players[existingPlayerIndex].cards
+    });
+    
+    // Se for a vez deste jogador, notificar
+    if (game.currentPlayerIndex === existingPlayerIndex) {
+      socket.emit('yourTurn', {
+        cards: game.players[existingPlayerIndex].cards
+      });
+    }
+    
+    console.log(`Jogador ${playerName} reconectado com sucesso`);
+    return;
+  }
+  
+  // Se não for reconexão e a sala estiver cheia, rejeitar
+  if (game.players.length >= 4) {
+    console.log(`ERRO: Sala ${roomId} já está cheia`);
+    socket.emit('error', 'Sala cheia');
+    return;
+  }
+  
+  // Adicionar jogador ao jogo
+  console.log(`Tentando adicionar jogador ${playerName} (${socket.id}) à sala ${roomId}`);
+  const added = game.addPlayer(socket.id, playerName);
+  
+  if (!added) {
+    console.log(`ERRO: Não foi possível adicionar o jogador ${playerName} à sala ${roomId}`);
+    socket.emit('error', 'Não foi possível entrar na sala');
+    return;
+  }
+  
+  // Entrar na sala Socket.io
+  socket.join(roomId);
+  console.log(`Socket ${socket.id} entrou na sala Socket.io ${roomId}`);
+  
+  // Enviar ID da sala para o cliente
+  socket.emit('roomJoined', { 
+    roomId, 
+    playerId: socket.id,
+    playerName: playerName,
+    playerPosition: game.players.length - 1
+  });
+  console.log(`Enviado evento 'roomJoined' para ${socket.id}`);
+  
+  // Atualizar lista de jogadores para todos na sala
+  io.to(roomId).emit('updatePlayers', game.getPlayersInfo());
+  console.log(`Lista de jogadores atualizada para sala ${roomId}. Total: ${game.players.length}`);
+  
+  console.log(`${playerName} entrou na sala ${roomId}`);
+  
+  // Se a sala estiver completa, iniciar o jogo
+  if (game.players.length === 4) {
+    console.log(`Sala ${roomId} completa com 4 jogadores, iniciando jogo`);
+    
+    try {
+      game.setupTeams();
+      console.log(`Times configurados para sala ${roomId}`);
+      
+      game.startGame();
+      console.log(`Jogo iniciado para sala ${roomId}`);
+      
+      // Enviar estado inicial do jogo para todos
+      const gameState = game.getGameState();
+      console.log(`Estado do jogo gerado para sala ${roomId}`);
+      
+      io.to(roomId).emit('gameStarted', gameState);
+      console.log(`Evento 'gameStarted' enviado para sala ${roomId}`);
+      
+      // Notificar o primeiro jogador que é sua vez
+      const currentPlayer = game.getCurrentPlayer();
+      console.log(`Jogador atual: ${currentPlayer ? currentPlayer.name : 'nenhum'}`);
+      
+      if (currentPlayer && currentPlayer.id) {
+        // Comprar uma carta para o jogador atual (primeira rodada)
+        currentPlayer.cards.push(game.drawCard());
+        console.log(`Enviando cartas para ${currentPlayer.name}:`, JSON.stringify(currentPlayer.cards));
+        
+        io.to(currentPlayer.id).emit('yourTurn', {
+          cards: currentPlayer.cards
+        });
+        console.log(`Notificação 'yourTurn' enviada para jogador ${currentPlayer.id}`);
+      } else {
+        console.log(`ERRO: Não foi possível determinar o jogador atual`);
+      }
+    } catch (error) {
+      console.error(`ERRO ao iniciar o jogo: ${error.message}`);
+      console.error(error.stack);
+    }
+  }
+});
+
+
+socket.on('discardCard', ({ roomId, cardIndex }) => {
+  console.log(`Jogador ${socket.id} descartando carta ${cardIndex}`);
+  const game = rooms.get(roomId);
+  
+  if (!game || !game.isActive) {
+    socket.emit('error', 'Jogo não está ativo');
+    return;
+  }
+  
+  const currentPlayer = game.getCurrentPlayer();
+  if (!currentPlayer) {
+    socket.emit('error', 'Jogador atual não encontrado');
+    return;
+  }
+  
+  if (currentPlayer.id !== socket.id) {
+    socket.emit('error', 'Não é sua vez');
+    return;
+  }
+  
+  if (cardIndex < 0 || cardIndex >= currentPlayer.cards.length) {
+    socket.emit('error', 'Índice de carta inválido');
+    return;
+  }
+  
+  const card = currentPlayer.cards[cardIndex];
+  console.log(`Jogador ${currentPlayer.name} descartando carta ${card.suit}${card.value}`);
+  
+  try {
+    // Verificar se todas as peças estão no castigo
+    const playerPieces = game.pieces.filter(p => p.playerId === currentPlayer.position);
+    const allInPenalty = playerPieces.every(p => p.inPenaltyZone);
+    
+    // Se todas as peças estão no castigo e a carta é K, Q ou J, permitir sair do castigo
+    if (allInPenalty && ['K', 'Q', 'J'].includes(card.value)) {
+      // Encontrar a primeira peça no castigo
+      const firstPenaltyPiece = playerPieces.find(p => p.inPenaltyZone);
+      if (firstPenaltyPiece) {
+        // Tentar sair do castigo com esta peça
+        const result = game.leavePenaltyZone(firstPenaltyPiece);
+        console.log(`Peça ${firstPenaltyPiece.id} saiu do castigo:`, result);
+      }
+    }
+    
+    // Descartar a carta
+    game.discardPile.push(card);
+    currentPlayer.cards.splice(cardIndex, 1);
+    
+    // Atualizar estado do jogo para todos
+    io.to(roomId).emit('gameStateUpdate', game.getGameState());
+    
+    // Enviar cartas atualizadas para o jogador
+    socket.emit('updateCards', {
+      cards: currentPlayer.cards
+    });
+    
+    // Passar para o próximo jogador
+    game.nextTurn();
+    
+    // Notificar próximo jogador
+    const nextPlayer = game.getCurrentPlayer();
+    
+    // Comprar uma carta para o próximo jogador
+    nextPlayer.cards.push(game.drawCard());
+    
+    io.to(nextPlayer.id).emit('yourTurn', {
+      cards: nextPlayer.cards
+    });
+  } catch (error) {
+    console.error(`Erro ao descartar carta:`, error);
+    socket.emit('error', error.message);
+  }
+});
+
+
+  // Solicitar estado do jogo (para reconexão)
+// No evento 'requestGameState' no server.js
+
+// No arquivo server.js - Modifique o evento requestGameState
+// Adicione este evento logo após o evento joinRoom
+socket.on('requestGameState', ({ roomId, playerName }) => {
+  console.log(`Jogador ${socket.id} solicitou estado do jogo para sala ${roomId} como ${playerName}`);
+  const game = rooms.get(roomId);
+  
+  if (!game) {
+    console.log(`ERRO: Sala ${roomId} não encontrada`);
+    socket.emit('error', 'Sala não encontrada');
+    return;
+  }
+  
+  // Encontrar o jogador pelo nome
+  const playerIndex = game.players.findIndex(p => p.name === playerName);
+  
+  if (playerIndex !== -1) {
+    // Atualizar o ID do socket para o jogador
+    const oldId = game.players[playerIndex].id;
+    game.players[playerIndex].id = socket.id;
+    
+    console.log(`Jogador ${playerName} (posição ${playerIndex}) reconectado`);
+    
+    // Enviar estado do jogo
+    socket.emit('gameStateUpdate', game.getGameState());
+    
+    // Enviar informações específicas do jogador
+    socket.emit('playerInfo', {
+      playerPosition: playerIndex,
+      cards: game.players[playerIndex].cards
+    });
+    
+    // Se for a vez deste jogador, notificar
+    if (game.currentPlayerIndex === playerIndex) {
+      socket.emit('yourTurn', {
+        cards: game.players[playerIndex].cards
+      });
+    }
+  } else {
+    console.log(`ERRO: Jogador ${playerName} não encontrado na sala ${roomId}`);
+    socket.emit('error', 'Jogador não encontrado na sala');
+  }
+});
+
+socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
+  console.log(`Jogador ${socket.id} tentando mover peça ${pieceId} para posição da peça ${targetPieceId} com Joker`);
+  const game = rooms.get(roomId);
+  
+  if (!game || !game.isActive) {
+    socket.emit('error', 'Jogo não está ativo');
+    return;
+  }
+  
+  const currentPlayer = game.getCurrentPlayer();
+  if (!currentPlayer) {
+    socket.emit('error', 'Jogador atual não encontrado');
+    return;
+  }
+  
+  if (currentPlayer.id !== socket.id) {
+    socket.emit('error', 'Não é sua vez');
+    return;
+  }
+  
+  try {
+    // Verificar se a carta é um Joker
+    const card = currentPlayer.cards[cardIndex];
+    if (card.value !== 'JOKER') {
+      socket.emit('error', 'Esta não é uma carta Joker');
+      return;
+    }
+    
+    // Obter as peças
+    const piece = game.pieces.find(p => p.id === pieceId);
+    const targetPiece = game.pieces.find(p => p.id === targetPieceId);
+    
+    if (!piece || !targetPiece) {
+      socket.emit('error', 'Peça não encontrada');
+      return;
+    }
+    
+    // Verificar se a peça pertence ao jogador atual
+    if (piece.playerId !== currentPlayer.position) {
+      socket.emit('error', 'Esta peça não pertence a você');
+      return;
+    }
+    
+    // Mover a peça para a posição da peça alvo
+    const oldPosition = {...piece.position};
+    piece.position = {...targetPiece.position};
+    
+    // Verificar capturas
+    const captureResult = game.checkCapture(piece, oldPosition);
+    
+    // Descartar a carta Joker
+    game.discardPile.push(card);
+    currentPlayer.cards.splice(cardIndex, 1);
+    
+    // Atualizar estado do jogo para todos
+    io.to(roomId).emit('gameStateUpdate', game.getGameState());
+    
+    // Enviar cartas atualizadas para o jogador
+    socket.emit('updateCards', {
+      cards: currentPlayer.cards
+    });
+    
+    // Passar para o próximo jogador
+    game.nextTurn();
+    
+    // Notificar próximo jogador
+    const nextPlayer = game.getCurrentPlayer();
+    
+    // Comprar uma carta para o próximo jogador
+    nextPlayer.cards.push(game.drawCard());
+    
+    io.to(nextPlayer.id).emit('yourTurn', {
+      cards: nextPlayer.cards
+    });
+    
+  } catch (error) {
+    console.error(`Erro ao processar movimento Joker:`, error);
+    socket.emit('error', error.message);
+  }
+});
+
+
+  // Definir times
+  socket.on('setTeams', ({ roomId, teams }) => {
+    const game = rooms.get(roomId);
+    
+    if (!game || game.players.length !== 4) {
+      socket.emit('error', 'Não é possível definir times agora');
+      return;
+    }
+    
+    game.setCustomTeams(teams);
+    io.to(roomId).emit('teamsSet', game.getTeamsInfo());
+  });
+
+  // Jogador seleciona peça e carta
+// No arquivo server.js - Modifique o evento makeMove
+socket.on('makeMove', ({ roomId, pieceId, cardIndex }) => {
+  console.log(`Jogador ${socket.id} tentando mover peça ${pieceId} com carta ${cardIndex}`);
+  const game = rooms.get(roomId);
+
+  if (!game || !game.isActive) {
+    socket.emit('error', 'Jogo não está ativo');
+    return;
+  }
+
+  const currentPlayer = game.getCurrentPlayer();
+  if (!currentPlayer) {
+    socket.emit('error', 'Jogador atual não encontrado');
+    return;
+  }
+
+  if (currentPlayer.id !== socket.id) {
+    socket.emit('error', 'Não é sua vez');
+    return;
+  }
+
+  console.log(`Jogador atual: ${currentPlayer.name}, cartas:`, currentPlayer.cards);
+
+  if (!currentPlayer.cards || cardIndex >= currentPlayer.cards.length) {
+    socket.emit('error', 'Índice de carta inválido');
+    return;
+  }
+
+  try {
+    const moveResult = game.makeMove(pieceId, cardIndex);
+    console.log(`Movimento realizado:`, moveResult);
+    
+    // Adicionar log detalhado da posição da peça após o movimento
+    const movedPiece = game.pieces.find(p => p.id === pieceId);
+    console.log(`Nova posição da peça ${pieceId}: (${movedPiece.position.row}, ${movedPiece.position.col})`);
+
+    // Atualizar estado do jogo para todos
+    const updatedState = game.getGameState();
+    io.to(roomId).emit('gameStateUpdate', updatedState);
+
+    // Enviar cartas atualizadas para o jogador que fez o movimento
+    socket.emit('updateCards', {
+      cards: currentPlayer.cards
+    });
+
+    // Verificar se o jogo acabou
+    if (game.checkWinCondition()) {
+      io.to(roomId).emit('gameOver', {
+        winners: game.getWinningTeam()
+      });
+      return;
+    }
+
+    // Notificar próximo jogador
+    const nextPlayer = game.getCurrentPlayer();
+
+    // Comprar uma carta para o próximo jogador
+    nextPlayer.cards.push(game.drawCard());
+
+    io.to(nextPlayer.id).emit('yourTurn', {
+      cards: nextPlayer.cards
+    });
+
+  } catch (error) {
+    console.error(`Erro ao processar movimento:`, error);
+    socket.emit('error', error.message);
+  }
+});
+
+// No arquivo server.js - Adicione este evento
+socket.on('discardCard', ({ roomId, cardIndex }) => {
+  console.log(`Jogador ${socket.id} descartando carta ${cardIndex}`);
+  const game = rooms.get(roomId);
+  
+  if (!game || !game.isActive) {
+    socket.emit('error', 'Jogo não está ativo');
+    return;
+  }
+  
+  const currentPlayer = game.getCurrentPlayer();
+  if (!currentPlayer) {
+    socket.emit('error', 'Jogador atual não encontrado');
+    return;
+  }
+  
+  if (currentPlayer.id !== socket.id) {
+    socket.emit('error', 'Não é sua vez');
+    return;
+  }
+  
+  if (cardIndex < 0 || cardIndex >= currentPlayer.cards.length) {
+    socket.emit('error', 'Índice de carta inválido');
+    return;
+  }
+  
+  const card = currentPlayer.cards[cardIndex];
+  console.log(`Jogador ${currentPlayer.name} descartando carta ${card.suit}${card.value}`);
+  
+  // Descartar a carta
+  game.discardPile.push(card);
+  currentPlayer.cards.splice(cardIndex, 1);
+  
+  // Atualizar estado do jogo para todos
+  io.to(roomId).emit('gameStateUpdate', game.getGameState());
+  
+  // Enviar cartas atualizadas para o jogador
+  socket.emit('updateCards', {
+    cards: currentPlayer.cards
+  });
+  
+  // Passar para o próximo jogador
+  game.nextTurn();
+  
+  // Notificar próximo jogador
+  const nextPlayer = game.getCurrentPlayer();
+  
+  // Comprar uma carta para o próximo jogador
+  nextPlayer.cards.push(game.drawCard());
+  
+  io.to(nextPlayer.id).emit('yourTurn', {
+    cards: nextPlayer.cards
+  });
+});
+
+
+
+  // Movimento especial para carta 7
+  socket.on('makeSpecialMove', ({ roomId, moves }) => {
+    const game = rooms.get(roomId);
+    
+    if (!game || !game.isActive) {
+      socket.emit('error', 'Jogo não está ativo');
+      return;
+    }
+    
+    if (game.getCurrentPlayer().id !== socket.id) {
+      socket.emit('error', 'Não é sua vez');
+      return;
+    }
+    
+    try {
+      const moveResult = game.makeSpecialMove(moves);
+      
+      // Atualizar estado do jogo para todos
+      io.to(roomId).emit('gameStateUpdate', game.getGameState());
+      
+      // Verificar se o jogo acabou
+      if (game.checkWinCondition()) {
+        io.to(roomId).emit('gameOver', {
+          winners: game.getWinningTeam()
+        });
+        return;
+      }
+      
+      // Notificar próximo jogador
+      const nextPlayer = game.getCurrentPlayer();
+      
+      // Comprar uma carta para o próximo jogador
+      nextPlayer.cards.push(game.drawCard());
+      
+      io.to(nextPlayer.id).emit('yourTurn', {
+        cards: nextPlayer.cards
+      });
+      
+    } catch (error) {
+      socket.emit('error', error.message);
+    }
+  });
+
+  // Desconexão
+  socket.on('disconnect', () => {
+    console.log('Usuário desconectado:', socket.id);
+    
+    // Encontrar e marcar o jogador como desconectado em qualquer sala
+    for (const [roomId, game] of rooms.entries()) {
+      const playerIndex = game.players.findIndex(p => p.id === socket.id);
+      
+      if (playerIndex !== -1) {
+        const playerName = game.players[playerIndex].name;
+        console.log(`${playerName} saiu da sala ${roomId}`);
+        
+        // Se o jogo já começou, não remover a sala imediatamente
+        // Apenas marcar o jogador como desconectado temporariamente
+        if (game.isActive) {
+          game.players[playerIndex].disconnected = true;
+          game.players[playerIndex].disconnectTime = Date.now();
+          
+          // Verificar se todos os jogadores estão desconectados
+          const allDisconnected = game.players.every(p => p.disconnected);
+          
+          if (allDisconnected) {
+            // Definir um timer para remover a sala após 2 minutos se ninguém reconectar
+            game.cleanupTimer = setTimeout(() => {
+              console.log(`Todos os jogadores desconectados da sala ${roomId}. Removendo sala.`);
+              rooms.delete(roomId);
+            }, 120000); // 2 minutos
+          }
+          
+          // Não remover o jogador da sala ainda
+          return;
+        } else {
+          // Se o jogo não começou, apenas remover o jogador
+          game.removePlayer(socket.id);
+          io.to(roomId).emit('updatePlayers', game.getPlayersInfo());
+          
+          // Se não sobrou ninguém, remover a sala
+          if (game.players.length === 0) {
+            rooms.delete(roomId);
+          }
+        }
+        break;
+      }
+    }
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
+

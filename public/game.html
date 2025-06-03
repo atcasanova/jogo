@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo de Tabuleiro Online</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-info">
+            <div class="room-info">
+                <h2>Sala: <span id="room-code"></span></h2>
+                <div class="teams-info">
+                    <div class="team team1">
+                        <h3>Equipe 1</h3>
+                        <div id="team1-players"></div>
+                    </div>
+                    <div class="team team2">
+                        <h3>Equipe 2</h3>
+                        <div id="team2-players"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="turn-info">
+                <h3>Turno: <span id="current-player"></span></h3>
+                <div id="turn-message"></div>
+            </div>
+        </div>
+        
+        <div class="board-container">
+            <div id="board"></div>
+            
+            <div class="deck-area">
+                <div class="deck">
+                    <div class="card-back">
+                        <span id="deck-count">0</span>
+                    </div>
+                </div>
+                <div class="discard-pile">
+                    <div id="top-discard" class="card"></div>
+                    <span id="discard-count">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="player-hand">
+            <h3>Suas Cartas</h3>
+            <div id="cards-container"></div>
+        </div>
+        
+        <div id="special-move-dialog" class="dialog hidden">
+            <h3>Distribuir 7 movimentos</h3>
+            <div class="special-move-form">
+                <div class="piece-move">
+                    <label for="piece1">Peça 1:</label>
+                    <select id="piece1"></select>
+                    <label for="steps1">Passos:</label>
+                    <input type="number" id="steps1" min="0" max="7" value="0">
+                </div>
+                <div class="piece-move">
+                    <label for="piece2">Peça 2:</label>
+                    <select id="piece2"></select>
+                    <label for="steps2">Passos:</label>
+                    <input type="number" id="steps2" min="0" max="7" value="0">
+                </div>
+                <div class="total-steps">
+                    Total: <span id="total-steps">0</span>/7
+                </div>
+                <div class="button-group">
+                    <button id="confirm-special-move" class="btn primary">Confirmar</button>
+                    <button id="cancel-special-move" class="btn secondary">Cancelar</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="joker-dialog" class="dialog hidden">
+            <h3>Escolha uma posição ocupada</h3>
+            <div id="joker-positions"></div>
+            <div class="button-group">
+                <button id="cancel-joker-move" class="btn secondary">Cancelar</button>
+            </div>
+        </div>
+        
+        <div id="game-over" class="dialog hidden">
+            <h2>Fim de Jogo!</h2>
+            <div id="winners"></div>
+            <button id="new-game-btn" class="btn primary">Novo Jogo</button>
+        </div>
+    </div>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
+
