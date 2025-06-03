@@ -783,32 +783,53 @@ discardCard(cardIndex) {
     ];
     
     const homeStretch = homeStretches[piece.playerId];
-    
-    // Encontrar primeira casa disponível
+
+    // Tentar posicionar a peça no início do corredor de chegada
     for (let i = 0; i < homeStretch.length; i++) {
       const pos = homeStretch[i];
-      
-      // Verificar se a casa está ocupada
-      const occupyingPiece = this.pieces.find(p => 
-        p.id !== piece.id && 
-        p.position.row === pos.row && 
+
+      const occupyingPiece = this.pieces.find(p =>
+        p.id !== piece.id &&
+        p.position.row === pos.row &&
         p.position.col === pos.col
       );
-      
+
       if (!occupyingPiece) {
-        // Casa disponível
         piece.position = pos;
         piece.inHomeStretch = true;
-        
-        // Se for a última casa, marcar como completa
         if (i === homeStretch.length - 1) {
           piece.completed = true;
         }
-        
         return { position: pos, completed: piece.completed };
       }
+
+      // Casa ocupada - aplicar regra de captura
+      const captures = [];
+      const isPartner = this.isPartner(piece.playerId, occupyingPiece.playerId);
+
+      if (isPartner) {
+        const result = this.handlePartnerCapture(occupyingPiece);
+        captures.push({
+          pieceId: occupyingPiece.id,
+          action: 'partnerCapture',
+          result
+        });
+      } else {
+        this.sendToPenaltyZone(occupyingPiece);
+        captures.push({
+          pieceId: occupyingPiece.id,
+          action: 'opponentCapture'
+        });
+      }
+
+      piece.position = pos;
+      piece.inHomeStretch = true;
+      if (i === homeStretch.length - 1) {
+        piece.completed = true;
+      }
+      return { position: pos, completed: piece.completed, captures };
     }
-    
+
     // Se não encontrou casa disponível, mandar para zona de castigo
     this.sendToPenaltyZone(piece);
     return { penaltyZone: true };
