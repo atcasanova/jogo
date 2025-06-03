@@ -47,9 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inicializar o jogo
    // No arquivo game.js - Modifique a função init
 function init() {
-  // Obter roomId da URL
+  // Obter roomId e playerId da URL
   const urlParams = new URLSearchParams(window.location.search);
   roomId = urlParams.get('roomId');
+  playerId = urlParams.get('playerId');
   
   if (!roomId) {
     alert('Sala não especificada');
@@ -58,7 +59,7 @@ function init() {
   }
   
   // Recuperar dados do jogador do localStorage
-  const playerKey = `game_${roomId}_player`;
+  const playerKey = `game_${roomId}_player_${playerId}`;
   const playerDataString = localStorage.getItem(playerKey);
   
   if (!playerDataString) {
@@ -131,7 +132,7 @@ function handleRoomJoined(data) {
     console.log('Posição do jogador atualizada para:', playerPosition);
     
     // Atualizar o localStorage com a posição atualizada
-    const playerKey = `game_${roomId}_player`;
+    const playerKey = `game_${roomId}_player_${playerId}`;
     const playerDataString = localStorage.getItem(playerKey);
     
     if (playerDataString) {
@@ -148,7 +149,7 @@ function handleRoomJoined(data) {
   // Se for uma reconexão, solicitar o estado atual do jogo
   if (data.isReconnection) {
     console.log('Reconectado à sala, solicitando estado do jogo');
-    const playerKey = `game_${roomId}_player`;
+    const playerKey = `game_${roomId}_player_${playerId}`;
     let storedName = null;
     const stored = localStorage.getItem(playerKey);
     if (stored) {
@@ -172,7 +173,7 @@ function handlePlayerInfo(data) {
 
   if (data.playerPosition !== undefined) {
     playerPosition = data.playerPosition;
-    const playerKey = `game_${roomId}_player`;
+    const playerKey = `game_${roomId}_player_${playerId}`;
     const playerDataString = localStorage.getItem(playerKey);
     if (playerDataString) {
       try {
