@@ -43,6 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let isMyTurn = false;
     let specialMoveCard = null;
     let jokerTargets = null;
+
+    function showStatusMessage(message, type = 'info') {
+      turnMessage.textContent = message;
+      turnMessage.className = '';
+      turnMessage.classList.add(type);
+    }
     
     // Inicializar o jogo
    // No arquivo game.js - Modifique a função init
@@ -119,6 +125,7 @@ function initSocketWithPlayerData(playerData) {
   socket.on('gameOver', handleGameOver);
   socket.on('gameAborted', handleGameAborted);
   socket.on('updateCards', handleUpdateCards);
+  socket.on('choosePosition', handleChoosePosition);
   socket.on('homeEntryChoice', handleHomeEntryChoice);
   socket.on('error', handleError);
 }
@@ -193,51 +200,14 @@ function handlePlayerInfo(data) {
     updateCards(data.cards);
   }
 
-  // Atualizar o indicador de jogador
-  updatePlayerIndicator();
-}
-
-// Adicione esta função para atualizar o indicador de jogador
-function updatePlayerIndicator() {
-  // Remover indicador existente
-  const existingIndicator = document.querySelector('.player-info-fixed');
-  if (existingIndicator) {
-    existingIndicator.remove();
-  }
-
-  // Criar novo indicador
-  const playerInfoDiv = document.createElement('div');
-  playerInfoDiv.className = 'player-info-fixed';
-  playerInfoDiv.style.position = 'fixed';
-  playerInfoDiv.style.top = '70px';
-  playerInfoDiv.style.left = '10px';
-  playerInfoDiv.style.backgroundColor = 'white';
-  playerInfoDiv.style.padding = '10px';
-  playerInfoDiv.style.border = '1px solid black';
-  playerInfoDiv.style.zIndex = '1000';
-
-  // Determinar a cor do jogador
-  const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
-  const colorNames = ['Azul', 'Vermelho', 'Verde', 'Laranja'];
-
-  if (playerPosition === undefined || playerPosition < 0 || playerPosition > 3) {
-    console.error('Posição do jogador inválida:', playerPosition);
-    return;
-  }
-
-  playerInfoDiv.innerHTML = `
-    <div>Você é o jogador ${playerPosition + 1} (${colorNames[playerPosition]})</div>
-    <div style="width: 20px; height: 20px; background-color: ${colors[playerPosition]}; display: inline-block; margin-right: 5px;"></div>
-    <span>Suas peças</span>
-  `;
-
-  document.body.appendChild(playerInfoDiv);
 }
 
     // Manipuladores de eventos do socket
     function handleGameStateUpdate(state) {
         console.log('Estado do jogo recebido:', state);
         gameState = state;
+
+        clearJokerMode();
         
         // Encontrar a posição do jogador
         const player = gameState.players.find(p => p.id === playerId);
@@ -265,6 +235,30 @@ function handleUpdateCards(data) {
   }
 }
 
+function handleChoosePosition(data) {
+  showStatusMessage('Escolha qual peça deseja capturar', 'info');
+
+  jokerTargets = {
+    pieceId: data.pieceId,
+    cardIndex: data.cardIndex,
+    valid: data.validPositions.map(p => p.id)
+  };
+
+  board.classList.add('joker-mode');
+  data.validPositions.forEach(p => {
+    const el = document.querySelector(`.piece[data-id="${p.id}"]`);
+    if (el) {
+      el.classList.add('joker-target');
+    }
+  });
+}
+
+function clearJokerMode() {
+  board.classList.remove('joker-mode');
+  document.querySelectorAll('.joker-target').forEach(el => el.classList.remove('joker-target'));
+  jokerTargets = null;
+}
+
 function handleHomeEntryChoice(data) {
   const choice = confirm('Sua peça pode entrar na zona de vitória. Deseja entrar?');
   socket.emit('confirmHomeEntry', {
@@ -281,6 +275,7 @@ function handleHomeEntryChoice(data) {
 function handleYourTurn(data) {
   console.log('É sua vez de jogar!', data);
   isMyTurn = true;
+  showStatusMessage('É sua vez de jogar!', 'turn');
   
   // Atualizar cartas na mão
   if (data && data.cards) {
@@ -307,8 +302,7 @@ function checkIfStuckInPenalty(cards) {
   
   if (allInPenalty && !hasExitCard) {
     // Jogador está preso no castigo sem cartas para sair
-    turnMessage.textContent = 'Você não tem K, Q ou J para sair do castigo. Selecione uma carta para descartar.';
-    turnMessage.style.color = '#e74c3c';
+    showStatusMessage('Você não tem K, Q ou J para sair do castigo. Selecione uma carta para descartar.', 'error');
     
     // Adicionar classe visual para indicar que as cartas são apenas para descarte
     const cardElements = document.querySelectorAll('.card');
@@ -316,10 +310,9 @@ function checkIfStuckInPenalty(cards) {
       card.classList.add('discard-only');
     });
   } else {
-    turnMessage.textContent = 'É sua vez de jogar!';
-    turnMessage.style.color = '#2ecc71';
+    showStatusMessage('É sua vez de jogar!', 'turn');
   }
-}   
+}
 
     function handleGameOver(data) {
         isMyTurn = false;
@@ -331,12 +324,12 @@ function checkIfStuckInPenalty(cards) {
     }
     
     function handleGameAborted(data) {
-        alert(data.message);
+        showStatusMessage(data.message, 'error');
         window.location.href = '/';
     }
     
     function handleError(message) {
-        alert(`Erro: ${message}`);
+        showStatusMessage(`Erro: ${message}`, 'error');
     }
     
     // Funções de atualização da interface
@@ -362,6 +355,8 @@ function checkIfStuckInPenalty(cards) {
    // Modifique a função updateBoard para incluir o indicador de peças
 function updateBoard() {
   if (!gameState) return;
+
+  clearJokerMode();
   
   // Limpar tabuleiro
   const cells = board.querySelectorAll('.cell');
@@ -375,39 +370,6 @@ function updateBoard() {
     }
   });
   
-  // Adicionar indicador de peças do jogador
-  const playerInfoDiv = document.createElement('div');
-  playerInfoDiv.style.position = 'fixed';
-  playerInfoDiv.style.top = '70px';
-  playerInfoDiv.style.left = '10px';
-  playerInfoDiv.style.backgroundColor = 'white';
-  playerInfoDiv.style.padding = '10px';
-  playerInfoDiv.style.border = '1px solid black';
-  playerInfoDiv.style.zIndex = '1000';
-  
-  // Determinar a cor do jogador
-  let playerColor = '';
-  switch(playerPosition) {
-    case 0: playerColor = '#3498db'; break; // Azul
-    case 1: playerColor = '#e74c3c'; break; // Vermelho
-    case 2: playerColor = '#2ecc71'; break; // Verde
-    case 3: playerColor = '#f39c12'; break; // Laranja
-  }
-  
-  playerInfoDiv.innerHTML = `
-    <div>Você é o jogador ${playerPosition + 1} (${['Azul', 'Vermelho', 'Verde', 'Laranja'][playerPosition]})</div>
-    <div style="width: 20px; height: 20px; background-color: ${playerColor}; display: inline-block; margin-right: 5px;"></div>
-    <span>Suas peças</span>
-  `;
-  
-  // Remover indicador existente
-  const existingInfo = document.querySelector('.player-info-fixed');
-  if (existingInfo) {
-    existingInfo.remove();
-  }
-  
-  playerInfoDiv.className = 'player-info-fixed';
-  document.body.appendChild(playerInfoDiv);
   
   // Aplicar rotação com base na posição do jogador
   rotateBoard();
@@ -527,36 +489,6 @@ function rotateBoard() {
   
   console.log(`Posicionando ${gameState.pieces.length} peças`);
   
-  // Remover indicador existente se houver
-  const existingIndicator = document.querySelector('.player-info');
-  if (existingIndicator) {
-    existingIndicator.remove();
-  }
-  
-  // Adicionar uma indicação visual de quais peças são do jogador
-  const playerInfoDiv = document.createElement('div');
-  playerInfoDiv.className = 'player-info';
-  playerInfoDiv.style.position = 'absolute';
-  playerInfoDiv.style.top = '10px';
-  playerInfoDiv.style.left = '10px';
-  playerInfoDiv.style.backgroundColor = 'rgba(255,255,255,0.8)';
-  playerInfoDiv.style.padding = '5px';
-  playerInfoDiv.style.borderRadius = '5px';
-  playerInfoDiv.style.zIndex = '20';
-  
-  const colorIndicator = document.createElement('span');
-  colorIndicator.className = `piece-indicator player${playerPosition}`;
-  colorIndicator.style.width = '20px';
-  colorIndicator.style.height = '20px';
-  colorIndicator.style.display = 'inline-block';
-  colorIndicator.style.borderRadius = '50%';
-  colorIndicator.style.marginLeft = '5px';
-  
-  playerInfoDiv.innerHTML = `<p>Suas peças são: `;
-  playerInfoDiv.appendChild(colorIndicator);
-  playerInfoDiv.innerHTML += `</p>`;
-  
-  document.querySelector('.board-container').appendChild(playerInfoDiv);
   
   gameState.pieces.forEach(piece => {
     console.log(`Posicionando peça ${piece.id} em (${piece.position.row}, ${piece.position.col})`);
@@ -655,13 +587,11 @@ function updateTurnInfo() {
   
   if (isCurrentPlayersTurn) {
     isMyTurn = true;
-    turnMessage.textContent = 'É sua vez de jogar!';
-    turnMessage.style.color = '#2ecc71';
+    showStatusMessage('É sua vez de jogar!', 'turn');
     console.log('É SUA VEZ DE JOGAR!');
   } else {
     isMyTurn = false;
-    turnMessage.textContent = `Aguardando jogada de ${currentPlayer.name}...`;
-    turnMessage.style.color = '#7f8c8d';
+    showStatusMessage(`Aguardando jogada de ${currentPlayer.name}...`, 'info');
     console.log(`Aguardando jogada de ${currentPlayer.name}`);
   }
 }
@@ -730,8 +660,19 @@ function updateCards(cards) {
     }
     
 function handlePieceClick(pieceId) {
+  if (jokerTargets && jokerTargets.valid.includes(pieceId)) {
+    socket.emit('makeJokerMove', {
+      roomId,
+      pieceId: jokerTargets.pieceId,
+      targetPieceId: pieceId,
+      cardIndex: jokerTargets.cardIndex
+    });
+    clearJokerMode();
+    return;
+  }
+
   if (!isMyTurn) {
-    alert('Não é sua vez de jogar!');
+    showStatusMessage('Não é sua vez de jogar!', 'error');
     return;
   }
   
@@ -747,7 +688,7 @@ function handlePieceClick(pieceId) {
   console.log('Peça encontrada:', piece);
   
   if (piece.playerId !== playerPosition) {
-    alert(`Esta peça pertence ao jogador ${piece.playerId + 1}, não a você (jogador ${playerPosition + 1})`);
+    showStatusMessage(`Esta peça pertence ao jogador ${piece.playerId + 1}, não a você`, 'error');
     return;
   }
   
@@ -771,7 +712,7 @@ function handlePieceClick(pieceId) {
 // No arquivo game.js - Modifique a função handleCardClick
 function handleCardClick(index) {
   if (!isMyTurn) {
-    alert('Não é sua vez de jogar!');
+    showStatusMessage('Não é sua vez de jogar!', 'error');
     return;
   }
   
@@ -931,7 +872,7 @@ function makeMove() {
         );
         
         if (occupiedPositions.length === 0) {
-            alert('Não há posições ocupadas para mover');
+            showStatusMessage('Não há posições ocupadas para mover', 'error');
             return;
         }
         
@@ -1002,17 +943,17 @@ function makeMove() {
             const steps2 = parseInt(steps2Input.value) || 0;
             
             if (steps1 + steps2 !== 7) {
-                alert('O total de passos deve ser exatamente 7');
+                showStatusMessage('O total de passos deve ser exatamente 7', 'error');
                 return;
             }
-            
+
             if (steps1 > 0 && !piece1Id) {
-                alert('Selecione uma peça para o primeiro movimento');
+                showStatusMessage('Selecione uma peça para o primeiro movimento', 'error');
                 return;
             }
-            
+
             if (steps2 > 0 && !piece2Id) {
-                alert('Selecione uma peça para o segundo movimento');
+                showStatusMessage('Selecione uma peça para o segundo movimento', 'error');
                 return;
             }
             
