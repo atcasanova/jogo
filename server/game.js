@@ -527,7 +527,7 @@ discardCard(cardIndex) {
     const entrances = [
       {row: 0, col: 4},   // Jogador 0 (topo-esquerda)
       {row: 4, col: 18},  // Jogador 1 (topo-direita)
-      {row: 18, col: 15}, // Jogador 2 (fundo-direita)
+      {row: 18, col: 14}, // Jogador 2 (fundo-direita)
       {row: 14, col: 0}   // Jogador 3 (fundo-esquerda)
     ];
     
@@ -559,11 +559,11 @@ discardCard(cardIndex) {
       ],
       // Jogador 2 - fundo-direita
       [
-        {row: 17, col: 15},
-        {row: 16, col: 15},
-        {row: 15, col: 15},
-        {row: 14, col: 15},
-        {row: 13, col: 15}
+        {row: 17, col: 14},
+        {row: 16, col: 14},
+        {row: 15, col: 14},
+        {row: 14, col: 14},
+        {row: 13, col: 14}
       ],
       // Jogador 3 - fundo-esquerda
       [
@@ -627,11 +627,11 @@ discardCard(cardIndex) {
       ],
       // Jogador 2 - fundo-direita
       [
-        {row: 17, col: 15},
-        {row: 16, col: 15},
-        {row: 15, col: 15},
-        {row: 14, col: 15},
-        {row: 13, col: 15}
+        {row: 17, col: 14},
+        {row: 16, col: 14},
+        {row: 15, col: 14},
+        {row: 14, col: 14},
+        {row: 13, col: 14}
       ],
       // Jogador 3 - fundo-esquerda
       [
@@ -784,11 +784,11 @@ discardCard(cardIndex) {
       ],
       // Jogador 2 - fundo-direita
       [
-        {row: 17, col: 15},
-        {row: 16, col: 15},
-        {row: 15, col: 15},
-        {row: 14, col: 15},
-        {row: 13, col: 15}
+        {row: 17, col: 14},
+        {row: 16, col: 14},
+        {row: 15, col: 14},
+        {row: 14, col: 14},
+        {row: 13, col: 14}
       ],
       // Jogador 3 - fundo-esquerda
       [
