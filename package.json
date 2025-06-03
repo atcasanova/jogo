@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
+    "pretest": "npm install",
     "test": "jest"
   },
   "dependencies": {
