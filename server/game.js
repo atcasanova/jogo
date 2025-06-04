@@ -515,8 +515,13 @@ discardCard(cardIndex) {
 
   moveToSelectedPosition(piece, targetPieceId) {
     const targetPiece = this.pieces.find(p => p.id === targetPieceId);
-    
-    if (!targetPiece || targetPiece.completed || targetPiece.inPenaltyZone) {
+
+    if (
+      !targetPiece ||
+      targetPiece.completed ||
+      targetPiece.inPenaltyZone ||
+      targetPiece.inHomeStretch
+    ) {
       throw new Error("Posição inválida");
     }
     
@@ -883,12 +888,14 @@ discardCard(cardIndex) {
 
   checkCapture(piece, oldPosition) {
     // Verificar se "comeu" alguma peça
-    const capturedPieces = this.pieces.filter(p => 
-      p.id !== piece.id && 
-      !p.completed && 
-      !p.inPenaltyZone &&
-      p.position.row === piece.position.row && 
-      p.position.col === piece.position.col
+    const capturedPieces = this.pieces.filter(
+      p =>
+        p.id !== piece.id &&
+        !p.completed &&
+        !p.inPenaltyZone &&
+        !p.inHomeStretch &&
+        p.position.row === piece.position.row &&
+        p.position.col === piece.position.col
     );
     
     if (capturedPieces.length === 0) {
