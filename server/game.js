@@ -432,6 +432,10 @@ discardCard(cardIndex) {
     if (piece.completed) {
       throw new Error("Esta peça já completou o percurso");
     }
+
+    if (piece.inPenaltyZone) {
+      throw new Error('Peça está na zona de castigo');
+    }
     
     // Se a peça está no corredor de chegada
     if (piece.inHomeStretch) {
