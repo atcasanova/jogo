@@ -20,7 +20,6 @@ class Game {
   }
 
   initializePieces() {
-    console.log('Inicializando peças');
     // Inicializar peças nas zonas de castigo
     const pieces = [];
     const penaltyZones = [
@@ -35,7 +34,6 @@ class Game {
     ];
 
     for (let playerId = 0; playerId < 4; playerId++) {
-      console.log(`Criando peças para jogador ${playerId}`);
       for (let pieceId = 1; pieceId <= 5; pieceId++) {
         pieces.push({
           id: `p${playerId}_${pieceId}`,
@@ -46,11 +44,8 @@ class Game {
           inHomeStretch: false,
           completed: false
         });
-        console.log(`Peça p${playerId}_${pieceId} criada na posição (${penaltyZones[playerId][pieceId - 1].row}, ${penaltyZones[playerId][pieceId - 1].col})`);
       }
     }
-    
-    console.log(`Total de ${pieces.length} peças inicializadas`);
     return pieces;
   }
 
@@ -301,10 +296,14 @@ discardCard(cardIndex) {
       throw new Error("Total de movimentos deve ser exatamente 7");
     }
     
+    const moveResults = [];
+
     // Executar cada movimento
     for (let i = 0; i < moves.length; i++) {
       const move = moves[i];
       const piece = this.pieces.find(p => p.id === move.pieceId);
+
+      const oldPosition = { ...piece.position };
       
       if (!piece) {
         throw new Error("Peça inválida");
@@ -320,8 +319,15 @@ discardCard(cardIndex) {
         Object.prototype.hasOwnProperty.call(move, 'enterHome') ? move.enterHome : null
       );
 
+      moveResults.push({
+        pieceId: piece.id,
+        oldPosition,
+        newPosition: { ...piece.position },
+        result
+      });
+
       if (result && result.action === 'homeEntryChoice') {
-        return { ...result, moveIndex: i };
+        return { ...result, moveIndex: i, moves: moveResults };
       }
     }
     
@@ -334,8 +340,8 @@ discardCard(cardIndex) {
     
     // Passar para o próximo jogador
     this.nextTurn();
-    
-    return { success: true };
+
+    return { success: true, moves: moveResults };
   }
 
   executeMove(piece, card, enterHome = null) {
@@ -486,10 +492,8 @@ discardCard(cardIndex) {
     if (piece.completed || piece.inHomeStretch) {
       throw new Error("Não pode mover para trás no corredor de chegada");
     }
-     console.log(`Movendo peça ${piece.id} ${steps} casas para trás`);
     // Calcular nova posição
     const newPosition = this.calculateNewPosition(piece.position, steps, false);
-    console.log(`Nova posição calculada: ${JSON.stringify(newPosition)}`);
 
     // Verificar se vai ultrapassar peça do mesmo jogador
     if (this.wouldOverpassOwnPiece(piece, steps, false)) {
