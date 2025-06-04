@@ -163,8 +163,8 @@
 }
 
 .card {
-    width: 80px;
-    height: 120px;
+    width: 90px;
+    height: 130px;
     background-color: white;
     border-radius: 8px;
     border: 1px solid #ddd;
@@ -179,8 +179,8 @@
 }
 
 #cards-container.compact .card {
-    width: 45px;
-    height: 70px;
+    width: 50px;
+    height: 80px;
     margin: 0.25rem;
 }
 
@@ -194,12 +194,12 @@
 }
 
 .card-value {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-weight: bold;
 }
 
 .card-suit {
-    font-size: 2rem;
+    font-size: 1.8rem;
     text-align: center;
 }
 
@@ -212,8 +212,8 @@
 }
 
 .card-back {
-    width: 80px;
-    height: 120px;
+    width: 90px;
+    height: 130px;
     background-color: #3498db;
     border-radius: 8px;
     display: flex;
@@ -330,18 +330,18 @@
     }
     
     .card {
-        width: 60px;
-        height: 90px;
+        width: 70px;
+        height: 100px;
     }
 
     #cards-container.compact .card {
-        width: 45px;
-        height: 70px;
+        width: 40px;
+        height: 60px;
     }
-    
+
     .card-back {
-        width: 60px;
-        height: 90px;
+        width: 70px;
+        height: 100px;
     }
 }
 
