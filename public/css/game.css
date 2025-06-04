@@ -371,3 +371,27 @@
   display: inline-block;
   transform: none !important; /* Impede qualquer rotação do texto */
 }
+
+/* Estilos para dialogo de movimento especial com slider */
+#special-move-slider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-weight: bold;
+}
+
+#split-slider {
+  width: 100%;
+}
+
+#slider-values {
+  text-align: center;
+  font-weight: bold;
+}

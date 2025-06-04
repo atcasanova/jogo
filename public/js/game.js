@@ -17,13 +17,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const winnersDiv = document.getElementById('winners');
     
     // Elementos do diálogo de movimento especial (carta 7)
-    const piece1Select = document.getElementById('piece1');
-    const piece2Select = document.getElementById('piece2');
-    const steps1Input = document.getElementById('steps1');
-    const steps2Input = document.getElementById('steps2');
-    const totalStepsSpan = document.getElementById('total-steps');
-    const confirmSpecialMoveBtn = document.getElementById('confirm-special-move');
-    const cancelSpecialMoveBtn = document.getElementById('cancel-special-move');
+    const specialMoveChoice = document.getElementById('special-move-choice');
+    const specialMoveSlider = document.getElementById('special-move-slider');
+    const samePieceBtn = document.getElementById('same-piece-btn');
+    const otherPieceBtn = document.getElementById('other-piece-btn');
+    const pieceLeft = document.getElementById('piece-left');
+    const pieceRight = document.getElementById('piece-right');
+    const splitSlider = document.getElementById('split-slider');
+    const sliderValues = document.getElementById('slider-values');
+    const confirmSplitBtn = document.getElementById('confirm-split');
     
     // Elementos do diálogo de movimento com Joker
     const jokerPositions = document.getElementById('joker-positions');
@@ -43,6 +45,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let isMyTurn = false;
     let specialMoveCard = null;
     let jokerTargets = null;
+    let playerCards = [];
+    let secondPieceId = null;
+    let awaitingSecondPiece = false;
 
     function showStatusMessage(message, type = 'info') {
       turnMessage.textContent = message;
@@ -616,6 +621,8 @@ function updateTurnInfo() {
     
 function updateCards(cards) {
   console.log('Atualizando cartas:', cards);
+
+  playerCards = cards || [];
   
   // Limpar container de cartas
   cardsContainer.innerHTML = '';
@@ -701,9 +708,30 @@ function handlePieceClick(pieceId) {
     updateSelectedPiece();
   }
   
+  if (awaitingSecondPiece) {
+    if (pieceId === selectedPieceId) {
+      showStatusMessage('Selecione uma peça diferente', 'error');
+      return;
+    }
+    const target = gameState.pieces.find(p => p.id === pieceId);
+    if (target.inPenaltyZone || target.completed) {
+      showStatusMessage('Peça inválida para dividir o movimento', 'error');
+      return;
+    }
+    secondPieceId = pieceId;
+    awaitingSecondPiece = false;
+    showSliderDialog();
+    return;
+  }
+
   // Se já tiver uma carta selecionada, tentar fazer o movimento
-  if (selectedPieceId && selectedCardIndex !== null) {
-    makeMove();
+  if (selectedPieceId && selectedCardIndex !== null && !awaitingSecondPiece) {
+    const value = playerCards[selectedCardIndex]?.value;
+    if (value === '7') {
+      initiateSpecialMove();
+    } else {
+      makeMove();
+    }
   }
 }
    
@@ -735,8 +763,13 @@ function handleCardClick(index) {
   }
   
   // Se já tiver uma peça selecionada, tentar fazer o movimento
-  if (selectedPieceId && selectedCardIndex !== null) {
-    makeMove();
+  if (selectedPieceId && selectedCardIndex !== null && !awaitingSecondPiece) {
+    const value = playerCards[selectedCardIndex]?.value;
+    if (value === '7') {
+      initiateSpecialMove();
+    } else {
+      makeMove();
+    }
   }
 }
 
@@ -807,48 +840,51 @@ function makeMove() {
             }
         }
     }
-    
-    
-    function showSpecialMoveDialog(cardIndex) {
-        specialMoveCard = cardIndex;
-        
-        // Preencher seletores de peças
-        piece1Select.innerHTML = '';
-        piece2Select.innerHTML = '';
-        
-        // Adicionar opção vazia
-        const emptyOption1 = document.createElement('option');
-        emptyOption1.value = '';
-        emptyOption1.textContent = 'Selecione uma peça';
-        piece1Select.appendChild(emptyOption1);
-        
-        const emptyOption2 = document.createElement('option');
-        emptyOption2.value = '';
-        emptyOption2.textContent = 'Selecione uma peça';
-        piece2Select.appendChild(emptyOption2);
-        
-        // Adicionar peças do jogador
-        const playerPieces = gameState.pieces.filter(p => p.playerId === playerPosition && !p.completed);
-        playerPieces.forEach(piece => {
-            const option1 = document.createElement('option');
-            option1.value = piece.id;
-            option1.textContent = `Peça ${piece.pieceId}`;
-            piece1Select.appendChild(option1);
-            
-            const option2 = document.createElement('option');
-            option2.value = piece.id;
-            option2.textContent = `Peça ${piece.pieceId}`;
-            piece2Select.appendChild(option2);
-        });
-        
-        // Resetar valores
-        steps1Input.value = 0;
-        steps2Input.value = 0;
-        totalStepsSpan.textContent = '0';
-        
-        // Mostrar diálogo
+
+    function finalizeSpecialMove() {
+        specialMoveDialog.classList.add('hidden');
+        awaitingSecondPiece = false;
+        secondPieceId = null;
+        selectedPieceId = null;
+        selectedCardIndex = null;
+        updateSelectedPiece();
+        updateSelectedCard();
+    }
+
+    function initiateSpecialMove() {
+        specialMoveCard = selectedCardIndex;
+        const movable = gameState.pieces.filter(p =>
+            p.playerId === playerPosition && !p.inPenaltyZone && !p.completed
+        );
+
+        if (movable.length <= 1) {
+            socket.emit('makeSpecialMove', {
+                roomId,
+                moves: [{ pieceId: selectedPieceId, steps: 7 }],
+                cardIndex: specialMoveCard
+            });
+            finalizeSpecialMove();
+            return;
+        }
+
+        specialMoveChoice.classList.remove('hidden');
+        specialMoveSlider.classList.add('hidden');
         specialMoveDialog.classList.remove('hidden');
     }
+
+    function showSliderDialog() {
+        const p1 = gameState.pieces.find(p => p.id === selectedPieceId);
+        const p2 = gameState.pieces.find(p => p.id === secondPieceId);
+        pieceLeft.textContent = `Peça ${p1.pieceId}`;
+        pieceRight.textContent = `Peça ${p2.pieceId}`;
+        splitSlider.value = 3;
+        updateSliderValues();
+        specialMoveChoice.classList.add('hidden');
+        specialMoveSlider.classList.remove('hidden');
+        specialMoveDialog.classList.remove('hidden');
+    }
+    
+    
     
     function showJokerDialog(cardIndex) {
         // Implementar diálogo para movimento com Joker
@@ -923,73 +959,48 @@ function makeMove() {
     }
     
     function setupEventListeners() {
-        // Event listeners para diálogo de movimento especial
-        steps1Input.addEventListener('input', updateTotalSteps);
-        steps2Input.addEventListener('input', updateTotalSteps);
-        
-        confirmSpecialMoveBtn.addEventListener('click', () => {
-            const piece1Id = piece1Select.value;
-            const piece2Id = piece2Select.value;
-            const steps1 = parseInt(steps1Input.value) || 0;
-            const steps2 = parseInt(steps2Input.value) || 0;
-            
-            if (steps1 + steps2 !== 7) {
-                showStatusMessage('O total de passos deve ser exatamente 7', 'error');
-                return;
-            }
-
-            if (steps1 > 0 && !piece1Id) {
-                showStatusMessage('Selecione uma peça para o primeiro movimento', 'error');
-                return;
-            }
-
-            if (steps2 > 0 && !piece2Id) {
-                showStatusMessage('Selecione uma peça para o segundo movimento', 'error');
-                return;
-            }
-            
-            const moves = [];
-            if (steps1 > 0) {
-                moves.push({ pieceId: piece1Id, steps: steps1 });
-            }
-            if (steps2 > 0) {
-                moves.push({ pieceId: piece2Id, steps: steps2 });
-            }
-            
+        samePieceBtn.addEventListener('click', () => {
             socket.emit('makeSpecialMove', {
                 roomId,
-                moves,
+                moves: [{ pieceId: selectedPieceId, steps: 7 }],
                 cardIndex: specialMoveCard
             });
-            
-            specialMoveDialog.classList.add('hidden');
+            finalizeSpecialMove();
         });
-        
-        cancelSpecialMoveBtn.addEventListener('click', () => {
+
+        otherPieceBtn.addEventListener('click', () => {
             specialMoveDialog.classList.add('hidden');
+            awaitingSecondPiece = true;
+            showStatusMessage('Selecione a segunda peça', 'info');
         });
-        
+
+        splitSlider.addEventListener('input', updateSliderValues);
+
+        confirmSplitBtn.addEventListener('click', () => {
+            const val = parseInt(splitSlider.value, 10);
+            socket.emit('makeSpecialMove', {
+                roomId,
+                moves: [
+                    { pieceId: selectedPieceId, steps: val },
+                    { pieceId: secondPieceId, steps: 7 - val }
+                ],
+                cardIndex: specialMoveCard
+            });
+            finalizeSpecialMove();
+        });
+
         cancelJokerMoveBtn.addEventListener('click', () => {
             jokerDialog.classList.add('hidden');
         });
-        
+
         newGameBtn.addEventListener('click', () => {
             window.location.href = '/';
         });
     }
-    
-    function updateTotalSteps() {
-        const steps1 = parseInt(steps1Input.value) || 0;
-        const steps2 = parseInt(steps2Input.value) || 0;
-        const total = steps1 + steps2;
-        
-        totalStepsSpan.textContent = total;
-        
-        if (total > 7) {
-            totalStepsSpan.style.color = 'red';
-        } else {
-            totalStepsSpan.style.color = 'black';
-        }
+
+    function updateSliderValues() {
+        const val = parseInt(splitSlider.value, 10);
+        sliderValues.textContent = `${val}-${7 - val}`;
     }
     
     // Inicializar o jogo
