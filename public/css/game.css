@@ -157,6 +157,11 @@
     margin-top: 1rem;
 }
 
+/* Usado quando a mão precisa encolher para caber em telas menores */
+#cards-container.compact {
+    gap: 0.5rem;
+}
+
 .card {
     width: 80px;
     height: 120px;
@@ -168,9 +173,15 @@
     justify-content: space-between;
     padding: 0.5rem;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: transform 0.2s, width 0.2s, height 0.2s, margin 0.2s;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     margin: 0.5rem;
+}
+
+#cards-container.compact .card {
+    width: 45px;
+    height: 70px;
+    margin: 0.25rem;
 }
 
 .card:hover {
@@ -321,6 +332,11 @@
     .card {
         width: 60px;
         height: 90px;
+    }
+
+    #cards-container.compact .card {
+        width: 45px;
+        height: 70px;
     }
     
     .card-back {
