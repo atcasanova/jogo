@@ -120,17 +120,33 @@ class Game {
 // No arquivo game.js do servidor
 startGame() {
   console.log(`Iniciando jogo. Jogadores: ${this.players.length}`);
-  
+
   // Criar e embaralhar o deck
   this.deck = shuffle(createDeck());
   console.log(`Deck criado com ${this.deck.length} cartas`);
-  
+
   this.discardPile = [];
-  
-  // Distribuir 5 cartas para cada jogador
-  for (const player of this.players) {
-    player.cards = this.deck.splice(0, 5);
-    console.log(`Distribuídas 5 cartas para ${player.name}`);
+
+  const debug = process.env.DEBUG === 'true';
+
+  if (debug) {
+    const fixedValues = ['K', 'Q', 'T', '8', 'JOKER'];
+    for (const player of this.players) {
+      player.cards = [];
+      for (const value of fixedValues) {
+        const index = this.deck.findIndex(c => c.value === value);
+        if (index !== -1) {
+          player.cards.push(this.deck.splice(index, 1)[0]);
+        }
+      }
+      console.log(`Modo debug: cartas fixas distribuídas para ${player.name}`);
+    }
+  } else {
+    // Distribuir 5 cartas para cada jogador
+    for (const player of this.players) {
+      player.cards = this.deck.splice(0, 5);
+      console.log(`Distribuídas 5 cartas para ${player.name}`);
+    }
   }
   
   // Sempre começar com o jogador 0 (p1)

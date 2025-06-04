@@ -6,5 +6,7 @@ services:
     volumes:
       - ./server:/app/server
       - ./public:/app/public
+    environment:
+      DEBUG: "false"
     restart: unless-stopped
 
