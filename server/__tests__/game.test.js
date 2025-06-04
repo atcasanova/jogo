@@ -282,6 +282,52 @@ describe('Game class', () => {
     expect(piece.position).toEqual({ row: 1, col: 4 });
   });
 
+  test('can enter home stretch even if own piece is ahead on track', () => {
+    const game = new Game('pathClear');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.setupTeams();
+
+    const mover = game.pieces.find(p => p.id === 'p2_1');
+    const blocker = game.pieces.find(p => p.id === 'p2_3');
+
+    mover.inPenaltyZone = false;
+    mover.position = { row: 18, col: 14 };
+
+    blocker.inPenaltyZone = false;
+    blocker.position = { row: 18, col: 10 };
+
+    const result = game.movePieceForward(mover, 5, true);
+
+    expect(result.success).toBe(true);
+    expect(mover.inHomeStretch).toBe(true);
+    expect(mover.position).toEqual({ row: 13, col: 14 });
+  });
+
+  test('movePieceForward cannot overpass inside home stretch', () => {
+    const game = new Game('noOverpass');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.setupTeams();
+
+    const mover = game.pieces.find(p => p.id === 'p0_1');
+    const blocker = game.pieces.find(p => p.id === 'p0_2');
+
+    mover.inPenaltyZone = false;
+    mover.inHomeStretch = true;
+    mover.position = { row: 1, col: 4 };
+
+    blocker.inPenaltyZone = false;
+    blocker.inHomeStretch = true;
+    blocker.position = { row: 2, col: 4 };
+
+    expect(() => game.movePieceForward(mover, 2)).toThrow();
+  });
+
   test('makeSpecialMove moves one piece seven steps', () => {
     const game = new Game('room11');
     game.addPlayer('1', 'Alice');
