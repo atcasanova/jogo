@@ -439,7 +439,14 @@ discardCard(cardIndex) {
 
     // Verificar se deve entrar no corredor de chegada diretamente
     if (this.shouldEnterHomeStretch(piece, newPosition)) {
-      return this.enterHomeStretch(piece, steps);
+      const stepsToEnt = this.stepsToEntrance(piece);
+      if (steps > stepsToEnt) {
+        return this.enterHomeStretch(piece, steps - stepsToEnt);
+      }
+
+      const oldPosition = { ...piece.position };
+      piece.position = newPosition;
+      return this.checkCapture(piece, oldPosition);
     }
 
     const homeOption = this.checkHomeEntryOption(piece, steps);

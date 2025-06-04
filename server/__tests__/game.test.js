@@ -160,4 +160,23 @@ describe('Game class', () => {
     expect(partner.position).toEqual({ row: 18, col: 14 });
     expect(leaving.position).toEqual({ row: 0, col: 8 });
   });
+
+  test('landing exactly on home entrance stops on the board', () => {
+    const game = new Game('room10');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+    piece.inPenaltyZone = false;
+    piece.position = { row: 0, col: 0 };
+
+    const result = game.movePieceForward(piece, 4);
+
+    expect(result.action).toBe('move');
+    expect(piece.inHomeStretch).toBe(false);
+    expect(piece.position).toEqual({ row: 0, col: 4 });
+  });
 });
