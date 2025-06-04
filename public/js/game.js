@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let playerCards = [];
     let secondPieceId = null;
     let awaitingSecondPiece = false;
+    const playerColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
 
     function getDisplayValue(card) {
       return card.value === 'JOKER' ? 'C' : card.value;
@@ -403,7 +404,9 @@ function updateBoard() {
 
   // Reaplicar rotação para ajustar a orientação das peças
   rotateBoard();
-  
+
+  updatePlayerLabels();
+
   console.log('Tabuleiro atualizado');
 }
 
@@ -423,6 +426,63 @@ function rotateBoard() {
   const pieces = document.querySelectorAll('.piece');
   pieces.forEach(piece => {
     piece.style.transform = `rotate(${-rotation}deg)`;
+  });
+}
+
+function updatePlayerLabels() {
+  const container = document.getElementById('player-labels');
+  if (!container || !gameState || !gameState.players) return;
+
+  container.innerHTML = '';
+
+  const rotationMap = [180, 90, 0, 270];
+  const rotation = rotationMap[playerPosition];
+
+  const orientations = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+
+  gameState.players.forEach(p => {
+    const label = document.createElement('div');
+    label.className = 'player-label';
+    label.textContent = p.name;
+    if (p.id === playerId) {
+      label.textContent += ' (você)';
+    }
+    if (p.position !== undefined) {
+      label.style.color = playerColors[p.position];
+    }
+
+    const oriIndex = (p.position + rotation / 90) % 4;
+    const orientation = orientations[oriIndex];
+
+    label.style.top = '';
+    label.style.bottom = '';
+    label.style.left = '';
+    label.style.right = '';
+
+    switch (orientation) {
+      case 'top-left':
+        label.style.top = '6%';
+        label.style.left = '6%';
+        label.style.transform = `translate(-100%, -100%) rotate(${-rotation}deg)`;
+        break;
+      case 'top-right':
+        label.style.top = '6%';
+        label.style.right = '6%';
+        label.style.transform = `translate(100%, -100%) rotate(${-rotation}deg)`;
+        break;
+      case 'bottom-right':
+        label.style.bottom = '6%';
+        label.style.right = '6%';
+        label.style.transform = `translate(100%, 100%) rotate(${-rotation}deg)`;
+        break;
+      case 'bottom-left':
+        label.style.bottom = '6%';
+        label.style.left = '6%';
+        label.style.transform = `translate(-100%, 100%) rotate(${-rotation}deg)`;
+        break;
+    }
+
+    container.appendChild(label);
   });
 }
 
@@ -566,6 +626,9 @@ function rotateBoard() {
         gameState.teams[0].forEach(player => {
             const playerElement = document.createElement('div');
             playerElement.textContent = player.name;
+            if (player.position !== undefined) {
+                playerElement.style.color = playerColors[player.position];
+            }
             if (player.id === playerId) {
                 playerElement.style.fontWeight = 'bold';
                 playerElement.textContent += ' (você)';
@@ -577,6 +640,9 @@ function rotateBoard() {
         gameState.teams[1].forEach(player => {
             const playerElement = document.createElement('div');
             playerElement.textContent = player.name;
+            if (player.position !== undefined) {
+                playerElement.style.color = playerColors[player.position];
+            }
             if (player.id === playerId) {
                 playerElement.style.fontWeight = 'bold';
                 playerElement.textContent += ' (você)';
