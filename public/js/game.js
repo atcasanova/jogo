@@ -435,10 +435,14 @@ function updatePlayerLabels() {
 
   container.innerHTML = '';
 
-  const rotationMap = [180, 90, 0, 270];
-  const rotation = rotationMap[playerPosition];
-
   const orientationMap = ['bottom', 'left', 'top', 'right'];
+
+  const labelPositions = {
+    bottom: { row: 1, startCol: 7, endCol: 5 },
+    top: { row: 17, startCol: 13, endCol: 11 },
+    left: { row: 6, startCol: 17, endCol: 15 },
+    right: { row: 8, startCol: 3, endCol: 1 }
+  };
 
   gameState.players.forEach(p => {
     const label = document.createElement('div');
@@ -453,30 +457,16 @@ function updatePlayerLabels() {
 
     const relIndex = (p.position - playerPosition + 4) % 4;
     const orientation = orientationMap[relIndex];
+    const pos = labelPositions[orientation];
 
-    label.style.top = '';
-    label.style.left = '';
-    label.style.transform = 'translate(-50%, -50%)';
+    if (pos) {
+      const startCol = Math.min(pos.startCol, pos.endCol);
+      const endCol = Math.max(pos.startCol, pos.endCol);
 
-    const offset = 12; // porcentagem aproximada da zona de castigo
-
-    switch (orientation) {
-      case 'top':
-        label.style.top = `${offset}%`;
-        label.style.left = '50%';
-        break;
-      case 'bottom':
-        label.style.top = `${100 - offset}%`;
-        label.style.left = '50%';
-        break;
-      case 'left':
-        label.style.top = '50%';
-        label.style.left = `${offset}%`;
-        break;
-      case 'right':
-        label.style.top = '50%';
-        label.style.left = `${100 - offset}%`;
-        break;
+      label.style.gridRowStart = pos.row + 1;
+      label.style.gridRowEnd = pos.row + 2;
+      label.style.gridColumnStart = startCol + 1;
+      label.style.gridColumnEnd = endCol + 2;
     }
 
     container.appendChild(label);
