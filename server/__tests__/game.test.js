@@ -439,3 +439,25 @@ describe('Game class', () => {
     expect(partnerPiece.position).toEqual({ row: 0, col: 1 });
   });
 });
+  test('control uses currentPlayerIndex when player position is incorrect', () => {
+    const game = new Game('positionMismatch');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.setupTeams();
+    const pieces = game.pieces.filter(p => p.playerId === 0);
+    pieces.forEach((p, idx) => {
+      p.inPenaltyZone = false;
+      p.inHomeStretch = true;
+      p.position = { row: 1 + idx, col: 4 };
+    });
+    const partnerPiece = game.pieces.find(p => p.id === 'p2_1');
+    partnerPiece.inPenaltyZone = false;
+    partnerPiece.position = { row: 0, col: 0 };
+    game.players[0].position = 3; // wrong position
+    game.players[0].cards = [{ suit: '♠', value: 'A' }];
+    game.currentPlayerIndex = 0;
+    expect(() => game.makeMove(partnerPiece.id, 0)).not.toThrow();
+    expect(partnerPiece.position).toEqual({ row: 0, col: 1 });
+  });

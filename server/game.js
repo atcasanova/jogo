@@ -262,7 +262,7 @@ discardCard(cardIndex) {
       throw new Error("Peça inválida");
     }
     
-    if (!this.canControlPiece(player.position, piece.playerId)) {
+    if (!this.canControlPiece(this.currentPlayerIndex, piece.playerId)) {
       throw new Error("Esta peça não pertence a você");
     }
     
@@ -317,7 +317,7 @@ discardCard(cardIndex) {
         throw new Error("Peça inválida");
       }
       
-      if (!this.canControlPiece(player.position, piece.playerId)) {
+      if (!this.canControlPiece(this.currentPlayerIndex, piece.playerId)) {
         throw new Error("Esta peça não pertence a você");
       }
       
@@ -1069,11 +1069,12 @@ discardCard(cardIndex) {
   }
 
   isPartner(playerId1, playerId2) {
-    // Verificar se os jogadores são parceiros
-    return this.teams.some(team =>
-      team.some(p => p.position === playerId1) &&
-      team.some(p => p.position === playerId2)
-    );
+    // Verificar se os jogadores são parceiros usando
+    // os índices atuais na lista de jogadores
+    const playerObj1 = this.players[playerId1];
+    const playerObj2 = this.players[playerId2];
+    if (!playerObj1 || !playerObj2) return false;
+    return this.teams.some(team => team.includes(playerObj1) && team.includes(playerObj2));
   }
 
   hasAllPiecesInHomeStretch(playerId) {
