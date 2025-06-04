@@ -132,6 +132,7 @@ function initSocketWithPlayerData(playerData) {
   socket.on('updateCards', handleUpdateCards);
   socket.on('choosePosition', handleChoosePosition);
   socket.on('homeEntryChoice', handleHomeEntryChoice);
+  socket.on('homeEntryChoiceSpecial', handleHomeEntryChoiceSpecial);
   socket.on('error', handleError);
 }
 
@@ -269,6 +270,17 @@ function handleHomeEntryChoice(data) {
   socket.emit('confirmHomeEntry', {
     roomId,
     pieceId: data.pieceId,
+    cardIndex: data.cardIndex,
+    enterHome: choice
+  });
+}
+
+function handleHomeEntryChoiceSpecial(data) {
+  const choice = confirm('Sua peça pode entrar na zona de vitória. Deseja entrar?');
+  socket.emit('confirmSpecialHomeEntry', {
+    roomId,
+    moves: data.moves,
+    moveIndex: data.moveIndex,
     cardIndex: data.cardIndex,
     enterHome: choice
   });
