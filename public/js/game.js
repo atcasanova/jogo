@@ -670,38 +670,28 @@ function updatePlayerLabels() {
 
     function updateTeams() {
         if (!gameState || !gameState.teams) return;
-        
-        // Limpar listas de times
-        team1Players.innerHTML = '';
-        team2Players.innerHTML = '';
-        
-        // Preencher time 1
-        gameState.teams[0].forEach(player => {
-            const playerElement = document.createElement('div');
-            playerElement.textContent = player.name;
-            if (player.position !== undefined) {
-                playerElement.style.color = playerColors[player.position];
-            }
-            if (player.id === playerId) {
-                playerElement.style.fontWeight = 'bold';
-                playerElement.textContent += ' (você)';
-            }
-            team1Players.appendChild(playerElement);
-        });
-        
-        // Preencher time 2
-        gameState.teams[1].forEach(player => {
-            const playerElement = document.createElement('div');
-            playerElement.textContent = player.name;
-            if (player.position !== undefined) {
-                playerElement.style.color = playerColors[player.position];
-            }
-            if (player.id === playerId) {
-                playerElement.style.fontWeight = 'bold';
-                playerElement.textContent += ' (você)';
-            }
-            team2Players.appendChild(playerElement);
-        });
+
+        const fillTeam = (container, players) => {
+            container.innerHTML = '';
+            players.forEach((player, index) => {
+                const span = document.createElement('span');
+                span.textContent = player.name;
+                if (player.position !== undefined) {
+                    span.style.color = playerColors[player.position];
+                }
+                if (player.id === playerId) {
+                    span.style.fontWeight = 'bold';
+                    span.textContent += ' (você)';
+                }
+                container.appendChild(span);
+                if (index < players.length - 1) {
+                    container.appendChild(document.createTextNode(' e '));
+                }
+            });
+        };
+
+        fillTeam(team1Players, gameState.teams[0]);
+        fillTeam(team2Players, gameState.teams[1]);
     }
     
 // No arquivo game.js do cliente

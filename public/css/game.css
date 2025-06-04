@@ -13,8 +13,8 @@
 .game-info {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    padding: 0.5rem;
+    align-items: center;
+    padding: 0.3rem;
     background-color: white;
     border-radius: 4px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
@@ -22,11 +22,13 @@
 
 .teams-info {
     display: flex;
-    gap: 1rem;
+    flex-direction: column;
+    gap: 0.2rem;
 }
 
-.team {
-    padding: 0.5rem;
+.team-line {
+    font-size: 0.9rem;
+    padding: 0.1rem 0.3rem;
     border-radius: 4px;
 }
 
@@ -40,6 +42,16 @@
 
 .turn-info {
     text-align: right;
+}
+
+.turn-info h3 {
+    font-size: 1rem;
+    margin: 0;
+}
+
+.room-code {
+    font-size: 0.9rem;
+    margin-bottom: 0.2rem;
 }
 
 #turn-message {
