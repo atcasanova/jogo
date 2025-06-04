@@ -231,4 +231,19 @@ describe('Game class', () => {
     expect(piece2.position).not.toEqual(pos2);
     expect(game.players[0].cards.length).toBe(before - 1);
   });
+
+  test('moveToSelectedPosition rejects targets in home stretch', () => {
+    const game = new Game('roomJoker');
+    const mover = game.pieces.find(p => p.id === 'p0_1');
+    const target = game.pieces.find(p => p.id === 'p1_1');
+
+    mover.inPenaltyZone = false;
+    mover.position = { row: 0, col: 8 };
+
+    target.inPenaltyZone = false;
+    target.inHomeStretch = true;
+    target.position = { row: 4, col: 17 };
+
+    expect(() => game.moveToSelectedPosition(mover, target.id)).toThrow();
+  });
 });

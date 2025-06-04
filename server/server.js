@@ -359,81 +359,75 @@ socket.on('requestGameState', ({ roomId, playerName }) => {
 });
 
 socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
-  console.log(`Jogador ${socket.id} tentando mover peça ${pieceId} para posição da peça ${targetPieceId} com Joker`);
+  console.log(
+    `Jogador ${socket.id} tentando mover peça ${pieceId} para posição da peça ${targetPieceId} com Joker`
+  );
   const game = rooms.get(roomId);
-  
+
   if (!game || !game.isActive) {
     socket.emit('error', 'Jogo não está ativo');
     return;
   }
-  
+
   const currentPlayer = game.getCurrentPlayer();
   if (!currentPlayer) {
     socket.emit('error', 'Jogador atual não encontrado');
     return;
   }
-  
+
   if (currentPlayer.id !== socket.id) {
     socket.emit('error', 'Não é sua vez');
     return;
   }
-  
+
   try {
-    // Verificar se a carta é um Joker
     const card = currentPlayer.cards[cardIndex];
-    if (card.value !== 'JOKER') {
+    if (!card || card.value !== 'JOKER') {
       socket.emit('error', 'Esta não é uma carta Joker');
       return;
     }
-    
-    // Obter as peças
+
     const piece = game.pieces.find(p => p.id === pieceId);
     const targetPiece = game.pieces.find(p => p.id === targetPieceId);
-    
+
     if (!piece || !targetPiece) {
       socket.emit('error', 'Peça não encontrada');
       return;
     }
-    
-    // Verificar se a peça pertence ao jogador atual
+
     if (piece.playerId !== currentPlayer.position) {
       socket.emit('error', 'Esta peça não pertence a você');
       return;
     }
-    
-    // Mover a peça para a posição da peça alvo
-    const oldPosition = {...piece.position};
-    piece.position = {...targetPiece.position};
-    
-    // Verificar capturas
-    const captureResult = game.checkCapture(piece, oldPosition);
-    
+
+    // Utilizar regra centralizada do jogo para mover a peça
+    game.moveToSelectedPosition(piece, targetPieceId);
+
     // Descartar a carta Joker
     game.discardPile.push(card);
     currentPlayer.cards.splice(cardIndex, 1);
-    
-    // Atualizar estado do jogo para todos
+
     io.to(roomId).emit('gameStateUpdate', game.getGameState());
-    
-    // Enviar cartas atualizadas para o jogador
+
     socket.emit('updateCards', {
       cards: currentPlayer.cards
     });
-    
-    // Passar para o próximo jogador
+
+    if (game.checkWinCondition()) {
+      io.to(roomId).emit('gameOver', {
+        winners: game.getWinningTeam()
+      });
+      return;
+    }
+
     game.nextTurn();
-    
-    // Notificar próximo jogador
     const nextPlayer = game.getCurrentPlayer();
-    
-    // Comprar uma carta para o próximo jogador
     nextPlayer.cards.push(game.drawCard());
 
     io.to(nextPlayer.id).emit('yourTurn', {
       cards: nextPlayer.cards,
       canMove: game.hasAnyValidMove(nextPlayer.position)
     });
-    
   } catch (error) {
     console.error(`Erro ao processar movimento Joker:`, error);
     socket.emit('error', error.message);
