@@ -324,4 +324,29 @@ describe('Game class', () => {
     player.cards = [{ suit: '♠', value: '7' }];
     expect(game.hasAnyValidMove(player.position)).toBe(false);
   });
+
+  test('player can control partner pieces after all in home stretch', () => {
+    const game = new Game('partnerPlay');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.setupTeams();
+    const p0Pieces = game.pieces.filter(p => p.playerId === 0);
+    p0Pieces.forEach((p, idx) => {
+      p.inPenaltyZone = false;
+      p.inHomeStretch = true;
+      p.position = { row: 1 + idx, col: 4 };
+    });
+    const partnerPiece = game.pieces.find(p => p.id === 'p2_1');
+    partnerPiece.inPenaltyZone = false;
+    partnerPiece.position = { row: 0, col: 0 };
+
+    game.players[0].cards = [{ suit: '♠', value: 'A' }];
+    game.currentPlayerIndex = 0;
+
+    expect(game.hasAnyValidMove(0)).toBe(true);
+    game.makeMove(partnerPiece.id, 0);
+    expect(partnerPiece.position).toEqual({ row: 0, col: 1 });
+  });
 });

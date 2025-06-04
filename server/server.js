@@ -395,7 +395,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       return;
     }
 
-    if (piece.playerId !== currentPlayer.position) {
+    if (!game.canControlPiece(currentPlayer.position, piece.playerId)) {
       socket.emit('error', 'Esta peça não pertence a você');
       return;
     }

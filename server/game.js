@@ -259,7 +259,7 @@ discardCard(cardIndex) {
       throw new Error("Peça inválida");
     }
     
-    if (piece.playerId !== player.position) {
+    if (!this.canControlPiece(player.position, piece.playerId)) {
       throw new Error("Esta peça não pertence a você");
     }
     
@@ -310,7 +310,7 @@ discardCard(cardIndex) {
         throw new Error("Peça inválida");
       }
       
-      if (piece.playerId !== player.position) {
+      if (!this.canControlPiece(player.position, piece.playerId)) {
         throw new Error("Esta peça não pertence a você");
       }
       
@@ -1046,9 +1046,30 @@ discardCard(cardIndex) {
 
   isPartner(playerId1, playerId2) {
     // Verificar se os jogadores são parceiros
-    return this.teams.some(team => 
-      team.some(p => p.position === playerId1) && 
+    return this.teams.some(team =>
+      team.some(p => p.position === playerId1) &&
       team.some(p => p.position === playerId2)
+    );
+  }
+
+  hasAllPiecesInHomeStretch(playerId) {
+    return this.pieces
+      .filter(p => p.playerId === playerId)
+      .every(p => p.inHomeStretch || p.completed);
+  }
+
+  partnerIdFor(playerId) {
+    const team = this.teams.find(t => t.some(p => p.position === playerId));
+    if (!team) return null;
+    const partner = team.find(p => p.position !== playerId);
+    return partner ? partner.position : null;
+  }
+
+  canControlPiece(controllerId, pieceOwnerId) {
+    if (controllerId === pieceOwnerId) return true;
+    return (
+      this.hasAllPiecesInHomeStretch(controllerId) &&
+      this.isPartner(controllerId, pieceOwnerId)
     );
   }
 
@@ -1113,6 +1134,15 @@ discardCard(cardIndex) {
     if (!player) return false;
 
     const pieces = this.pieces.filter(p => p.playerId === playerIndex && !p.completed);
+
+    if (this.hasAllPiecesInHomeStretch(playerIndex)) {
+      const partnerId = this.partnerIdFor(playerIndex);
+      if (partnerId !== null) {
+        pieces.push(
+          ...this.pieces.filter(p => p.playerId === partnerId && !p.completed)
+        );
+      }
+    }
 
     for (const card of player.cards) {
       for (const piece of pieces) {
