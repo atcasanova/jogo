@@ -768,11 +768,10 @@ function updateCards(cards) {
     cardsContainer.appendChild(cardElement);
   });
 
-  // Ajusta o tamanho das cartas caso a mão tenha mais de cinco
-  if (cards.length > 5) {
+  // Ajusta o tamanho das cartas conforme o espaço disponível
+  cardsContainer.classList.remove('compact');
+  if (cardsContainer.scrollWidth > cardsContainer.clientWidth) {
     cardsContainer.classList.add('compact');
-  } else {
-    cardsContainer.classList.remove('compact');
   }
 
   console.log('Cartas atualizadas no DOM:', cardsContainer.children.length);

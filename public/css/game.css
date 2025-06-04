@@ -78,8 +78,9 @@
     gap: 0;
     background-color: white;
     aspect-ratio: 1/1;
-    width: min(80vw, 80vh);
-    height: min(80vw, 80vh);
+    /* Limit the board so there is always room for the hand */
+    width: min(80vmin, 65vh);
+    height: min(80vmin, 65vh);
     margin: 0 auto;
 }
 
@@ -148,13 +149,15 @@
     background-color: white;
     border-radius: 4px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    overflow-x: auto;
 }
 
 #cards-container {
     display: flex;
     justify-content: center;
     gap: 1rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
     margin-top: 1rem;
 }
 
@@ -452,4 +455,5 @@
   pointer-events: none;
   align-self: center;
   justify-self: center;
+  font-size: clamp(0.6rem, 2vw, 1rem);
 }
