@@ -44,7 +44,8 @@ function launchGame(game) {
     currentPlayer.cards.push(game.drawCard());
     logPiecePositions(game);
     io.to(currentPlayer.id).emit('yourTurn', {
-      cards: currentPlayer.cards
+      cards: currentPlayer.cards,
+      canMove: game.hasAnyValidMove(currentPlayer.position)
     });
   }
 }
@@ -128,7 +129,8 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
         // Se for a vez deste jogador, notificar
         if (game.currentPlayerIndex === position) {
           socket.emit('yourTurn', {
-            cards: game.players[position].cards
+            cards: game.players[position].cards,
+            canMove: game.hasAnyValidMove(position)
           });
         }
         
@@ -175,7 +177,8 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
     // Se for a vez deste jogador, notificar
     if (game.currentPlayerIndex === existingPlayerIndex) {
       socket.emit('yourTurn', {
-        cards: game.players[existingPlayerIndex].cards
+        cards: game.players[existingPlayerIndex].cards,
+        canMove: game.hasAnyValidMove(existingPlayerIndex)
       });
     }
     
@@ -295,7 +298,8 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
 
     logPiecePositions(game);
     io.to(nextPlayer.id).emit('yourTurn', {
-      cards: nextPlayer.cards
+      cards: nextPlayer.cards,
+      canMove: game.hasAnyValidMove(nextPlayer.position)
     });
   } catch (error) {
     console.error(`Erro ao descartar carta:`, error);
@@ -344,7 +348,8 @@ socket.on('requestGameState', ({ roomId, playerName }) => {
     // Se for a vez deste jogador, notificar
     if (game.currentPlayerIndex === playerIndex) {
       socket.emit('yourTurn', {
-        cards: game.players[playerIndex].cards
+        cards: game.players[playerIndex].cards,
+        canMove: game.hasAnyValidMove(playerIndex)
       });
     }
   } else {
@@ -423,9 +428,10 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
     
     // Comprar uma carta para o próximo jogador
     nextPlayer.cards.push(game.drawCard());
-    
+
     io.to(nextPlayer.id).emit('yourTurn', {
-      cards: nextPlayer.cards
+      cards: nextPlayer.cards,
+      canMove: game.hasAnyValidMove(nextPlayer.position)
     });
     
   } catch (error) {
@@ -546,7 +552,8 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
     logPiecePositions(game);
     io.to(nextPlayer.id).emit('yourTurn', {
-      cards: nextPlayer.cards
+      cards: nextPlayer.cards,
+      canMove: game.hasAnyValidMove(nextPlayer.position)
     });
 
   } catch (error) {
@@ -596,7 +603,8 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
     logPiecePositions(game);
     io.to(nextPlayer.id).emit('yourTurn', {
-      cards: nextPlayer.cards
+      cards: nextPlayer.cards,
+      canMove: game.hasAnyValidMove(nextPlayer.position)
     });
    } catch (error) {
      console.error('Erro ao confirmar entrada na vitória:', error);
@@ -644,7 +652,8 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
       logPiecePositions(game);
       io.to(nextPlayer.id).emit('yourTurn', {
-        cards: nextPlayer.cards
+        cards: nextPlayer.cards,
+        canMove: game.hasAnyValidMove(nextPlayer.position)
       });
       
     } catch (error) {
