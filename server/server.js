@@ -664,12 +664,8 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     }
     
     try {
+      const currentPlayer = game.getCurrentPlayer();
       const moveResult = game.makeSpecialMove(moves);
-      if (moveResult.moves) {
-        moveResult.moves.forEach(m => {
-          logMoveDetails(currentPlayer, m.pieceId, m.oldPosition, m.result, game);
-        });
-      }
       if (moveResult.moves) {
         moveResult.moves.forEach(m => {
           logMoveDetails(currentPlayer, m.pieceId, m.oldPosition, m.result, game);
