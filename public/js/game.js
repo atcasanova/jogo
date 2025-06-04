@@ -31,8 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const jokerPositions = document.getElementById('joker-positions');
     const cancelJokerMoveBtn = document.getElementById('cancel-joker-move');
     
-    // Botão de novo jogo
-    const newGameBtn = document.getElementById('new-game-btn');
+    // Botões do diálogo de fim de jogo
+    const rematchBtn = document.getElementById('rematch-btn');
+    const exitBtn = document.getElementById('exit-btn');
     
     // Estado do jogo
     let socket;
@@ -165,6 +166,7 @@ function initSocketWithPlayerData(playerData) {
   
   // Eventos do socket
   socket.on('roomJoined', handleRoomJoined);
+  socket.on('gameStarted', handleGameStarted);
   socket.on('gameStateUpdate', handleGameStateUpdate);
   socket.on('playerInfo', handlePlayerInfo);
   socket.on('yourTurn', handleYourTurn);
@@ -221,6 +223,16 @@ function handleRoomJoined(data) {
       playerPosition: playerPosition
     });
   }
+}
+
+function handleGameStarted(state) {
+  console.log('Novo jogo iniciado:', state);
+  gameState = state;
+  updateBoard();
+  updateTeams();
+  updateTurnInfo();
+  updateDeckInfo();
+  gameOverDialog.classList.add('hidden');
 }
 
 // Adicione esta função
@@ -1148,7 +1160,12 @@ function makeMove() {
             jokerDialog.classList.add('hidden');
         });
 
-        newGameBtn.addEventListener('click', () => {
+        rematchBtn.addEventListener('click', () => {
+            socket.emit('rematch', { roomId });
+            gameOverDialog.classList.add('hidden');
+        });
+
+        exitBtn.addEventListener('click', () => {
             window.location.href = '/';
         });
 

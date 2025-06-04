@@ -517,6 +517,18 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
     launchGame(game);
   });
 
+  socket.on('rematch', ({ roomId }) => {
+    const game = rooms.get(roomId);
+
+    if (!game || game.players.length !== 4) {
+      socket.emit('error', 'Não é possível reiniciar o jogo agora');
+      return;
+    }
+
+    game.resetForNewGame();
+    launchGame(game);
+  });
+
   // Jogador seleciona peça e carta
 // No arquivo server.js - Modifique o evento makeMove
 socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {

@@ -167,6 +167,20 @@ startGame() {
   console.log(`Jogo marcado como ativo`);
 }
 
+  resetForNewGame() {
+    // Reconfigurar tabuleiro e peças para uma nova partida mantendo os mesmos jogadores
+    this.board = this.createBoard();
+    this.pieces = this.initializePieces();
+    this.discardPile = [];
+    this.deck = [];
+    this.currentPlayerIndex = 0;
+    this.isActive = false;
+    this.pendingSpecialMove = null;
+    for (const player of this.players) {
+      player.cards = [];
+    }
+  }
+
   getCurrentPlayer() {
     console.log(`Obtendo jogador atual. Índice: ${this.currentPlayerIndex}, Total de jogadores: ${this.players.length}`);
     
@@ -1167,17 +1181,18 @@ discardCard(cardIndex) {
     for (let teamIndex = 0; teamIndex < 2; teamIndex++) {
       const team = this.teams[teamIndex];
       const playerIds = team.map(p => p.position);
-      
-      // Verificar se todas as peças dos dois jogadores estão completas
-      const allCompleted = this.pieces
+
+      // Considerar vitória quando todas as peças estão pelo menos no corredor
+      // de chegada (inHomeStretch) ou finalizadas (completed)
+      const allHome = this.pieces
         .filter(p => playerIds.includes(p.playerId))
-        .every(p => p.completed);
-      
-      if (allCompleted) {
+        .every(p => p.completed || p.inHomeStretch);
+
+      if (allHome) {
         return true;
       }
     }
-    
+
     return false;
   }
 
@@ -1186,17 +1201,16 @@ discardCard(cardIndex) {
     for (let teamIndex = 0; teamIndex < 2; teamIndex++) {
       const team = this.teams[teamIndex];
       const playerIds = team.map(p => p.position);
-      
-      // Verificar se todas as peças dos dois jogadores estão completas
-      const allCompleted = this.pieces
+
+      const allHome = this.pieces
         .filter(p => playerIds.includes(p.playerId))
-        .every(p => p.completed);
-      
-      if (allCompleted) {
+        .every(p => p.completed || p.inHomeStretch);
+
+      if (allHome) {
         return team;
       }
     }
-    
+
     return null;
   }
 
