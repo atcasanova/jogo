@@ -306,6 +306,7 @@ function handleHomeEntryChoiceSpecial(data) {
     cardIndex: data.cardIndex,
     enterHome: choice
   });
+  finalizeSpecialMove();
 }
    
 
@@ -978,6 +979,7 @@ function makeMove() {
         specialMoveDialog.classList.add('hidden');
         awaitingSecondPiece = false;
         secondPieceId = null;
+        specialMoveCard = null;
         selectedPieceId = null;
         selectedCardIndex = null;
         updateSelectedPiece();
