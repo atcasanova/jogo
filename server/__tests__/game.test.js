@@ -359,6 +359,22 @@ describe('Game class', () => {
     expect(() => game.moveToSelectedPosition(mover, target.id)).toThrow();
   });
 
+  test('executeMove cannot use Joker to leave home stretch', () => {
+    const game = new Game('jokerHome');
+    const mover = game.pieces.find(p => p.id === 'p0_1');
+    const target = game.pieces.find(p => p.id === 'p1_1');
+
+    mover.inPenaltyZone = false;
+    mover.inHomeStretch = true;
+    mover.position = { row: 1, col: 4 };
+
+    target.inPenaltyZone = false;
+    target.position = { row: 0, col: 8 };
+
+    expect(() => game.executeMove(mover, { value: 'JOKER' })).toThrow();
+    expect(() => game.moveToSelectedPosition(mover, target.id)).toThrow();
+  });
+
   test('movePieceForward cannot move piece in penalty zone', () => {
     const game = new Game('penaltyMove');
     const piece = game.pieces.find(p => p.id === 'p0_1');
