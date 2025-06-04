@@ -449,6 +449,41 @@ describe('Game class', () => {
     game.makeMove(partnerPiece.id, 0);
     expect(partnerPiece.position).toEqual({ row: 0, col: 1 });
   });
+
+  test('resumeSpecialMove does not repeat executed moves', () => {
+    const game = new Game('resume7');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.startGame();
+
+    game.currentPlayerIndex = 3;
+    const p32 = game.pieces.find(p => p.id === 'p3_2');
+    const p33 = game.pieces.find(p => p.id === 'p3_3');
+    p32.inPenaltyZone = false;
+    p33.inPenaltyZone = false;
+    p32.position = { row: 10, col: 0 };
+    p33.position = { row: 14, col: 0 };
+
+    game.players[3].cards.push({ suit: '♠', value: '7' });
+
+    let result = game.makeSpecialMove([
+      { pieceId: p32.id, steps: 5 },
+      { pieceId: p33.id, steps: 2 }
+    ]);
+
+    expect(result.action).toBe('homeEntryChoice');
+    expect(p32.position).toEqual({ row: 5, col: 0 });
+    expect(p33.position).toEqual({ row: 14, col: 0 });
+
+    result = game.resumeSpecialMove(false);
+
+    expect(result.success).toBe(true);
+    expect(p32.position).toEqual({ row: 5, col: 0 });
+    expect(p33.position).toEqual({ row: 12, col: 0 });
+    expect(game.pendingSpecialMove).toBe(null);
+  });
 });
   test('control uses currentPlayerIndex when player position is incorrect', () => {
     const game = new Game('positionMismatch');
