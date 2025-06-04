@@ -699,15 +699,6 @@ function handlePieceClick(pieceId) {
     return;
   }
   
-  // Selecionar/desselecionar peça
-  if (selectedPieceId === pieceId) {
-    selectedPieceId = null;
-    updateSelectedPiece();
-  } else {
-    selectedPieceId = pieceId;
-    updateSelectedPiece();
-  }
-  
   if (awaitingSecondPiece) {
     if (pieceId === selectedPieceId) {
       showStatusMessage('Selecione uma peça diferente', 'error');
@@ -722,6 +713,15 @@ function handlePieceClick(pieceId) {
     awaitingSecondPiece = false;
     showSliderDialog();
     return;
+  }
+
+  // Selecionar/desselecionar peça
+  if (selectedPieceId === pieceId) {
+    selectedPieceId = null;
+    updateSelectedPiece();
+  } else {
+    selectedPieceId = pieceId;
+    updateSelectedPiece();
   }
 
   // Se já tiver uma carta selecionada, tentar fazer o movimento
