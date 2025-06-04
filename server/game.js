@@ -529,6 +529,11 @@ discardCard(cardIndex) {
       return this.moveInHomeStretch(piece, steps);
     }
     
+    const homeOption = this.checkHomeEntryOption(piece, steps);
+    if (homeOption && enterHome === true) {
+      return this.enterHomeStretch(piece, homeOption.remainingSteps);
+    }
+
     // Calcular nova posição na pista principal
     const newPosition = this.calculateNewPosition(piece.position, steps, true);
 
@@ -537,7 +542,6 @@ discardCard(cardIndex) {
       throw new Error("Não pode ultrapassar sua própria peça");
     }
 
-    const homeOption = this.checkHomeEntryOption(piece, steps);
     if (homeOption && enterHome === null) {
       return {
         success: false,
@@ -549,9 +553,6 @@ discardCard(cardIndex) {
       };
     }
 
-    if (homeOption && enterHome) {
-      return this.enterHomeStretch(piece, homeOption.remainingSteps);
-    }
 
     // Verificar se deve entrar no corredor de chegada diretamente
     if (this.shouldEnterHomeStretch(piece, newPosition)) {
@@ -976,7 +977,7 @@ discardCard(cardIndex) {
     const stretch = this.homeStretchForPlayer(piece.playerId);
     if (steps > stepsToEnt) {
       const remaining = steps - stepsToEnt;
-      if (remaining <= stretch.length) {
+      if (remaining <= stretch.length && !this.wouldOverpassOwnPiece(piece, stepsToEnt + 1, true)) {
         const boardPos = this.calculateNewPosition(piece.position, steps, true);
         const target = stretch[remaining - 1];
         const occupyingPiece = this.pieces.find(p =>
