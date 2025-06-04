@@ -104,8 +104,16 @@ class Game {
     // teamConfig deve ser um array com dois arrays, cada um contendo os IDs dos jogadores em cada equipe
     const team0 = teamConfig[0].map(id => this.players.find(p => p.id === id));
     const team1 = teamConfig[1].map(id => this.players.find(p => p.id === id));
-    
+
     if (team0.length === 2 && team1.length === 2) {
+      // Reorganizar jogadores para que parceiros fiquem frente a frente
+      const ordered = [team0[0], team1[0], team0[1], team1[1]];
+      ordered.forEach((p, idx) => {
+        p.position = idx;
+      });
+
+      this.players = ordered;
+      this.pieces = this.initializePieces();
       this.teams = [team0, team1];
       return true;
     }

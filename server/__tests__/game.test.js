@@ -43,6 +43,26 @@ describe('Game class', () => {
     process.env.DEBUG = 'false';
   });
 
+  test('setCustomTeams reorders players across from partners', () => {
+    const game = new Game('customTeams');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+
+    const teams = [
+      [game.players[0].id, game.players[1].id],
+      [game.players[2].id, game.players[3].id]
+    ];
+
+    game.setCustomTeams(teams);
+
+    expect(game.players.map(p => p.name)).toEqual(['A', 'C', 'B', 'D']);
+    game.players.forEach((p, idx) => {
+      expect(p.position).toBe(idx);
+    });
+  });
+
   test('handlePartnerCapture moves piece to entrance before home stretch', () => {
     const game = new Game('room3');
     const piece = game.pieces.find(p => p.id === 'p2_1');
