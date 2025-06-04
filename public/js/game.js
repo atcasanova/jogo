@@ -421,8 +421,8 @@ function rotateBoard() {
   
   // Mapeamento correto para que cada jogador veja suas peças na parte inferior
   // Ordem de rotação para que cada jogador sempre visualize suas peças na parte inferior
-  // p0 (topo) -> 180°, p1 (direita) -> 270°, p2 (fundo) -> 0°, p3 (esquerda) -> 90°
-  const rotationMap = [180, 270, 0, 90];
+  // p0 (topo) -> 180°, p1 (direita) -> 90°, p2 (fundo) -> 0°, p3 (esquerda) -> 270°
+  const rotationMap = [180, 90, 0, 270];
   const rotation = rotationMap[playerPosition];
   
   board.style.transform = `rotate(${rotation}deg)`;
@@ -463,13 +463,13 @@ function updatePlayerLabels() {
   // para quem está nas posições 0 a 3 respectivamente
   const orientationMaps = {
     0: ['bottom', 'left', 'top', 'right'],
-    1: ['left', 'top', 'right', 'bottom'],
+    1: ['right', 'bottom', 'left', 'top'],
     2: ['top', 'right', 'bottom', 'left'],
-    3: ['right', 'bottom', 'left', 'top']
+    3: ['left', 'top', 'right', 'bottom']
   };
 
   // Mesma convenção de rotação usada em rotateBoard
-  const rotationMap = [180, 270, 0, 90];
+  const rotationMap = [180, 90, 0, 270];
   const rotation = rotationMap[playerPosition] || 0;
 
   function rotatePoint(row, col, rot) {
