@@ -302,7 +302,8 @@ discardCard(cardIndex) {
     }
     
     // Executar cada movimento
-    for (const move of moves) {
+    for (let i = 0; i < moves.length; i++) {
+      const move = moves[i];
       const piece = this.pieces.find(p => p.id === move.pieceId);
       
       if (!piece) {
@@ -313,7 +314,15 @@ discardCard(cardIndex) {
         throw new Error("Esta peça não pertence a você");
       }
       
-      this.movePieceForward(piece, move.steps, false);
+      const result = this.movePieceForward(
+        piece,
+        move.steps,
+        Object.prototype.hasOwnProperty.call(move, 'enterHome') ? move.enterHome : null
+      );
+
+      if (result && result.action === 'homeEntryChoice') {
+        return { ...result, moveIndex: i };
+      }
     }
     
     // Remover a carta 7 da mão do jogador

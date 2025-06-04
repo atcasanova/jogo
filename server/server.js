@@ -556,7 +556,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
   }
 });
 
- socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
+socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
    const game = rooms.get(roomId);
 
    if (!game || !game.isActive) {
@@ -610,7 +610,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
 
   // Movimento especial para carta 7
-  socket.on('makeSpecialMove', ({ roomId, moves }) => {
+  socket.on('makeSpecialMove', ({ roomId, moves, cardIndex }) => {
     const game = rooms.get(roomId);
     
     if (!game || !game.isActive) {
@@ -625,7 +625,19 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
     
     try {
       const moveResult = game.makeSpecialMove(moves);
-      
+
+      if (moveResult && moveResult.action === 'homeEntryChoice') {
+        socket.emit('homeEntryChoiceSpecial', {
+          pieceId: moveResult.pieceId,
+          moveIndex: moveResult.moveIndex,
+          boardPosition: moveResult.boardPosition,
+          homePosition: moveResult.homePosition,
+          cardIndex,
+          moves
+        });
+        return;
+      }
+
       // Atualizar estado do jogo para todos
       io.to(roomId).emit('gameStateUpdate', game.getGameState());
       logPiecePositions(game);
@@ -651,6 +663,62 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
       });
       
     } catch (error) {
+      socket.emit('error', error.message);
+    }
+  });
+
+  socket.on('confirmSpecialHomeEntry', ({ roomId, moves, moveIndex, cardIndex, enterHome }) => {
+    const game = rooms.get(roomId);
+
+    if (!game || !game.isActive) {
+      socket.emit('error', 'Jogo não está ativo');
+      return;
+    }
+
+    const currentPlayer = game.getCurrentPlayer();
+    if (!currentPlayer || currentPlayer.id !== socket.id) {
+      socket.emit('error', 'Não é sua vez');
+      return;
+    }
+
+    try {
+      if (moves[moveIndex]) {
+        moves[moveIndex].enterHome = enterHome;
+      }
+
+      const moveResult = game.makeSpecialMove(moves);
+
+      if (moveResult && moveResult.action === 'homeEntryChoice') {
+        socket.emit('homeEntryChoiceSpecial', {
+          pieceId: moveResult.pieceId,
+          moveIndex: moveResult.moveIndex,
+          boardPosition: moveResult.boardPosition,
+          homePosition: moveResult.homePosition,
+          cardIndex,
+          moves
+        });
+        return;
+      }
+
+      io.to(roomId).emit('gameStateUpdate', game.getGameState());
+      logPiecePositions(game);
+
+      if (game.checkWinCondition()) {
+        io.to(roomId).emit('gameOver', {
+          winners: game.getWinningTeam()
+        });
+        return;
+      }
+
+      const nextPlayer = game.getCurrentPlayer();
+      nextPlayer.cards.push(game.drawCard());
+      logPiecePositions(game);
+      io.to(nextPlayer.id).emit('yourTurn', {
+        cards: nextPlayer.cards,
+        canMove: game.hasAnyValidMove(nextPlayer.position)
+      });
+    } catch (error) {
+      console.error('Erro ao confirmar entrada na vitória especial:', error);
       socket.emit('error', error.message);
     }
   });
@@ -701,6 +769,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
     }
   });
 });
+
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

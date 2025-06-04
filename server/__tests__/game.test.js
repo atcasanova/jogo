@@ -196,7 +196,7 @@ describe('Game class', () => {
     const before = game.players[0].cards.length;
 
     const initial = { ...piece.position };
-    game.makeSpecialMove([{ pieceId: piece.id, steps: 7 }]);
+    game.makeSpecialMove([{ pieceId: piece.id, steps: 7, enterHome: false }]);
 
     expect(piece.position).not.toEqual(initial);
     expect(game.players[0].cards.length).toBe(before - 1);
@@ -230,6 +230,49 @@ describe('Game class', () => {
     expect(piece1.position).not.toEqual(pos1);
     expect(piece2.position).not.toEqual(pos2);
     expect(game.players[0].cards.length).toBe(before - 1);
+  });
+
+  test('makeSpecialMove offers home entry option', () => {
+    const game = new Game('room13');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.startGame();
+
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+    piece.inPenaltyZone = false;
+    piece.position = { row: 0, col: 0 };
+
+    game.players[0].cards.push({ suit: '♠', value: '7' });
+    const len = game.players[0].cards.length;
+
+    const result = game.makeSpecialMove([{ pieceId: piece.id, steps: 7 }]);
+
+    expect(result.action).toBe('homeEntryChoice');
+    expect(result.success).toBe(false);
+    expect(game.players[0].cards.length).toBe(len);
+  });
+
+  test('makeSpecialMove can move piece into home stretch', () => {
+    const game = new Game('room14');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.startGame();
+
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+    piece.inPenaltyZone = false;
+    piece.position = { row: 0, col: 0 };
+
+    game.players[0].cards.push({ suit: '♠', value: '7' });
+
+    const result = game.makeSpecialMove([{ pieceId: piece.id, steps: 7, enterHome: true }]);
+
+    expect(result.success).toBe(true);
+    expect(piece.inHomeStretch).toBe(true);
+    expect(piece.position).toEqual({ row: 3, col: 4 });
   });
 
   test('moveToSelectedPosition rejects targets in home stretch', () => {
