@@ -87,6 +87,17 @@ describe('Game class', () => {
     expect(piece.position).toEqual({ row: 0, col: 9 });
   });
 
+  test('executeMove allows leaving penalty zone with Ace', () => {
+    const game = new Game('acePenalty');
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+
+    const result = game.executeMove(piece, { value: 'A' });
+
+    expect(result.action).toBe('leavePenalty');
+    expect(piece.inPenaltyZone).toBe(false);
+    expect(piece.position).toEqual({ row: 0, col: 8 });
+  });
+
   test('enterHomeStretch blocks movement past occupied squares', () => {
     const game = new Game('room5');
     const piece = game.pieces.find(p => p.id === 'p0_1');
