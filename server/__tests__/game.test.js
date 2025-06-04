@@ -289,4 +289,21 @@ describe('Game class', () => {
 
     expect(() => game.moveToSelectedPosition(mover, target.id)).toThrow();
   });
+
+  test('movePieceForward cannot move piece in penalty zone', () => {
+    const game = new Game('penaltyMove');
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+    expect(() => game.movePieceForward(piece, 3)).toThrow();
+  });
+
+  test('hasAnyValidMove is false with 7 when all pieces penalized', () => {
+    const game = new Game('penaltyHand');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    const player = game.players[0];
+    player.cards = [{ suit: '♠', value: '7' }];
+    expect(game.hasAnyValidMove(player.position)).toBe(false);
+  });
 });
