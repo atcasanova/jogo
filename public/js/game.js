@@ -420,7 +420,9 @@ function rotateBoard() {
   if (playerPosition === undefined) return;
   
   // Mapeamento correto para que cada jogador veja suas peças na parte inferior
-  const rotationMap = [180, 90, 0, 270]; // 0: 0°, 1: 270°, 2: 180°, 3: 90°
+  // Ordem de rotação para que cada jogador sempre visualize suas peças na parte inferior
+  // p0 (topo) -> 180°, p1 (direita) -> 270°, p2 (fundo) -> 0°, p3 (esquerda) -> 90°
+  const rotationMap = [180, 270, 0, 90];
   const rotation = rotationMap[playerPosition];
   
   board.style.transform = `rotate(${rotation}deg)`;
@@ -458,7 +460,8 @@ function updatePlayerLabels() {
 
   const orientationOrder = ['bottom', 'left', 'top', 'right'];
 
-  const rotationMap = [180, 90, 0, 270];
+  // Mesma convenção de rotação usada em rotateBoard
+  const rotationMap = [180, 270, 0, 90];
   const rotation = rotationMap[playerPosition] || 0;
 
   function rotatePoint(row, col, rot) {
@@ -475,24 +478,24 @@ function updatePlayerLabels() {
   }
 
   function rotatePosition(pos, rot) {
-    const a = rotatePoint(pos.row, pos.startCol, rot);
-    const b = rotatePoint(pos.row, pos.endCol, rot);
+    // Rotaciona ao contrário para obter a posição correta antes de aplicar a rotação do tabuleiro
+    const inv = (360 - rot) % 360;
+    const a = rotatePoint(pos.row, pos.startCol, inv);
+    const b = rotatePoint(pos.row, pos.endCol, inv);
     const rows = [a.row, b.row];
     const cols = [a.col, b.col];
     return {
-      row: Math.min(...rows),
-      startCol: Math.min(...cols),
-      endCol: Math.max(...cols)
+      rowStart: Math.min(...rows),
+      rowEnd: Math.max(...rows),
+      colStart: Math.min(...cols),
+      colEnd: Math.max(...cols)
     };
   }
 
   gameState.players.forEach(p => {
     const label = document.createElement('div');
     label.className = 'player-label';
-    label.textContent = p.name;
-    if (p.id === playerId) {
-      label.textContent += ' (você)';
-    }
+    label.textContent = p.id === playerId ? 'Você' : p.name;
     if (p.position !== undefined) {
       label.style.color = playerColors[p.position];
     }
@@ -502,10 +505,10 @@ function updatePlayerLabels() {
     const base = basePositions[orientation];
     const pos = rotatePosition(base, rotation);
 
-    label.style.gridRowStart = pos.row + 1;
-    label.style.gridRowEnd = pos.row + 2;
-    label.style.gridColumnStart = pos.startCol + 1;
-    label.style.gridColumnEnd = pos.endCol + 2;
+    label.style.gridRowStart = pos.rowStart + 1;
+    label.style.gridRowEnd = pos.rowEnd + 2;
+    label.style.gridColumnStart = pos.colStart + 1;
+    label.style.gridColumnEnd = pos.colEnd + 2;
 
     container.appendChild(label);
   });
