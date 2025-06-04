@@ -161,6 +161,57 @@ describe('Game class', () => {
     expect(leaving.position).toEqual({ row: 0, col: 8 });
   });
 
+  test('leavePenaltyZone cannot capture partner when entrance is blocked', () => {
+    const game = new Game('room9b');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+
+    const leaving = game.pieces.find(p => p.id === 'p3_1');
+    const partner = game.pieces.find(p => p.id === 'p1_1');
+    const blocker = game.pieces.find(p => p.id === 'p1_2');
+
+    partner.inPenaltyZone = false;
+    partner.position = { row: 10, col: 0 };
+
+    blocker.inPenaltyZone = false;
+    blocker.position = { row: 4, col: 18 };
+
+    expect(() => game.leavePenaltyZone(leaving)).toThrow();
+  });
+
+  test('leavePenaltyZone allows chain capture to own entrance', () => {
+    const game = new Game('chain1');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+
+    const leaving = game.pieces.find(p => p.id === 'p3_1');
+    const partner = game.pieces.find(p => p.id === 'p1_1');
+    const captPiece = game.pieces.find(p => p.id === 'p3_2');
+    const opponent = game.pieces.find(p => p.id === 'p0_1');
+
+    partner.inPenaltyZone = false;
+    partner.position = { row: 10, col: 0 };
+
+    captPiece.inPenaltyZone = false;
+    captPiece.position = { row: 4, col: 18 };
+
+    opponent.inPenaltyZone = false;
+    opponent.position = { row: 14, col: 0 };
+
+    const result = game.leavePenaltyZone(leaving);
+
+    expect(result.success).toBe(true);
+    expect(partner.position).toEqual({ row: 4, col: 18 });
+    expect(captPiece.position).toEqual({ row: 14, col: 0 });
+    expect(opponent.inPenaltyZone).toBe(true);
+  });
+
   test('landing exactly on home entrance offers entry option', () => {
     const game = new Game('room10');
     game.addPlayer('1', 'Alice');
