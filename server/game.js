@@ -13,6 +13,7 @@ class Game {
     this.board = this.createBoard();
     this.pieces = this.initializePieces();
     this.cleanupTimer = null;
+    this.pendingSpecialMove = null;
   }
 
   createBoard() {
@@ -289,7 +290,8 @@ discardCard(cardIndex) {
   makeSpecialMove(moves) {
     // Para a carta 7 que permite dividir o movimento
     const player = this.getCurrentPlayer();
-    const card = player.cards.find(c => c.value === '7');
+    const cardIndex = player.cards.findIndex(c => c.value === '7');
+    const card = player.cards[cardIndex];
     
     if (!card) {
       throw new Error("Você não tem uma carta 7");
@@ -335,12 +337,17 @@ discardCard(cardIndex) {
       });
 
       if (result && result.action === 'homeEntryChoice') {
+        this.pendingSpecialMove = {
+          moves,
+          moveResults,
+          nextIndex: i,
+          cardIndex
+        };
         return { ...result, moveIndex: i, moves: moveResults };
       }
     }
     
     // Remover a carta 7 da mão do jogador
-    const cardIndex = player.cards.findIndex(c => c.value === '7');
     this.discardPile.push(player.cards[cardIndex]);
     player.cards.splice(cardIndex, 1);
     
@@ -349,6 +356,58 @@ discardCard(cardIndex) {
     // Passar para o próximo jogador
     this.nextTurn();
 
+    this.pendingSpecialMove = null;
+
+    return { success: true, moves: moveResults };
+  }
+
+  resumeSpecialMove(enterHome) {
+    if (!this.pendingSpecialMove) {
+      throw new Error('Não há movimento especial pendente');
+    }
+
+    const { moves, moveResults, nextIndex, cardIndex } = this.pendingSpecialMove;
+    moves[nextIndex].enterHome = enterHome;
+
+    for (let i = nextIndex; i < moves.length; i++) {
+      const move = moves[i];
+      const piece = this.pieces.find(p => p.id === move.pieceId);
+      const oldPosition = { ...piece.position };
+
+      const result = this.movePieceForward(
+        piece,
+        move.steps,
+        Object.prototype.hasOwnProperty.call(move, 'enterHome') ? move.enterHome : null
+      );
+
+      if (moveResults[i]) {
+        moveResults[i] = {
+          pieceId: piece.id,
+          oldPosition,
+          newPosition: { ...piece.position },
+          result
+        };
+      } else {
+        moveResults.push({
+          pieceId: piece.id,
+          oldPosition,
+          newPosition: { ...piece.position },
+          result
+        });
+      }
+
+      if (result && result.action === 'homeEntryChoice') {
+        this.pendingSpecialMove = { moves, moveResults, nextIndex: i, cardIndex };
+        return { ...result, moveIndex: i, moves: moveResults };
+      }
+    }
+
+    const player = this.getCurrentPlayer();
+    this.discardPile.push(player.cards[cardIndex]);
+    player.cards.splice(cardIndex, 1);
+
+    this.nextTurn();
+    this.pendingSpecialMove = null;
     return { success: true, moves: moveResults };
   }
 

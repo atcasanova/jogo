@@ -654,7 +654,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
 
   // Movimento especial para carta 7
-  socket.on('makeSpecialMove', ({ roomId, moves, cardIndex }) => {
+  socket.on('makeSpecialMove', ({ roomId, moves }) => {
     const game = rooms.get(roomId);
     
     if (!game || !game.isActive) {
@@ -682,8 +682,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
           moveIndex: moveResult.moveIndex,
           boardPosition: moveResult.boardPosition,
           homePosition: moveResult.homePosition,
-          cardIndex,
-          moves
+          moves: moveResult.moves
         });
         return;
       }
@@ -717,7 +716,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     }
   });
 
-  socket.on('confirmSpecialHomeEntry', ({ roomId, moves, moveIndex, cardIndex, enterHome }) => {
+  socket.on('confirmSpecialHomeEntry', ({ roomId, enterHome }) => {
     const game = rooms.get(roomId);
 
     if (!game || !game.isActive) {
@@ -732,11 +731,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     }
 
     try {
-      if (moves[moveIndex]) {
-        moves[moveIndex].enterHome = enterHome;
-      }
-
-      const moveResult = game.makeSpecialMove(moves);
+      const moveResult = game.resumeSpecialMove(enterHome);
 
       if (moveResult && moveResult.action === 'homeEntryChoice') {
         socket.emit('homeEntryChoiceSpecial', {
@@ -744,8 +739,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
           moveIndex: moveResult.moveIndex,
           boardPosition: moveResult.boardPosition,
           homePosition: moveResult.homePosition,
-          cardIndex,
-          moves
+          moves: moveResult.moves
         });
         return;
       }

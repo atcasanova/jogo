@@ -320,9 +320,6 @@ function handleHomeEntryChoiceSpecial(data) {
   const choice = confirm('Sua peça pode entrar na zona de vitória. Deseja entrar?');
   socket.emit('confirmSpecialHomeEntry', {
     roomId,
-    moves: data.moves,
-    moveIndex: data.moveIndex,
-    cardIndex: data.cardIndex,
     enterHome: choice
   });
   finalizeSpecialMove();
