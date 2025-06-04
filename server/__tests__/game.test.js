@@ -161,7 +161,7 @@ describe('Game class', () => {
     expect(leaving.position).toEqual({ row: 0, col: 8 });
   });
 
-  test('landing exactly on home entrance stops on the board', () => {
+  test('landing exactly on home entrance offers entry option', () => {
     const game = new Game('room10');
     game.addPlayer('1', 'Alice');
     game.addPlayer('2', 'Bob');
@@ -175,9 +175,27 @@ describe('Game class', () => {
 
     const result = game.movePieceForward(piece, 4);
 
-    expect(result.action).toBe('move');
-    expect(piece.inHomeStretch).toBe(false);
-    expect(piece.position).toEqual({ row: 0, col: 4 });
+    expect(result.action).toBe('homeEntryChoice');
+    expect(result.success).toBe(false);
+  });
+
+  test('movePieceForward can enter home stretch when requested', () => {
+    const game = new Game('room10b');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+    piece.inPenaltyZone = false;
+    piece.position = { row: 0, col: 0 };
+
+    const result = game.movePieceForward(piece, 4, true);
+
+    expect(result.success).toBe(true);
+    expect(piece.inHomeStretch).toBe(true);
+    expect(piece.position).toEqual({ row: 1, col: 4 });
   });
 
   test('makeSpecialMove moves one piece seven steps', () => {
@@ -223,8 +241,8 @@ describe('Game class', () => {
     const pos1 = { ...piece1.position };
     const pos2 = { ...piece2.position };
     game.makeSpecialMove([
-      { pieceId: piece1.id, steps: 4 },
-      { pieceId: piece2.id, steps: 3 }
+      { pieceId: piece1.id, steps: 3 },
+      { pieceId: piece2.id, steps: 4 }
     ]);
 
     expect(piece1.position).not.toEqual(pos1);
@@ -288,5 +306,22 @@ describe('Game class', () => {
     target.position = { row: 4, col: 17 };
 
     expect(() => game.moveToSelectedPosition(mover, target.id)).toThrow();
+  });
+
+  test('movePieceForward cannot move piece in penalty zone', () => {
+    const game = new Game('penaltyMove');
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+    expect(() => game.movePieceForward(piece, 3)).toThrow();
+  });
+
+  test('hasAnyValidMove is false with 7 when all pieces penalized', () => {
+    const game = new Game('penaltyHand');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    const player = game.players[0];
+    player.cards = [{ suit: '♠', value: '7' }];
+    expect(game.hasAnyValidMove(player.position)).toBe(false);
   });
 });
