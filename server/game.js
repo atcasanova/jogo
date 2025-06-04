@@ -506,9 +506,12 @@ discardCard(cardIndex) {
 
   moveToOccupiedSpace(piece) {
     // Implementar movimento com Joker
-    const occupiedPositions = this.pieces.filter(p => 
-      p.id !== piece.id && 
-      !p.completed && 
+    if (piece.inHomeStretch) {
+      throw new Error("Não pode usar Joker no corredor de chegada");
+    }
+    const occupiedPositions = this.pieces.filter(p =>
+      p.id !== piece.id &&
+      !p.completed &&
       !p.inPenaltyZone
     );
     
@@ -530,6 +533,10 @@ discardCard(cardIndex) {
 
   moveToSelectedPosition(piece, targetPieceId) {
     const targetPiece = this.pieces.find(p => p.id === targetPieceId);
+
+    if (piece.inHomeStretch) {
+      throw new Error("Não pode usar Joker no corredor de chegada");
+    }
 
     if (
       !targetPiece ||
