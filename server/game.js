@@ -908,17 +908,6 @@ discardCard(cardIndex) {
           return { remainingSteps: remaining, boardPosition: boardPos, homePosition: target };
         }
       }
-    } else if (steps === stepsToEnt) {
-      const boardPos = this.calculateNewPosition(piece.position, steps, true);
-      const target = stretch[0];
-      const occupyingPiece = this.pieces.find(p =>
-        p.id !== piece.id &&
-        p.position.row === target.row &&
-        p.position.col === target.col
-      );
-      if (!occupyingPiece) {
-        return { remainingSteps: 1, boardPosition: boardPos, homePosition: target };
-      }
     }
     return null;
   }

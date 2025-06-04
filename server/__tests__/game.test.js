@@ -212,7 +212,7 @@ describe('Game class', () => {
     expect(opponent.inPenaltyZone).toBe(true);
   });
 
-  test('landing exactly on home entrance offers entry option', () => {
+  test('landing exactly on home entrance does not offer entry option', () => {
     const game = new Game('room10');
     game.addPlayer('1', 'Alice');
     game.addPlayer('2', 'Bob');
@@ -226,11 +226,13 @@ describe('Game class', () => {
 
     const result = game.movePieceForward(piece, 4);
 
-    expect(result.action).toBe('homeEntryChoice');
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    expect(result.action).toBe('move');
+    expect(piece.position).toEqual({ row: 0, col: 4 });
+    expect(piece.inHomeStretch).toBe(false);
   });
 
-  test('movePieceForward can enter home stretch when requested', () => {
+  test('movePieceForward can enter home stretch when overshooting', () => {
     const game = new Game('room10b');
     game.addPlayer('1', 'Alice');
     game.addPlayer('2', 'Bob');
@@ -242,7 +244,7 @@ describe('Game class', () => {
     piece.inPenaltyZone = false;
     piece.position = { row: 0, col: 0 };
 
-    const result = game.movePieceForward(piece, 4, true);
+    const result = game.movePieceForward(piece, 5, true);
 
     expect(result.success).toBe(true);
     expect(piece.inHomeStretch).toBe(true);
