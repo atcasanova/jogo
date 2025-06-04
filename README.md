@@ -26,6 +26,10 @@ or use Docker Compose:
 docker-compose up
 ```
 
+Set the `DEBUG` environment variable to `true` to start each player with a fixed
+hand (`K`, `Q`, `T`, `8` and `JOKER`) which is useful for testing. Without this
+variable or when set to `false`, the hands are dealt normally.
+
 The application will be available at `http://localhost:3000`.
 
 ## Basic Gameplay

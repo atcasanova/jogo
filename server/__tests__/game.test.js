@@ -26,6 +26,23 @@ describe('Game class', () => {
     });
   });
 
+  test('startGame gives fixed hands when DEBUG is true', () => {
+    process.env.DEBUG = 'true';
+    const game = new Game('roomDebug');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.startGame();
+    const expectedValues = ['K', 'Q', 'T', '8', 'JOKER'];
+    game.players.forEach(p => {
+      expect(p.cards.map(c => c.value)).toEqual(expectedValues);
+    });
+    const expectedDeckSize = 108 - game.players.length * 5;
+    expect(game.deck.length).toBe(expectedDeckSize);
+    process.env.DEBUG = 'false';
+  });
+
   test('handlePartnerCapture moves piece to entrance before home stretch', () => {
     const game = new Game('room3');
     const piece = game.pieces.find(p => p.id === 'p2_1');
