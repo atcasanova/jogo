@@ -49,6 +49,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let secondPieceId = null;
     let awaitingSecondPiece = false;
 
+    function getDisplayValue(card) {
+      return card.value === 'JOKER' ? 'C' : card.value;
+    }
+
     function showStatusMessage(message, type = 'info') {
       turnMessage.textContent = message;
       turnMessage.className = '';
@@ -648,11 +652,12 @@ function updateCards(cards) {
     const cardElement = document.createElement('div');
     cardElement.className = 'card';
     cardElement.dataset.index = index;
-    
+
     const isRed = card.suit === '♥' || card.suit === '♦';
-    
+    const displayValue = getDisplayValue(card);
+
     cardElement.innerHTML = `
-      <div class="card-value">${card.value}</div>
+      <div class="card-value">${displayValue}</div>
       <div class="card-suit ${isRed ? 'red' : 'black'}">${card.suit}</div>
     `;
     
@@ -674,8 +679,9 @@ function updateCards(cards) {
 
     function createCardHTML(card) {
         const isRed = card.suit === '♥' || card.suit === '♦';
+        const displayValue = getDisplayValue(card);
         return `
-            <div class="card-value">${card.value}</div>
+            <div class="card-value">${displayValue}</div>
             <div class="card-suit ${isRed ? 'red' : 'black'}">${card.suit}</div>
         `;
     }
