@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let players = [];
     let teams = [[], []];
     let isRoomCreator = false;
+    const playerColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
     
     // Inicializar Socket.io
     function initSocket() {
@@ -172,6 +173,9 @@ function handleError(message) {
         players.forEach(player => {
             const li = document.createElement('li');
             li.textContent = player.name;
+            if (player.position !== undefined) {
+                li.style.color = playerColors[player.position];
+            }
             if (player.id === playerId) {
                 li.textContent += ' (você)';
                 li.style.fontWeight = 'bold';
@@ -188,6 +192,9 @@ function handleError(message) {
             const li = document.createElement('li');
             li.textContent = player.name;
             li.dataset.id = player.id;
+            if (player.position !== undefined) {
+                li.style.color = playerColors[player.position];
+            }
             
             // Verificar se o jogador já está em algum time
             const team1 = teams[0].find(p => p.id === player.id);

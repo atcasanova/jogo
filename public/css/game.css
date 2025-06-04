@@ -411,3 +411,23 @@
   text-align: center;
   font-weight: bold;
 }
+
+/* Área para exibir os nomes dos jogadores ao redor do tabuleiro */
+#player-labels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.player-label {
+  position: absolute;
+  font-weight: bold;
+  background-color: rgba(255,255,255,0.8);
+  padding: 2px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+}

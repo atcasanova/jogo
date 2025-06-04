@@ -161,3 +161,8 @@ input[type="text"] {
     color: #7f8c8d;
 }
 
+/* Cores dos jogadores, usadas para nomes e indicadores */
+.player-color-0 { color: #3498db; }
+.player-color-1 { color: #e74c3c; }
+.player-color-2 { color: #2ecc71; }
+.player-color-3 { color: #f39c12; }
