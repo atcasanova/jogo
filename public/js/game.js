@@ -61,8 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function adjustBoardSize() {
-      const info = document.querySelector('.game-info');
-      const hand = document.querySelector('.player-hand');
+        const info = document.querySelector('.game-info');
+        const hand = document.querySelector('.player-hand');
 
       const cssMax = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.65);
       let size = cssMax;
@@ -75,7 +75,26 @@ document.addEventListener('DOMContentLoaded', () => {
       board.style.width = `${size}px`;
       board.style.height = `${size}px`;
     }
-    
+
+    function isPartner(id1, id2) {
+      if (!gameState || !gameState.teams) return false;
+      return gameState.teams.some(team =>
+        team.some(p => p.position === id1) && team.some(p => p.position === id2)
+      );
+    }
+
+    function hasAllPiecesInHomeStretch(playerId) {
+      if (!gameState || !gameState.pieces) return false;
+      return gameState.pieces
+        .filter(p => p.playerId === playerId)
+        .every(p => p.inHomeStretch || p.completed);
+    }
+
+    function canControlPiece(controllerId, ownerId) {
+      if (controllerId === ownerId) return true;
+      return hasAllPiecesInHomeStretch(controllerId) && isPartner(controllerId, ownerId);
+    }
+
     // Inicializar o jogo
    // No arquivo game.js - Modifique a função init
 function init() {
@@ -828,7 +847,7 @@ function handlePieceClick(pieceId) {
   
   console.log('Peça encontrada:', piece);
   
-  if (piece.playerId !== playerPosition) {
+  if (!canControlPiece(playerPosition, piece.playerId)) {
     showStatusMessage(`Esta peça pertence ao jogador ${piece.playerId + 1}, não a você`, 'error');
     return;
   }
@@ -839,6 +858,10 @@ function handlePieceClick(pieceId) {
       return;
     }
     const target = gameState.pieces.find(p => p.id === pieceId);
+    if (!canControlPiece(playerPosition, target.playerId)) {
+      showStatusMessage(`Esta peça pertence ao jogador ${target.playerId + 1}, não a você`, 'error');
+      return;
+    }
     if (target.inPenaltyZone || target.completed) {
       showStatusMessage('Peça inválida para dividir o movimento', 'error');
       return;
@@ -989,7 +1012,7 @@ function makeMove() {
     function initiateSpecialMove() {
         specialMoveCard = selectedCardIndex;
         const movable = gameState.pieces.filter(p =>
-            p.playerId === playerPosition && !p.inPenaltyZone && !p.completed
+            canControlPiece(playerPosition, p.playerId) && !p.inPenaltyZone && !p.completed
         );
 
         if (movable.length <= 1) {
