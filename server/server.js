@@ -322,17 +322,17 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     game.discardPile.push(card);
     currentPlayer.cards.splice(cardIndex, 1);
     
-    // Atualizar estado do jogo para todos
+    // Passar para o próximo jogador antes de enviar o novo estado
+    game.nextTurn();
+
+    // Atualizar estado do jogo para todos já com o próximo jogador definido
     io.to(roomId).emit('gameStateUpdate', game.getGameState());
     logTurnState(game);
-    
+
     // Enviar cartas atualizadas para o jogador
     socket.emit('updateCards', {
       cards: currentPlayer.cards
     });
-    
-    // Passar para o próximo jogador
-    game.nextTurn();
     
     // Notificar próximo jogador
     const nextPlayer = game.getCurrentPlayer();
@@ -451,6 +451,10 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
     game.discardPile.push(card);
     currentPlayer.cards.splice(cardIndex, 1);
 
+    // Avançar o turno antes de enviar o novo estado
+    game.nextTurn();
+
+    // Enviar estado atualizado para todos os jogadores
     io.to(roomId).emit('gameStateUpdate', game.getGameState());
 
     socket.emit('updateCards', {
@@ -464,7 +468,6 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       return;
     }
 
-    game.nextTurn();
     const nextPlayer = game.getCurrentPlayer();
     nextPlayer.cards.push(game.drawCard());
 
