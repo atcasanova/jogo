@@ -1039,6 +1039,46 @@ discardCard(cardIndex) {
     return null;
   }
 
+  cloneForSimulation() {
+    const clone = new Game(this.roomId);
+    clone.players = JSON.parse(JSON.stringify(this.players));
+    clone.teams = JSON.parse(JSON.stringify(this.teams));
+    clone.deck = JSON.parse(JSON.stringify(this.deck));
+    clone.discardPile = JSON.parse(JSON.stringify(this.discardPile));
+    clone.currentPlayerIndex = this.currentPlayerIndex;
+    clone.isActive = this.isActive;
+    clone.board = JSON.parse(JSON.stringify(this.board));
+    clone.pieces = JSON.parse(JSON.stringify(this.pieces));
+    return clone;
+  }
+
+  hasAnyValidMove(playerIndex) {
+    const player = this.players[playerIndex];
+    if (!player) return false;
+
+    const pieces = this.pieces.filter(p => p.playerId === playerIndex && !p.completed);
+
+    for (const card of player.cards) {
+      for (const piece of pieces) {
+        const tempGame = this.cloneForSimulation();
+        const tempPiece = tempGame.pieces.find(p => p.id === piece.id);
+
+        try {
+          if (card.value === '7') {
+            tempGame.movePieceForward(tempPiece, 7);
+          } else {
+            tempGame.executeMove(tempPiece, card);
+          }
+          return true;
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+
+    return false;
+  }
+
   getPlayersInfo() {
     return this.players.map(p => ({
       id: p.id,

@@ -276,40 +276,40 @@ function handleYourTurn(data) {
   console.log('É sua vez de jogar!', data);
   isMyTurn = true;
   showStatusMessage('É sua vez de jogar!', 'turn');
-  
+
   // Atualizar cartas na mão
   if (data && data.cards) {
     console.log('Atualizando cartas:', data.cards);
     updateCards(data.cards);
-    
+
     // Verificar se o jogador está preso no castigo sem K, Q ou J
-    checkIfStuckInPenalty(data.cards);
+    checkIfStuckInPenalty(data.cards, data.canMove);
   } else {
     console.error('ERRO: Dados de cartas não recebidos');
   }
 }
 
 // Adicione esta função para verificar se o jogador está preso no castigo
-function checkIfStuckInPenalty(cards) {
+function checkIfStuckInPenalty(cards, canMoveFlag) {
   if (!gameState || !gameState.pieces) return;
-  
-  // Verificar se todas as peças do jogador estão no castigo
+
+  const cardElements = document.querySelectorAll('.card');
+
+  if (canMoveFlag === false) {
+    showStatusMessage('Você não tem jogadas possíveis. Selecione uma carta para descartar.', 'error');
+    cardElements.forEach(card => card.classList.add('discard-only'));
+    return;
+  }
+
   const playerPieces = gameState.pieces.filter(p => p.playerId === playerPosition);
   const allInPenalty = playerPieces.every(p => p.inPenaltyZone);
-  
-  // Verificar se o jogador não tem K, Q ou J
   const hasExitCard = cards.some(card => ['K', 'Q', 'J'].includes(card.value));
-  
+
   if (allInPenalty && !hasExitCard) {
-    // Jogador está preso no castigo sem cartas para sair
     showStatusMessage('Você não tem K, Q ou J para sair do castigo. Selecione uma carta para descartar.', 'error');
-    
-    // Adicionar classe visual para indicar que as cartas são apenas para descarte
-    const cardElements = document.querySelectorAll('.card');
-    cardElements.forEach(card => {
-      card.classList.add('discard-only');
-    });
+    cardElements.forEach(card => card.classList.add('discard-only'));
   } else {
+    cardElements.forEach(card => card.classList.remove('discard-only'));
     showStatusMessage('É sua vez de jogar!', 'turn');
   }
 }
@@ -742,17 +742,8 @@ function handleCardClick(index) {
 
 // Adicione esta função auxiliar
 function isPlayerStuckInPenalty() {
-  if (!gameState || !gameState.pieces) return false;
-  
-  // Verificar se todas as peças do jogador estão no castigo
-  const playerPieces = gameState.pieces.filter(p => p.playerId === playerPosition);
-  const allInPenalty = playerPieces.every(p => p.inPenaltyZone);
-  
-  // Obter cartas do DOM
   const cardElements = document.querySelectorAll('.card');
-  const hasDiscard = cardElements.length > 0 && cardElements[0].classList.contains('discard-only');
-  
-  return allInPenalty && hasDiscard;
+  return cardElements.length > 0 && cardElements[0].classList.contains('discard-only');
 }
 
 // Adicione esta função para descartar uma carta
