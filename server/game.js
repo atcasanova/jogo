@@ -450,25 +450,27 @@ discardCard(cardIndex) {
       throw new Error("Não pode ultrapassar sua própria peça");
     }
 
-    // Verificar se deve entrar no corredor de chegada diretamente
-    if (this.shouldEnterHomeStretch(piece, newPosition)) {
-      const stepsToEnt = this.stepsToEntrance(piece);
-      if (steps > stepsToEnt) {
-        return this.enterHomeStretch(piece, steps - stepsToEnt);
-      }
-
-      const oldPosition = { ...piece.position };
-      piece.position = newPosition;
-      return this.checkCapture(piece, oldPosition);
-    }
-
     const homeOption = this.checkHomeEntryOption(piece, steps);
     if (homeOption && enterHome === null) {
-      return { success: false, action: 'homeEntryChoice', pieceId: piece.id, cardSteps: steps, boardPosition: homeOption.boardPosition, homePosition: homeOption.homePosition };
+      return {
+        success: false,
+        action: 'homeEntryChoice',
+        pieceId: piece.id,
+        cardSteps: steps,
+        boardPosition: homeOption.boardPosition,
+        homePosition: homeOption.homePosition
+      };
     }
 
     if (homeOption && enterHome) {
       return this.enterHomeStretch(piece, homeOption.remainingSteps);
+    }
+
+    // Verificar se deve entrar no corredor de chegada diretamente
+    if (this.shouldEnterHomeStretch(piece, newPosition)) {
+      const oldPosition = { ...piece.position };
+      piece.position = newPosition;
+      return this.checkCapture(piece, oldPosition);
     }
     
     // Mover para a nova posição
@@ -879,9 +881,9 @@ discardCard(cardIndex) {
   checkHomeEntryOption(piece, steps) {
     const stepsToEnt = this.stepsToEntrance(piece);
     if (stepsToEnt === null) return null;
+    const stretch = this.homeStretchForPlayer(piece.playerId);
     if (steps > stepsToEnt) {
       const remaining = steps - stepsToEnt;
-      const stretch = this.homeStretchForPlayer(piece.playerId);
       if (remaining <= stretch.length) {
         const boardPos = this.calculateNewPosition(piece.position, steps, true);
         const target = stretch[remaining - 1];
@@ -894,6 +896,17 @@ discardCard(cardIndex) {
         if (!occupyingPiece && pathClear) {
           return { remainingSteps: remaining, boardPosition: boardPos, homePosition: target };
         }
+      }
+    } else if (steps === stepsToEnt) {
+      const boardPos = this.calculateNewPosition(piece.position, steps, true);
+      const target = stretch[0];
+      const occupyingPiece = this.pieces.find(p =>
+        p.id !== piece.id &&
+        p.position.row === target.row &&
+        p.position.col === target.col
+      );
+      if (!occupyingPiece) {
+        return { remainingSteps: 1, boardPosition: boardPos, homePosition: target };
       }
     }
     return null;
