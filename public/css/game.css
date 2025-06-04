@@ -78,10 +78,8 @@
     gap: 0;
     background-color: white;
     aspect-ratio: 1/1;
-    max-height: 80vh;
-    max-width: 80vh;
-    min-height: 500px;
-    min-width: 500px;
+    width: min(80vw, 80vh);
+    height: min(80vw, 80vh);
     margin: 0 auto;
 }
 
@@ -166,8 +164,8 @@
 }
 
 .card {
-    width: 90px;
-    height: 130px;
+    width: clamp(50px, 15vw, 90px);
+    height: clamp(70px, 20vw, 130px);
     background-color: white;
     border-radius: 8px;
     border: 1px solid #ddd;
@@ -182,8 +180,8 @@
 }
 
 #cards-container.compact .card {
-    width: 50px;
-    height: 80px;
+    width: clamp(40px, 12vw, 50px);
+    height: clamp(60px, 16vw, 80px);
     margin: 0.25rem;
 }
 
@@ -197,12 +195,12 @@
 }
 
 .card-value {
-    font-size: 1.4rem;
+    font-size: clamp(1rem, 2.5vw, 1.4rem);
     font-weight: bold;
 }
 
 .card-suit {
-    font-size: 1.8rem;
+    font-size: clamp(1.2rem, 3vw, 1.8rem);
     text-align: center;
 }
 
@@ -215,8 +213,8 @@
 }
 
 .card-back {
-    width: 90px;
-    height: 130px;
+    width: clamp(50px, 15vw, 90px);
+    height: clamp(70px, 20vw, 130px);
     background-color: #3498db;
     border-radius: 8px;
     display: flex;
@@ -328,23 +326,40 @@
     }
     
     #board {
-        max-height: 60vh;
-        max-width: 60vh;
+        width: min(70vw, 60vh);
+        height: min(70vw, 60vh);
     }
-    
+
     .card {
-        width: 70px;
-        height: 100px;
+        width: clamp(40px, 18vw, 70px);
+        height: clamp(60px, 26vw, 100px);
     }
 
     #cards-container.compact .card {
-        width: 40px;
-        height: 60px;
+        width: clamp(30px, 14vw, 40px);
+        height: clamp(45px, 20vw, 60px);
     }
 
     .card-back {
-        width: 70px;
-        height: 100px;
+        width: clamp(40px, 18vw, 70px);
+        height: clamp(60px, 26vw, 100px);
+    }
+}
+
+@media (max-width: 500px) {
+    #board {
+        width: min(90vw, 90vh);
+        height: min(90vw, 90vh);
+    }
+
+    .card, .card-back {
+        width: clamp(35px, 22vw, 60px);
+        height: clamp(50px, 30vw, 90px);
+    }
+
+    #cards-container.compact .card {
+        width: clamp(25px, 16vw, 35px);
+        height: clamp(40px, 24vw, 55px);
     }
 }
 
