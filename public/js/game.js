@@ -407,6 +407,9 @@ function updateBoard() {
 
   updatePlayerLabels();
 
+  // Rotacionar novamente para ajustar os rótulos recém-criados
+  rotateBoard();
+
   console.log('Tabuleiro atualizado');
 }
 
@@ -421,12 +424,22 @@ function rotateBoard() {
   const rotation = rotationMap[playerPosition];
   
   board.style.transform = `rotate(${rotation}deg)`;
-  
+
   // Rotacionar também as peças na direção oposta para manter orientação correta
   const pieces = document.querySelectorAll('.piece');
   pieces.forEach(piece => {
     piece.style.transform = `rotate(${-rotation}deg)`;
   });
+
+  // Ajustar a grade de nomes para acompanhar o tabuleiro
+  const labelsContainer = document.getElementById('player-labels');
+  if (labelsContainer) {
+    labelsContainer.style.transform = `rotate(${rotation}deg)`;
+    const labels = labelsContainer.querySelectorAll('.player-label');
+    labels.forEach(label => {
+      label.style.transform = `rotate(${-rotation}deg)`;
+    });
+  }
 }
 
 function updatePlayerLabels() {
@@ -438,10 +451,11 @@ function updatePlayerLabels() {
   const orientationMap = ['bottom', 'left', 'top', 'right'];
 
   const labelPositions = {
-    bottom: { row: 1, startCol: 7, endCol: 5 },
-    top: { row: 17, startCol: 13, endCol: 11 },
-    left: { row: 6, startCol: 17, endCol: 15 },
-    right: { row: 8, startCol: 3, endCol: 1 }
+    // Posições base considerando o tabuleiro sem rotação
+    bottom: { row: 17, startCol: 11, endCol: 13 },
+    top: { row: 1, startCol: 5, endCol: 7 },
+    left: { row: 12, startCol: 1, endCol: 3 },
+    right: { row: 10, startCol: 15, endCol: 17 }
   };
 
   gameState.players.forEach(p => {
