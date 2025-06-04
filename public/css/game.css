@@ -66,6 +66,9 @@
     justify-content: center;
     align-items: center;
     position: relative;
+    width: fit-content;
+    height: fit-content;
+    margin: 0 auto;
 }
 
 #board {
