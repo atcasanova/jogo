@@ -292,6 +292,9 @@ function handleUpdateCards(data) {
   if (data && data.cards) {
     updateCards(data.cards);
   }
+
+  // Reavaliar o turno atual com base no estado mais recente do jogo
+  updateTurnInfo();
 }
 
 function handleChoosePosition(data) {
