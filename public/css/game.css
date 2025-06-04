@@ -78,8 +78,9 @@
     gap: 0;
     background-color: white;
     aspect-ratio: 1/1;
-    width: min(80vw, 80vh);
-    height: min(80vw, 80vh);
+    /* Limit the board so there is always room for the hand */
+    width: min(80vmin, 65vh);
+    height: min(80vmin, 65vh);
     margin: 0 auto;
 }
 
