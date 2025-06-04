@@ -296,9 +296,9 @@ discardCard(cardIndex) {
     for (const move of moves) {
       totalMoves += move.steps;
     }
-    
-    if (totalMoves > 7) {
-      throw new Error("Total de movimentos não pode exceder 7");
+
+    if (totalMoves !== 7) {
+      throw new Error("Total de movimentos deve ser exatamente 7");
     }
     
     // Executar cada movimento
@@ -313,7 +313,7 @@ discardCard(cardIndex) {
         throw new Error("Esta peça não pertence a você");
       }
       
-      this.movePieceForward(piece, move.steps);
+      this.movePieceForward(piece, move.steps, false);
     }
     
     // Remover a carta 7 da mão do jogador

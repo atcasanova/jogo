@@ -179,4 +179,56 @@ describe('Game class', () => {
     expect(piece.inHomeStretch).toBe(false);
     expect(piece.position).toEqual({ row: 0, col: 4 });
   });
+
+  test('makeSpecialMove moves one piece seven steps', () => {
+    const game = new Game('room11');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.startGame();
+
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+    piece.inPenaltyZone = false;
+    piece.position = { row: 0, col: 0 };
+
+    game.players[0].cards.push({ suit: '♠', value: '7' });
+    const before = game.players[0].cards.length;
+
+    const initial = { ...piece.position };
+    game.makeSpecialMove([{ pieceId: piece.id, steps: 7 }]);
+
+    expect(piece.position).not.toEqual(initial);
+    expect(game.players[0].cards.length).toBe(before - 1);
+  });
+
+  test('makeSpecialMove splits steps between two pieces', () => {
+    const game = new Game('room12');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.startGame();
+
+    const piece1 = game.pieces.find(p => p.id === 'p0_1');
+    const piece2 = game.pieces.find(p => p.id === 'p0_2');
+    piece1.inPenaltyZone = false;
+    piece2.inPenaltyZone = false;
+    piece1.position = { row: 0, col: 0 };
+    piece2.position = { row: 0, col: 10 };
+
+    game.players[0].cards.push({ suit: '♠', value: '7' });
+    const before = game.players[0].cards.length;
+
+    const pos1 = { ...piece1.position };
+    const pos2 = { ...piece2.position };
+    game.makeSpecialMove([
+      { pieceId: piece1.id, steps: 4 },
+      { pieceId: piece2.id, steps: 3 }
+    ]);
+
+    expect(piece1.position).not.toEqual(pos1);
+    expect(piece2.position).not.toEqual(pos2);
+    expect(game.players[0].cards.length).toBe(before - 1);
+  });
 });

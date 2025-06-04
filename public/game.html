@@ -52,27 +52,19 @@
         </div>
         
         <div id="special-move-dialog" class="dialog hidden">
-            <h3>Distribuir 7 movimentos</h3>
-            <div class="special-move-form">
-                <div class="piece-move">
-                    <label for="piece1">Peça 1:</label>
-                    <select id="piece1"></select>
-                    <label for="steps1">Passos:</label>
-                    <input type="number" id="steps1" min="0" max="7" value="0">
+            <div id="special-move-choice" class="hidden">
+                <p>Usar mesma peça ou escolher outra?</p>
+                <button id="same-piece-btn">Mesma peça</button>
+                <button id="other-piece-btn">Outra peça</button>
+            </div>
+            <div id="special-move-slider" class="hidden">
+                <div class="slider-labels">
+                    <span id="piece-left"></span>
+                    <span id="piece-right"></span>
                 </div>
-                <div class="piece-move">
-                    <label for="piece2">Peça 2:</label>
-                    <select id="piece2"></select>
-                    <label for="steps2">Passos:</label>
-                    <input type="number" id="steps2" min="0" max="7" value="0">
-                </div>
-                <div class="total-steps">
-                    Total: <span id="total-steps">0</span>/7
-                </div>
-                <div class="button-group">
-                    <button id="confirm-special-move" class="btn primary">Confirmar</button>
-                    <button id="cancel-special-move" class="btn secondary">Cancelar</button>
-                </div>
+                <input type="range" id="split-slider" min="1" max="6" value="3">
+                <div id="slider-values"></div>
+                <button id="confirm-split">OK</button>
             </div>
         </div>
         
