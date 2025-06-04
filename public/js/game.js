@@ -321,7 +321,7 @@ function handleYourTurn(data) {
     console.log('Atualizando cartas:', data.cards);
     updateCards(data.cards);
 
-    // Verificar se o jogador está preso no castigo sem K, Q ou J
+    // Verificar se o jogador está preso no castigo sem A, K, Q ou J
     checkIfStuckInPenalty(data.cards, data.canMove);
   } else {
     console.error('ERRO: Dados de cartas não recebidos');
@@ -342,10 +342,10 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
 
   const playerPieces = gameState.pieces.filter(p => p.playerId === playerPosition);
   const allInPenalty = playerPieces.every(p => p.inPenaltyZone);
-  const hasExitCard = cards.some(card => ['K', 'Q', 'J'].includes(card.value));
+  const hasExitCard = cards.some(card => ['A', 'K', 'Q', 'J'].includes(card.value));
 
   if (allInPenalty && !hasExitCard) {
-    showStatusMessage('Você não tem K, Q ou J para sair do castigo. Selecione uma carta para descartar.', 'error');
+    showStatusMessage('Você não tem A, K, Q ou J para sair do castigo. Selecione uma carta para descartar.', 'error');
     cardElements.forEach(card => card.classList.add('discard-only'));
   } else {
     cardElements.forEach(card => card.classList.remove('discard-only'));
