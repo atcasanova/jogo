@@ -458,7 +458,9 @@ function updatePlayerLabels() {
     right: { row: 10, startCol: 15, endCol: 17 }
   };
 
-  const orientationOrder = ['bottom', 'left', 'top', 'right'];
+  // Ordem das posições relativas considerando a orientação do jogador
+  // Mantém a sequência em sentido horário para evitar inversões
+  const orientationOrder = ['bottom', 'right', 'top', 'left'];
 
   // Mesma convenção de rotação usada em rotateBoard
   const rotationMap = [180, 270, 0, 90];
