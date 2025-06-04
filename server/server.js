@@ -307,8 +307,8 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     const playerPieces = game.pieces.filter(p => p.playerId === currentPlayer.position);
     const allInPenalty = playerPieces.every(p => p.inPenaltyZone);
     
-    // Se todas as peças estão no castigo e a carta é K, Q ou J, permitir sair do castigo
-    if (allInPenalty && ['K', 'Q', 'J'].includes(card.value)) {
+    // Se todas as peças estão no castigo e a carta é A, K, Q ou J, permitir sair do castigo
+    if (allInPenalty && ['A', 'K', 'Q', 'J'].includes(card.value)) {
       // Encontrar a primeira peça no castigo
       const firstPenaltyPiece = playerPieces.find(p => p.inPenaltyZone);
       if (firstPenaltyPiece) {
