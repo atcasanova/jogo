@@ -448,15 +448,43 @@ function updatePlayerLabels() {
 
   container.innerHTML = '';
 
-  const orientationMap = ['bottom', 'left', 'top', 'right'];
-
-  const labelPositions = {
-    // Posições base considerando o tabuleiro sem rotação
+  const basePositions = {
+    // Posições base para o tabuleiro sem rotação
     bottom: { row: 17, startCol: 11, endCol: 13 },
     top: { row: 1, startCol: 5, endCol: 7 },
     left: { row: 12, startCol: 1, endCol: 3 },
     right: { row: 10, startCol: 15, endCol: 17 }
   };
+
+  const orientationOrder = ['bottom', 'left', 'top', 'right'];
+
+  const rotationMap = [180, 90, 0, 270];
+  const rotation = rotationMap[playerPosition] || 0;
+
+  function rotatePoint(row, col, rot) {
+    switch (rot) {
+      case 90:
+        return { row: col, col: 18 - row };
+      case 180:
+        return { row: 18 - row, col: 18 - col };
+      case 270:
+        return { row: 18 - col, col: row };
+      default:
+        return { row, col };
+    }
+  }
+
+  function rotatePosition(pos, rot) {
+    const a = rotatePoint(pos.row, pos.startCol, rot);
+    const b = rotatePoint(pos.row, pos.endCol, rot);
+    const rows = [a.row, b.row];
+    const cols = [a.col, b.col];
+    return {
+      row: Math.min(...rows),
+      startCol: Math.min(...cols),
+      endCol: Math.max(...cols)
+    };
+  }
 
   gameState.players.forEach(p => {
     const label = document.createElement('div');
@@ -470,18 +498,14 @@ function updatePlayerLabels() {
     }
 
     const relIndex = (p.position - playerPosition + 4) % 4;
-    const orientation = orientationMap[relIndex];
-    const pos = labelPositions[orientation];
+    const orientation = orientationOrder[relIndex];
+    const base = basePositions[orientation];
+    const pos = rotatePosition(base, rotation);
 
-    if (pos) {
-      const startCol = Math.min(pos.startCol, pos.endCol);
-      const endCol = Math.max(pos.startCol, pos.endCol);
-
-      label.style.gridRowStart = pos.row + 1;
-      label.style.gridRowEnd = pos.row + 2;
-      label.style.gridColumnStart = startCol + 1;
-      label.style.gridColumnEnd = endCol + 2;
-    }
+    label.style.gridRowStart = pos.row + 1;
+    label.style.gridRowEnd = pos.row + 2;
+    label.style.gridColumnStart = pos.startCol + 1;
+    label.style.gridColumnEnd = pos.endCol + 2;
 
     container.appendChild(label);
   });
