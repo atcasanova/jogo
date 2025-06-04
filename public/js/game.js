@@ -650,9 +650,10 @@ function updateCards(cards) {
     cardElement.dataset.index = index;
     
     const isRed = card.suit === '♥' || card.suit === '♦';
-    
+    const displayValue = card.value === 'JOKER' ? 'C' : card.value;
+
     cardElement.innerHTML = `
-      <div class="card-value">${card.value}</div>
+      <div class="card-value">${displayValue}</div>
       <div class="card-suit ${isRed ? 'red' : 'black'}">${card.suit}</div>
     `;
     
@@ -674,8 +675,9 @@ function updateCards(cards) {
 
     function createCardHTML(card) {
         const isRed = card.suit === '♥' || card.suit === '♦';
+        const displayValue = card.value === 'JOKER' ? 'C' : card.value;
         return `
-            <div class="card-value">${card.value}</div>
+            <div class="card-value">${displayValue}</div>
             <div class="card-suit ${isRed ? 'red' : 'black'}">${card.suit}</div>
         `;
     }

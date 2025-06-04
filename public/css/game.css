@@ -179,9 +179,17 @@
 }
 
 #cards-container.compact .card {
-    width: 45px;
-    height: 70px;
+    width: 55px;
+    height: 85px;
     margin: 0.25rem;
+}
+
+#cards-container.compact .card-value {
+    font-size: 1.2rem;
+}
+
+#cards-container.compact .card-suit {
+    font-size: 1.6rem;
 }
 
 .card:hover {
@@ -335,8 +343,14 @@
     }
 
     #cards-container.compact .card {
-        width: 45px;
-        height: 70px;
+        width: 55px;
+        height: 85px;
+    }
+    #cards-container.compact .card-value {
+        font-size: 1.2rem;
+    }
+    #cards-container.compact .card-suit {
+        font-size: 1.6rem;
     }
     
     .card-back {
