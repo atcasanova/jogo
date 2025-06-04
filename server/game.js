@@ -409,7 +409,7 @@ discardCard(cardIndex) {
       const isPartner = this.isPartner(piece.playerId, occupyingPiece.playerId);
 
       if (isPartner) {
-        const result = this.handlePartnerCapture(occupyingPiece);
+        const result = this.handlePartnerCapture(occupyingPiece, piece.playerId);
         captures.push({ pieceId: occupyingPiece.id, action: 'partnerCapture', result });
       } else {
         this.sendToPenaltyZone(occupyingPiece);
@@ -936,7 +936,7 @@ discardCard(cardIndex) {
       
       if (isPartner) {
         // Captura de parceiro - mover para corredor de chegada
-        const result = this.handlePartnerCapture(capturedPiece);
+        const result = this.handlePartnerCapture(capturedPiece, piece.playerId);
         captures.push({
           pieceId: capturedPiece.id,
           action: 'partnerCapture',
@@ -959,7 +959,7 @@ discardCard(cardIndex) {
     };
   }
 
-  handlePartnerCapture(piece) {
+  handlePartnerCapture(piece, capturingPlayerId = null) {
     // Regra de captura de parceiro: a peça deve ir para a casa
     // imediatamente antes da entrada do seu corredor de chegada.
 
@@ -980,13 +980,29 @@ discardCard(cardIndex) {
       p.position.col === target.col
     );
 
+    if (occupyingPiece) {
+      if (piece.playerId === capturingPlayerId) {
+        const partner = this.partnerIdFor(capturingPlayerId);
+        if (
+          occupyingPiece.playerId === capturingPlayerId ||
+          occupyingPiece.playerId === partner
+        ) {
+          throw new Error('Não é possível capturar sua própria peça.');
+        }
+      } else {
+        if (occupyingPiece.playerId === piece.playerId) {
+          throw new Error('Não é possível capturar sua própria peça.');
+        }
+      }
+    }
+
     let captures;
     if (occupyingPiece) {
       captures = [];
       const isPartner = this.isPartner(piece.playerId, occupyingPiece.playerId);
 
       if (isPartner) {
-        const result = this.handlePartnerCapture(occupyingPiece);
+        const result = this.handlePartnerCapture(occupyingPiece, capturingPlayerId);
         captures.push({ pieceId: occupyingPiece.id, action: 'partnerCapture', result });
       } else {
         this.sendToPenaltyZone(occupyingPiece);
