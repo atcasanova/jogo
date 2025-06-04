@@ -458,10 +458,15 @@ function updatePlayerLabels() {
     right: { row: 10, startCol: 15, endCol: 17 }
   };
 
-  // Ordem das posições relativas considerando a orientação do jogador
-  // Mantém a sequência em sentido horário para que cada jogador
-  // visualize seus adversários nos lados corretos
-  const orientationOrder = ['bottom', 'left', 'top', 'right'];
+  // Orientações corretas para cada posição do jogador
+  // Cada array indica onde os jogadores 0 a 3 devem aparecer
+  // para quem está nas posições 0 a 3 respectivamente
+  const orientationMaps = {
+    0: ['bottom', 'left', 'top', 'right'],
+    1: ['left', 'top', 'right', 'bottom'],
+    2: ['top', 'right', 'bottom', 'left'],
+    3: ['right', 'bottom', 'left', 'top']
+  };
 
   // Mesma convenção de rotação usada em rotateBoard
   const rotationMap = [180, 270, 0, 90];
@@ -503,8 +508,8 @@ function updatePlayerLabels() {
       label.style.color = playerColors[p.position];
     }
 
-    const relIndex = (p.position - playerPosition + 4) % 4;
-    const orientation = orientationOrder[relIndex];
+    const orientationMap = orientationMaps[playerPosition] || orientationMaps[0];
+    const orientation = orientationMap[p.position];
     const base = basePositions[orientation];
     const pos = rotatePosition(base, rotation);
 
