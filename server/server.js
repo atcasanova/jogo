@@ -489,6 +489,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
     }
     
     game.setCustomTeams(teams);
+    io.to(roomId).emit('updatePlayers', game.getPlayersInfo());
     io.to(roomId).emit('teamsSet', game.getTeamsInfo());
 
     if (!game.isActive) {
