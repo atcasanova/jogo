@@ -59,6 +59,22 @@ document.addEventListener('DOMContentLoaded', () => {
       turnMessage.className = '';
       turnMessage.classList.add(type);
     }
+
+    function adjustBoardSize() {
+      const info = document.querySelector('.game-info');
+      const hand = document.querySelector('.player-hand');
+
+      const cssMax = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.65);
+      let size = cssMax;
+
+      if (info && hand) {
+        const available = window.innerHeight - info.offsetHeight - hand.offsetHeight - 32; // margem
+        size = Math.min(cssMax, available);
+      }
+
+      board.style.width = `${size}px`;
+      board.style.height = `${size}px`;
+    }
     
     // Inicializar o jogo
    // No arquivo game.js - Modifique a função init
@@ -95,13 +111,14 @@ function init() {
     
     console.log(`Dados do jogador recuperados: ${playerName} (posição ${playerPosition})`);
     
-    roomCodeSpan.textContent = roomId;
-    
-    // Criar tabuleiro
-    createBoard();
-    
-    // Inicializar Socket.io com os dados recuperados
-    initSocketWithPlayerData(playerData);
+      roomCodeSpan.textContent = roomId;
+
+      // Criar tabuleiro
+      createBoard();
+      adjustBoardSize();
+
+      // Inicializar Socket.io com os dados recuperados
+      initSocketWithPlayerData(playerData);
     
     // Adicionar event listeners
     setupEventListeners();
@@ -1122,6 +1139,9 @@ function makeMove() {
         newGameBtn.addEventListener('click', () => {
             window.location.href = '/';
         });
+
+        window.addEventListener('resize', adjustBoardSize);
+        window.addEventListener('orientationchange', adjustBoardSize);
     }
 
     function updateSliderValues() {
