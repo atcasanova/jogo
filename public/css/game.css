@@ -148,13 +148,15 @@
     background-color: white;
     border-radius: 4px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    overflow-x: auto;
 }
 
 #cards-container {
     display: flex;
     justify-content: center;
     gap: 1rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
     margin-top: 1rem;
 }
 
@@ -452,4 +454,5 @@
   pointer-events: none;
   align-self: center;
   justify-self: center;
+  font-size: clamp(0.6rem, 2vw, 1rem);
 }
