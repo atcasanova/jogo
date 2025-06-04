@@ -438,7 +438,7 @@ function updatePlayerLabels() {
   const rotationMap = [180, 90, 0, 270];
   const rotation = rotationMap[playerPosition];
 
-  const orientations = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+  const orientationMap = ['bottom', 'left', 'top', 'right'];
 
   gameState.players.forEach(p => {
     const label = document.createElement('div');
@@ -451,34 +451,31 @@ function updatePlayerLabels() {
       label.style.color = playerColors[p.position];
     }
 
-    const oriIndex = (p.position + rotation / 90) % 4;
-    const orientation = orientations[oriIndex];
+    const relIndex = (p.position - playerPosition + 4) % 4;
+    const orientation = orientationMap[relIndex];
 
     label.style.top = '';
-    label.style.bottom = '';
     label.style.left = '';
-    label.style.right = '';
+    label.style.transform = 'translate(-50%, -50%)';
+
+    const offset = 12; // porcentagem aproximada da zona de castigo
 
     switch (orientation) {
-      case 'top-left':
-        label.style.top = '6%';
-        label.style.left = '6%';
-        label.style.transform = `translate(-100%, -100%) rotate(${-rotation}deg)`;
+      case 'top':
+        label.style.top = `${offset}%`;
+        label.style.left = '50%';
         break;
-      case 'top-right':
-        label.style.top = '6%';
-        label.style.right = '6%';
-        label.style.transform = `translate(100%, -100%) rotate(${-rotation}deg)`;
+      case 'bottom':
+        label.style.top = `${100 - offset}%`;
+        label.style.left = '50%';
         break;
-      case 'bottom-right':
-        label.style.bottom = '6%';
-        label.style.right = '6%';
-        label.style.transform = `translate(100%, 100%) rotate(${-rotation}deg)`;
+      case 'left':
+        label.style.top = '50%';
+        label.style.left = `${offset}%`;
         break;
-      case 'bottom-left':
-        label.style.bottom = '6%';
-        label.style.left = '6%';
-        label.style.transform = `translate(-100%, 100%) rotate(${-rotation}deg)`;
+      case 'right':
+        label.style.top = '50%';
+        label.style.left = `${100 - offset}%`;
         break;
     }
 
