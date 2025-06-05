@@ -85,6 +85,22 @@
     margin: 0 auto;
 }
 
+/* Mensagem da última jogada */
+#last-move {
+    position: absolute;
+    bottom: 5px;
+    left: 5px;
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    z-index: 20;
+}
+
+.hidden {
+    display: none !important;
+}
+
 #board {
     display: grid;
     grid-template-columns: repeat(19, 1fr);

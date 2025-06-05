@@ -8,5 +8,6 @@ services:
       - ./public:/app/public
     environment:
       DEBUG: "false"
+      REPLAY_HISTORY: "10"
     restart: unless-stopped
 
