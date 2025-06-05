@@ -88,13 +88,15 @@
 /* Mensagem da última jogada */
 #last-move {
     position: absolute;
-    bottom: 5px;
-    left: 5px;
+    top: 10%;
+    left: 10%;
+    transform: translate(-50%, -50%);
     background-color: rgba(255, 255, 255, 0.9);
     padding: 2px 4px;
     border-radius: 4px;
     font-size: 0.7rem;
     z-index: 20;
+    pointer-events: none;
 }
 
 .hidden {
