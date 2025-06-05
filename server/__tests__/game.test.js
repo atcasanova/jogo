@@ -556,6 +556,36 @@ describe('Game class', () => {
     expect(p33.position).toEqual({ row: 12, col: 0 });
     expect(game.pendingSpecialMove).toBe(null);
   });
+
+  test('special 7 move can enter home stretch with piece behind', () => {
+    const game = new Game('sevenHome');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.setupTeams();
+
+    const mover = game.pieces.find(p => p.id === 'p0_1');
+    const partner = game.pieces.find(p => p.id === 'p0_2');
+
+    mover.inPenaltyZone = false;
+    mover.position = { row: 0, col: 4 };
+
+    partner.inPenaltyZone = false;
+    partner.position = { row: 0, col: 8 };
+
+    game.players[0].cards.push({ suit: '♠', value: '7' });
+
+    const result = game.makeSpecialMove([
+      { pieceId: mover.id, steps: 1, enterHome: true },
+      { pieceId: partner.id, steps: 6 }
+    ]);
+
+    expect(result.success).toBe(true);
+    expect(mover.inHomeStretch).toBe(true);
+    expect(mover.position).toEqual({ row: 1, col: 4 });
+    expect(partner.position).toEqual({ row: 0, col: 14 });
+  });
 });
   test('control uses currentPlayerIndex when player position is incorrect', () => {
     const game = new Game('positionMismatch');
