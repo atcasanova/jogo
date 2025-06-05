@@ -5,6 +5,14 @@ const { Server } = require('socket.io');
 const path = require('path');
 const { nanoid } = require('nanoid');
 const { Game } = require('./game');
+const fs = require('fs');
+
+const REPLAY_DIR = path.join(__dirname, '../replays');
+const REPLAY_LIMIT = parseInt(process.env.REPLAY_HISTORY || '10', 10);
+
+if (!fs.existsSync(REPLAY_DIR)) {
+  fs.mkdirSync(REPLAY_DIR, { recursive: true });
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -15,6 +23,38 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // Armazenar salas e jogos ativos
 const rooms = new Map();
+
+function saveReplay(game) {
+  const file = path.join(REPLAY_DIR, `${Date.now()}_${game.roomId}.json`);
+  const data = {
+    roomId: game.roomId,
+    players: game.players.map(p => p.name),
+    history: game.history
+  };
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+
+  const files = fs.readdirSync(REPLAY_DIR).sort();
+  while (files.length > REPLAY_LIMIT) {
+    const f = files.shift();
+    fs.unlinkSync(path.join(REPLAY_DIR, f));
+  }
+}
+
+app.get('/replays', (req, res) => {
+  const files = fs.readdirSync(REPLAY_DIR)
+    .map(f => ({ file: f }))
+    .sort((a, b) => a.file.localeCompare(b.file));
+  res.json(files);
+});
+
+app.get('/replays/:file', (req, res) => {
+  const filePath = path.join(REPLAY_DIR, req.params.file);
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).send('Not found');
+  }
+});
 
 function logTurnState(game) {
   const player = game.getCurrentPlayer();
@@ -43,35 +83,63 @@ function logTurnState(game) {
   console.log(`Outros: ${others}`);
 }
 
-function logMoveDetails(player, pieceId, oldPos, result, game) {
+function logMoveDetails(player, pieceId, oldPos, result, game, card) {
   const piece = game.pieces.find(p => p.id === pieceId);
-  if (!piece) return;
+  if (!piece) return null;
   console.log(`${player.name} moveu ${pieceId} de (${oldPos.row},${oldPos.col}) para (${piece.position.row},${piece.position.col})`);
+
+  const cardVal = card ? (card.value === 'JOKER' ? 'C' : card.value) : '';
+  let message = `${player.name} jogou um ${cardVal}`;
 
   if (result && result.action === 'capture' && result.captures) {
     for (const c of result.captures) {
       if (c.action === 'partnerCapture') {
         const pos = c.result.position;
         console.log(`Capturou parceiro ${c.pieceId} e moveu para (${pos.row},${pos.col})`);
+        const captured = game.pieces.find(p => p.id === c.pieceId);
+        if (captured) {
+          const name = game.players.find(p => p.position === captured.playerId)?.name || `player${captured.playerId+1}`;
+          message += ` e comeu ${name} (parceiro)`;
+        }
       } else if (c.action === 'opponentCapture') {
         console.log(`Capturou adversário ${c.pieceId} e enviou ao castigo`);
+        const captured = game.pieces.find(p => p.id === c.pieceId);
+        if (captured) {
+          const name = game.players.find(p => p.position === captured.playerId)?.name || `player${captured.playerId+1}`;
+          message += ` e comeu ${name} (adversário)`;
+        }
       }
     }
   } else if (result && result.action === 'leavePenalty') {
     console.log(`${pieceId} saiu do castigo`);
+    message += ' e saiu do castigo';
     if (result.captures) {
       for (const c of result.captures) {
         if (c.action === 'partnerCapture') {
           const pos = c.result.position;
           console.log(`Capturou parceiro ${c.pieceId} e moveu para (${pos.row},${pos.col})`);
+          const captured = game.pieces.find(p => p.id === c.pieceId);
+          if (captured) {
+            const name = game.players.find(p => p.position === captured.playerId)?.name || `player${captured.playerId+1}`;
+            message += ` e comeu ${name} (parceiro)`;
+          }
         } else {
           console.log(`Capturou adversário ${c.pieceId} e enviou ao castigo`);
+          const captured = game.pieces.find(p => p.id === c.pieceId);
+          if (captured) {
+            const name = game.players.find(p => p.position === captured.playerId)?.name || `player${captured.playerId+1}`;
+            message += ` e comeu ${name} (adversário)`;
+          }
         }
       }
     }
   } else if (result && result.action === 'enterHomeStretch') {
     console.log(`${pieceId} entrou no corredor de chegada`);
+    message += ' e avançou para o corredor de chegada';
   }
+
+  game.history.push(message);
+  return message;
 }
 
 function launchGame(game) {
@@ -314,7 +382,8 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
       if (firstPenaltyPiece) {
         const oldPos = { ...firstPenaltyPiece.position };
         const result = game.leavePenaltyZone(firstPenaltyPiece);
-        logMoveDetails(currentPlayer, firstPenaltyPiece.id, oldPos, result, game);
+        const msg = logMoveDetails(currentPlayer, firstPenaltyPiece.id, oldPos, result, game, card);
+        io.to(roomId).emit('lastMove', { message: msg });
       }
     }
     
@@ -333,6 +402,10 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     socket.emit('updateCards', {
       cards: currentPlayer.cards
     });
+
+    const discardMsg = `${currentPlayer.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
+    game.history.push(discardMsg);
+    io.to(roomId).emit('lastMove', { message: discardMsg });
     
     // Notificar próximo jogador
     const nextPlayer = game.getCurrentPlayer();
@@ -462,6 +535,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
     });
 
     if (game.checkWinCondition()) {
+      saveReplay(game);
       io.to(roomId).emit('gameOver', {
         winners: game.getWinningTeam()
       });
@@ -561,8 +635,10 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
   try {
     const piece = game.pieces.find(p => p.id === pieceId);
     const oldPos = { ...piece.position };
+    const playedCard = currentPlayer.cards[cardIndex];
     const moveResult = game.makeMove(pieceId, cardIndex, enterHome);
-    logMoveDetails(currentPlayer, pieceId, oldPos, moveResult, game);
+    const msg = logMoveDetails(currentPlayer, pieceId, oldPos, moveResult, game, playedCard);
+    io.to(roomId).emit('lastMove', { message: msg });
 
     if (moveResult && moveResult.action === 'homeEntryChoice') {
       socket.emit('homeEntryChoice', moveResult);
@@ -590,6 +666,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
     // Verificar se o jogo acabou
     if (game.checkWinCondition()) {
+      saveReplay(game);
       io.to(roomId).emit('gameOver', {
         winners: game.getWinningTeam()
       });
@@ -631,8 +708,10 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
    try {
      const piece = game.pieces.find(p => p.id === pieceId);
      const oldPos = { ...piece.position };
+     const playedCard = currentPlayer.cards[cardIndex];
      const moveResult = game.makeMove(pieceId, cardIndex, enterHome);
-     logMoveDetails(currentPlayer, pieceId, oldPos, moveResult, game);
+     const msg = logMoveDetails(currentPlayer, pieceId, oldPos, moveResult, game, playedCard);
+     io.to(roomId).emit('lastMove', { message: msg });
 
      const updatedState = game.getGameState();
      io.to(roomId).emit('gameStateUpdate', updatedState);
@@ -641,12 +720,13 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
        cards: currentPlayer.cards
      });
 
-     if (game.checkWinCondition()) {
-       io.to(roomId).emit('gameOver', {
-         winners: game.getWinningTeam()
-       });
-       return;
-     }
+    if (game.checkWinCondition()) {
+      saveReplay(game);
+      io.to(roomId).emit('gameOver', {
+        winners: game.getWinningTeam()
+      });
+      return;
+    }
 
     const nextPlayer = game.getCurrentPlayer();
     nextPlayer.cards.push(game.drawCard());
@@ -683,9 +763,12 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       const currentPlayer = game.getCurrentPlayer();
       const moveResult = game.makeSpecialMove(moves);
       if (moveResult.moves) {
+        const msgs = [];
         moveResult.moves.forEach(m => {
-          logMoveDetails(currentPlayer, m.pieceId, m.oldPosition, m.result, game);
+          const mMsg = logMoveDetails(currentPlayer, m.pieceId, m.oldPosition, m.result, game, { value: '7' });
+          msgs.push(mMsg);
         });
+        io.to(roomId).emit('lastMove', { message: msgs.join(' | ') });
       }
 
       if (moveResult && moveResult.action === 'homeEntryChoice') {
@@ -705,6 +788,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       
       // Verificar se o jogo acabou
       if (game.checkWinCondition()) {
+        saveReplay(game);
         io.to(roomId).emit('gameOver', {
           winners: game.getWinningTeam()
         });
@@ -745,6 +829,15 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     try {
       const moveResult = game.resumeSpecialMove(enterHome);
 
+      if (moveResult.moves) {
+        const msgs = [];
+        moveResult.moves.forEach(m => {
+          const mMsg = logMoveDetails(currentPlayer, m.pieceId, m.oldPosition, m.result, game, { value: '7' });
+          msgs.push(mMsg);
+        });
+        io.to(roomId).emit('lastMove', { message: msgs.join(' | ') });
+      }
+
       if (moveResult && moveResult.action === 'homeEntryChoice') {
         socket.emit('homeEntryChoiceSpecial', {
           pieceId: moveResult.pieceId,
@@ -760,6 +853,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       logTurnState(game);
 
       if (game.checkWinCondition()) {
+        saveReplay(game);
         io.to(roomId).emit('gameOver', {
           winners: game.getWinningTeam()
         });

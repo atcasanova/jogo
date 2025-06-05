@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const jokerDialog = document.getElementById('joker-dialog');
     const gameOverDialog = document.getElementById('game-over');
     const winnersDiv = document.getElementById('winners');
+    const lastMoveDiv = document.getElementById('last-move');
     
     // Elementos do diálogo de movimento especial (carta 7)
     const specialMoveChoice = document.getElementById('special-move-choice');
@@ -59,6 +60,16 @@ document.addEventListener('DOMContentLoaded', () => {
       turnMessage.textContent = message;
       turnMessage.className = '';
       turnMessage.classList.add(type);
+    }
+
+    function showLastMove(message) {
+      if (!lastMoveDiv) return;
+      if (message) {
+        lastMoveDiv.textContent = message;
+        lastMoveDiv.classList.remove('hidden');
+      } else {
+        lastMoveDiv.classList.add('hidden');
+      }
     }
 
     function adjustBoardSize() {
@@ -176,6 +187,7 @@ function initSocketWithPlayerData(playerData) {
   socket.on('choosePosition', handleChoosePosition);
   socket.on('homeEntryChoice', handleHomeEntryChoice);
   socket.on('homeEntryChoiceSpecial', handleHomeEntryChoiceSpecial);
+  socket.on('lastMove', handleLastMove);
   socket.on('error', handleError);
 }
 
@@ -232,6 +244,9 @@ function handleGameStarted(state) {
   updateTeams();
   updateTurnInfo();
   updateDeckInfo();
+  if (state.lastMove) {
+    showLastMove(state.lastMove);
+  }
   gameOverDialog.classList.add('hidden');
 }
 
@@ -272,13 +287,16 @@ function handlePlayerInfo(data) {
         const player = gameState.players.find(p => p.id === playerId);
         if (player) {
             playerPosition = player.position;
-            console.log('Posição do jogador:', playerPosition);
+        console.log('Posição do jogador:', playerPosition);
         }
-        
+
         updateBoard();
         updateTeams();
         updateTurnInfo();
         updateDeckInfo();
+        if (state.lastMove) {
+            showLastMove(state.lastMove);
+        }
     }
     
 function handleUpdateCards(data) {
@@ -401,6 +419,12 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
     
     function handleError(message) {
         showStatusMessage(`Erro: ${message}`, 'error');
+    }
+
+    function handleLastMove(data) {
+        if (data && data.message) {
+            showLastMove(data.message);
+        }
     }
     
     // Funções de atualização da interface

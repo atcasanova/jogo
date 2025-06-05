@@ -14,6 +14,7 @@ class Game {
     this.pieces = this.initializePieces();
     this.cleanupTimer = null;
     this.pendingSpecialMove = null;
+    this.history = [];
   }
 
   createBoard() {
@@ -1292,7 +1293,8 @@ discardCard(cardIndex) {
       discardPile: this.discardPile.length > 0 ? [this.discardPile[this.discardPile.length - 1]] : [],
       deckCount: this.deck.length,
       discardCount: this.discardPile.length,
-      isActive: this.isActive
+      isActive: this.isActive,
+      lastMove: this.history.length > 0 ? this.history[this.history.length - 1] : null
     };
   }
 }
