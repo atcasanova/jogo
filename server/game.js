@@ -531,8 +531,22 @@ discardCard(cardIndex) {
     }
     
     const homeOption = this.checkHomeEntryOption(piece, steps);
-    if (homeOption && enterHome === true) {
-      return this.enterHomeStretch(piece, homeOption.remainingSteps);
+    if (homeOption) {
+      if (enterHome === true) {
+        return this.enterHomeStretch(piece, homeOption.remainingSteps);
+      }
+
+      if (enterHome === null) {
+        return {
+          success: false,
+          action: 'homeEntryChoice',
+          pieceId: piece.id,
+          cardSteps: steps,
+          boardPosition: homeOption.boardPosition,
+          homePosition: homeOption.homePosition
+        };
+      }
+      // Se enterHome for false, continua movimentação normal
     }
 
     // Calcular nova posição na pista principal
@@ -541,17 +555,6 @@ discardCard(cardIndex) {
     // Verificar se vai ultrapassar peça do mesmo jogador
     if (this.wouldOverpassOwnPiece(piece, steps, true)) {
       throw new Error("Não pode ultrapassar sua própria peça");
-    }
-
-    if (homeOption && enterHome === null) {
-      return {
-        success: false,
-        action: 'homeEntryChoice',
-        pieceId: piece.id,
-        cardSteps: steps,
-        boardPosition: homeOption.boardPosition,
-        homePosition: homeOption.homePosition
-      };
     }
 
 
