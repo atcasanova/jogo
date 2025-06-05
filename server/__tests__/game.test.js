@@ -306,6 +306,32 @@ describe('Game class', () => {
     expect(mover.position).toEqual({ row: 13, col: 14 });
   });
 
+  test('home entry check happens before overpass check', () => {
+    const game = new Game('entryFirst');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.setupTeams();
+
+    const mover = game.pieces.find(p => p.id === 'p0_1');
+    const blocker = game.pieces.find(p => p.id === 'p0_2');
+
+    mover.inPenaltyZone = false;
+    mover.position = { row: 0, col: 4 };
+
+    blocker.inPenaltyZone = false;
+    blocker.position = { row: 0, col: 8 };
+
+    const result = game.movePieceForward(mover, 5);
+
+    expect(result.action).toBe('homeEntryChoice');
+    const finish = game.movePieceForward(mover, 5, true);
+
+    expect(finish.success).toBe(true);
+    expect(mover.inHomeStretch).toBe(true);
+  });
+
   test('movePieceForward cannot overpass inside home stretch', () => {
     const game = new Game('noOverpass');
     game.addPlayer('1', 'A');
