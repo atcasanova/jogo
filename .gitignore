@@ -2,3 +2,4 @@ node_modules/
 package-lock.json
 replays/
 
+__pycache__/
