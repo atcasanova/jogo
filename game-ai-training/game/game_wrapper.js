@@ -14,8 +14,14 @@ try {
     process.exit(1);
 }
 
-// Restore console.log
-console.log = originalConsoleLog;
+// Restore console.log and redirect all further output to stderr so that
+// stdout remains reserved for JSON communication with the Python side.
+console.log = (...args) => {
+    process.stderr.write(args.join(' ') + '\n');
+};
+console.error = (...args) => {
+    process.stderr.write(args.join(' ') + '\n');
+};
 
 class GameWrapper {
     constructor() {
