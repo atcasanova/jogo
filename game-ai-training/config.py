@@ -2,7 +2,7 @@
 TRAINING_CONFIG = {
     'num_episodes': 5000,
     'save_frequency': 500,
-    'stats_frequency': 100,
+    'stats_frequency': 10,
     'learning_rate': 0.001,
     'batch_size': 32,
     'memory_size': 10000,
