@@ -28,7 +28,8 @@ class GameBot:
     def __init__(self, player_id, state_size, action_size):
         # Set device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Bot {player_id} using device: {self.device}")
+        from json_logger import info
+        info("Bot using device", bot=player_id, device=str(self.device))
         
         self.player_id = player_id
         self.state_size = state_size
