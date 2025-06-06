@@ -31,7 +31,7 @@ class GameBot:
         # Set device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         info("Bot using device", bot=player_id, device=str(self.device))
-        
+       
         self.player_id = player_id
         self.state_size = state_size
         self.action_size = action_size
