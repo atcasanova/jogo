@@ -2,10 +2,11 @@
 import sys
 import os
 from ai.trainer import TrainingManager
+from json_logger import info, error
 
 def main():
-    print("=== Game AI Training System ===")
-    print("Initializing training environment...")
+    info("Game AI Training System starting")
+    info("Initializing training environment")
     
     # Create training manager
     trainer = TrainingManager()
@@ -17,23 +18,23 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--continue":
         model_path = "models/final"
         if os.path.exists(model_path):
-            print(f"Loading existing models from {model_path}")
+            info(f"Loading existing models from {model_path}")
             trainer.load_models(model_path)
         else:
-            print("No existing models found, starting fresh training")
+            info("No existing models found, starting fresh training")
     
     # Start training
-    print("Starting training process...")
+    info("Starting training process")
     try:
         trainer.train()
     except KeyboardInterrupt:
-        print("\nTraining interrupted by user")
+        info("Training interrupted by user")
         trainer.save_models("models/interrupted")
-        print("Models saved before exit")
+        info("Models saved before exit")
     except Exception as e:
-        print(f"Training error: {e}")
+        error(f"Training error: {e}")
         trainer.save_models("models/error_backup")
-        print("Emergency backup saved")
+        info("Emergency backup saved")
 
 if __name__ == "__main__":
     main()

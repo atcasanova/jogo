@@ -7,6 +7,8 @@ import fcntl
 import select
 from typing import List, Tuple, Dict, Any
 
+from json_logger import info, error, warning
+
 class GameEnvironment:
     def __init__(self):
         self.node_process = None
@@ -22,7 +24,7 @@ class GameEnvironment:
                           capture_output=True, check=False)
             time.sleep(1)
             
-            print("Starting Node.js game process...")
+            info("Starting Node.js game process")
             
             # Start process with unbuffered I/O
             self.node_process = subprocess.Popen(
@@ -42,7 +44,7 @@ class GameEnvironment:
             
             # Wait for ready signal
             ready = False
-            print("Waiting for ready signal...")
+            info("Waiting for ready signal")
             
             for attempt in range(50):  # 25 seconds total
                 try:
@@ -53,13 +55,13 @@ class GameEnvironment:
                         line = self.node_process.stdout.readline()
                         if line:
                             line = line.strip()
-                            print(f"Received: {line[:50]}...")  # First 50 chars
+                            info("Received line", snippet=line[:50])  # First 50 chars
                             
                             if line.startswith('{'):
                                 try:
                                     response = json.loads(line)
                                     if response.get('ready'):
-                                        print("✓ Ready signal received")
+                                        info("Ready signal received")
                                         ready = True
                                         break
                                 except json.JSONDecodeError:
@@ -69,26 +71,26 @@ class GameEnvironment:
                 
                 # Check if process died
                 if self.node_process.poll() is not None:
-                    print("❌ Node.js process terminated")
+                    error("Node.js process terminated")
                     return False
             
             if not ready:
-                print("❌ No ready signal received")
+                error("No ready signal received")
                 return False
             
             # Test communication
-            print("Testing reset command...")
+            info("Testing reset command")
             test_response = self.send_command({"action": "reset"})
             
             if test_response.get('success'):
-                print("✓ Node.js game process started successfully")
+                info("Node.js game process started successfully")
                 return True
             else:
-                print(f"❌ Communication test failed: {test_response}")
+                error("Communication test failed", response=test_response)
                 return False
                 
         except Exception as e:
-            print(f"❌ Error starting Node.js game: {e}")
+            error("Error starting Node.js game", exception=str(e))
             return False
     
     def send_command(self, command: Dict) -> Dict:
@@ -136,9 +138,9 @@ class GameEnvironment:
         response = self.send_command({"action": "reset"})
         if response.get('success'):
             self.game_state = response.get("gameState", {})
-            print("✓ Game reset successful")
+            info("Game reset successful")
         else:
-            print(f"❌ Game reset failed: {response}")
+            error("Game reset failed", response=response)
         
         return self.get_state(0)
     
@@ -194,7 +196,7 @@ class GameEnvironment:
                                 state[piece_idx + 3] = 1
             
         except Exception as e:
-            print(f"Warning: Error encoding state: {e}")
+            warning("Error encoding state", exception=str(e))
         
         return state
     

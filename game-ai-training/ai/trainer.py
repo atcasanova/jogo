@@ -6,6 +6,7 @@ from datetime import datetime
 from ai.environment import GameEnvironment
 from ai.bot import GameBot
 from config import TRAINING_CONFIG, MODEL_DIR, PLOT_DIR, LOG_DIR
+from json_logger import info, warning
 
 class TrainingManager:
     def __init__(self):
@@ -31,7 +32,7 @@ class TrainingManager:
                 action_size=self.env.action_space_size
             )
             self.bots.append(bot)
-        print(f"Created {num_bots} bots for training")
+        info("Created bots for training", count=num_bots)
     
     def train_episode(self):
         # Reset environment
@@ -113,11 +114,11 @@ class TrainingManager:
         save_freq = save_freq or TRAINING_CONFIG['save_frequency']
         stats_freq = stats_freq or TRAINING_CONFIG['stats_frequency']
         
-        print(f"Starting training for {num_episodes} episodes...")
+        info("Starting training", episodes=num_episodes)
         
         # Start the game environment
         if not self.env.start_node_game():
-            print("Failed to start Node.js game process")
+            warning("Failed to start Node.js game process")
             return
         
         try:
@@ -133,7 +134,7 @@ class TrainingManager:
                 if episode % save_freq == 0:
                     self.save_models(f"{MODEL_DIR}/episode_{episode}")
             
-            print("Training completed!")
+            info("Training completed")
             self.save_models(f"{MODEL_DIR}/final")
             self.plot_training_progress()
             
@@ -141,17 +142,21 @@ class TrainingManager:
             self.env.close()
     
     def print_statistics(self, episode):
-        print(f"\n=== Episode {episode} Statistics ===")
+        info("Episode statistics", episode=episode)
         
         for i, bot in enumerate(self.bots):
             win_rate = (bot.wins / bot.games_played * 100) if bot.games_played > 0 else 0
             avg_reward = bot.total_reward / bot.games_played if bot.games_played > 0 else 0
             avg_loss = np.mean(bot.losses[-100:]) if bot.losses else 0
             
-            print(f"Bot {i}: Win Rate: {win_rate:.1f}%, "
-                  f"Avg Reward: {avg_reward:.2f}, "
-                  f"Epsilon: {bot.epsilon:.3f}, "
-                  f"Avg Loss: {avg_loss:.4f}")
+            info(
+                "Bot stats",
+                bot=i,
+                win_rate=f"{win_rate:.1f}",
+                avg_reward=f"{avg_reward:.2f}",
+                epsilon=f"{bot.epsilon:.3f}",
+                avg_loss=f"{avg_loss:.4f}"
+            )
     
     def plot_training_progress(self):
         fig, axes = plt.subplots(2, 2, figsize=(15, 10))
@@ -209,12 +214,12 @@ class TrainingManager:
         with open(f"{base_path}/training_stats.json", 'w') as f:
             json.dump(self.training_stats, f, indent=2)
         
-        print(f"Models saved to {base_path}")
+        info("Models saved", path=base_path)
     
     def load_models(self, base_path):
         for i, bot in enumerate(self.bots):
             model_path = f"{base_path}/bot_{i}.pth"
             if os.path.exists(model_path):
                 bot.load_model(model_path)
-                print(f"Loaded model for bot {i}")
+                info("Loaded model", bot=i)
 
