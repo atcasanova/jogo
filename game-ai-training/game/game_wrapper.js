@@ -39,13 +39,24 @@ class GameWrapper {
     setupGame() {
         try {
             this.game = new Game("training_room");
-            
+
             // Add 4 bot players
             for (let i = 0; i < 4; i++) {
                 this.game.addPlayer(`bot_${i}`, `Bot_${i}`);
             }
-            
+
             this.game.startGame();
+
+            // Draw a card for the first player just like the server does
+            const first = this.game.getCurrentPlayer();
+            if (first) {
+                try {
+                    first.cards.push(this.game.drawCard());
+                } catch (e) {
+                    // ignore if deck is empty
+                }
+            }
+
             return true;
         } catch (error) {
             return false;
@@ -146,15 +157,46 @@ class GameWrapper {
     
     makeMove(playerId, actionId) {
         try {
-            // For now, just return a success response
-            // You can implement actual move logic here
+            if (!this.game || !this.game.isActive) {
+                throw new Error('Game is not active');
+            }
+
+            if (playerId !== this.game.currentPlayerIndex) {
+                throw new Error('Not this player\'s turn');
+            }
+
+            let result;
+            if (actionId >= 40) {
+                const cardIndex = actionId - 40;
+                result = this.game.discardCard(cardIndex);
+            } else {
+                const cardIndex = Math.floor(actionId / 10);
+                const pieceNumber = actionId % 10;
+                const pieceId = `p${playerId}_${pieceNumber}`;
+                result = this.game.makeMove(pieceId, cardIndex);
+            }
+
+            // After the move/discard the turn has advanced inside the game
+            // Draw a card for the new current player
+            const nextPlayer = this.game.getCurrentPlayer();
+            if (nextPlayer) {
+                try {
+                    nextPlayer.cards.push(this.game.drawCard());
+                } catch (e) {
+                    // ignore deck exhaustion
+                }
+            }
+
+            const gameEnded = this.game.checkWinCondition();
+            const winningTeam = gameEnded ? this.game.getWinningTeam() : null;
+
             return {
                 success: true,
-                action: 'move',
-                captures: [],
+                action: result && result.action ? result.action : 'move',
+                captures: result && result.captures ? result.captures : [],
                 gameState: this.getGameState(),
-                gameEnded: false,
-                winningTeam: null
+                gameEnded,
+                winningTeam
             };
         } catch (error) {
             return {
