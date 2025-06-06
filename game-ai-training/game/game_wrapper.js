@@ -39,7 +39,8 @@ class GameWrapper {
     }
     
     sendResponse(response) {
-        console.log(JSON.stringify(response));
+        // Write JSON to stdout so the Python side can read it
+        process.stdout.write(JSON.stringify(response) + '\n');
     }
     
     setupGame() {
