@@ -21,10 +21,10 @@ def test_get_valid_actions_limits_to_ten():
 
 def test_step_updates_game_state_and_returns_rewards():
     env = GameEnvironment()
-    with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {'foo': 'bar'}, 'gameEnded': False}):
+    with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {'foo': 'bar'}, 'gameEnded': False, 'winningTeam': None}):
         with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
             next_state, reward, done = env.step(1, 0)
     assert reward == 0.1
     assert done is False
-    assert env.game_state == {'foo': 'bar'}
+    assert env.game_state == {'foo': 'bar', 'gameEnded': False, 'winningTeam': None}
     assert isinstance(next_state, np.ndarray)

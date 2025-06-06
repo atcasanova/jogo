@@ -138,6 +138,9 @@ class GameEnvironment:
         response = self.send_command({"action": "reset"})
         if response.get('success'):
             self.game_state = response.get("gameState", {})
+            # Ensure win information fields exist for trainer
+            self.game_state['gameEnded'] = False
+            self.game_state['winningTeam'] = response.get('winningTeam')
             info("Game reset successful")
         else:
             error("Game reset failed", response=response)
@@ -221,9 +224,12 @@ class GameEnvironment:
         # Calculate reward
         reward = 0.1 if response.get('success') else -0.1
         done = response.get('gameEnded', False)
-        
+
         if response.get('success'):
             self.game_state = response.get("gameState", self.game_state)
+            # Preserve win information returned by the Node process
+            self.game_state['gameEnded'] = done
+            self.game_state['winningTeam'] = response.get('winningTeam')
         
         next_state = self.get_state(player_id)
         return next_state, reward, done
