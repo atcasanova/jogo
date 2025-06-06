@@ -28,3 +28,11 @@ def test_step_updates_game_state_and_returns_rewards():
     assert done is False
     assert env.game_state == {'foo': 'bar', 'gameEnded': False, 'winningTeam': None}
     assert isinstance(next_state, np.ndarray)
+
+
+def test_reset_initializes_win_fields():
+    env = GameEnvironment()
+    with patch.object(env, 'start_node_game', return_value=True):
+        with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {}, 'winningTeam': None}):
+            env.reset()
+    assert env.game_state == {'gameEnded': False, 'winningTeam': None}
