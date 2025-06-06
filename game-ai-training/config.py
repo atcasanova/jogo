@@ -20,3 +20,7 @@ MODEL_DIR = 'models'
 PLOT_DIR = 'plots'
 LOG_DIR = 'logs'
 
+# Logging
+import os
+JSON_LOGGING = os.getenv('JSON_LOGGING', '0').lower() in ('1', 'true', 'yes')
+
