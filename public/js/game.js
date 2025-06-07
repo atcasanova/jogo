@@ -538,13 +538,15 @@ function updatePlayerLabels() {
   // para quem está nas posições 0 a 3 respectivamente
   const orientationMaps = {
     0: ['bottom', 'left', 'top', 'right'],
-    // Posição 1 vê o tabuleiro rotacionado 90° CCW,
-    // então os jogadores aparecem na ordem esquerda, topo, direita, baixo
-    1: ['left', 'top', 'right', 'bottom'],
+    // Para o jogador na posição 1 a rotação aplicada é de 90° no sentido
+    // horário, portanto os jogadores devem aparecer na ordem direita,
+    // baixo, esquerda e topo
+    1: ['right', 'bottom', 'left', 'top'],
     2: ['top', 'right', 'bottom', 'left'],
-    // Posição 3 vê o tabuleiro rotacionado 270° CCW (ou 90° CW)
-    // portanto a ordem correta é direita, baixo, esquerda, topo
-    3: ['right', 'bottom', 'left', 'top']
+    // Para a posição 3 o tabuleiro é rotacionado 270° no sentido horário
+    // (ou 90° anti-horário), de modo que os jogadores aparecem na ordem
+    // esquerda, topo, direita e baixo
+    3: ['left', 'top', 'right', 'bottom']
   };
 
   // Mesma convenção de rotação usada em rotateBoard
