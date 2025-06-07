@@ -77,17 +77,9 @@ class GameEnvironment:
             if not ready:
                 error("No ready signal received")
                 return False
-            
-            # Test communication
-            info("Testing reset command")
-            test_response = self.send_command({"action": "reset"})
-            
-            if test_response.get('success'):
-                info("Node.js game process started successfully")
-                return True
-            else:
-                error("Communication test failed", response=test_response)
-                return False
+
+            info("Node.js game process started successfully")
+            return True
                 
         except Exception as e:
             error("Error starting Node.js game", exception=str(e))
