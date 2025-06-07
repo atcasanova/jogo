@@ -39,12 +39,16 @@ and start training as usual.
 
 The training manager can also run multiple game environments in parallel to
 speed up experience collection. Pass the `num_envs` argument to the `train`
-method to enable this:
+method or specify it on the command line:
 
 ```python
 manager = TrainingManager(num_envs=2)
 manager.create_bots()
 manager.train(num_envs=2)
+```
+
+```bash
+python3 game-ai-training/main.py --num_envs 2
 ```
 
 Each environment runs in its own thread with a separate Node.js game process.
