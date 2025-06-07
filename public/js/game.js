@@ -52,6 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let awaitingSecondPiece = false;
     const playerColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
 
+    const pieceElements = {};
+
     function getDisplayValue(card) {
       return card.value === 'JOKER' ? 'C' : card.value;
     }
@@ -671,55 +673,50 @@ function updatePlayerLabels() {
     
    // Modifique a função positionPieces
 
-	function positionPieces() {
+        function positionPieces() {
   if (!gameState || !gameState.pieces) {
     console.log('Sem peças para posicionar');
     return;
   }
-  
+
   console.log(`Posicionando ${gameState.pieces.length} peças`);
-  
-  
+
   gameState.pieces.forEach(piece => {
-    console.log(`Posicionando peça ${piece.id} em (${piece.position.row}, ${piece.position.col})`);
     const cell = getCell(piece.position.row, piece.position.col);
-    
     if (!cell) {
       console.error(`Célula não encontrada para peça ${piece.id} em (${piece.position.row}, ${piece.position.col})`);
       return;
     }
-    
-    // Remover peça existente, se houver
-    const existingPiece = cell.querySelector('.piece');
-    if (existingPiece) {
-      cell.removeChild(existingPiece);
+
+    let pieceElement = pieceElements[piece.id];
+    if (!pieceElement) {
+      pieceElement = document.createElement('div');
+      pieceElement.className = `piece player${piece.playerId}`;
+      if (piece.playerId === playerPosition) {
+        pieceElement.classList.add('my-piece');
+      }
+      pieceElement.textContent = piece.pieceId;
+      pieceElement.dataset.id = piece.id;
+      pieceElement.addEventListener('click', e => {
+        e.stopPropagation();
+        handlePieceClick(piece.id);
+      });
+      pieceElements[piece.id] = pieceElement;
+      cell.appendChild(pieceElement);
+      return;
     }
-    
-    // Criar elemento da peça
-    const pieceElement = document.createElement('div');
-    pieceElement.className = `piece player${piece.playerId}`;
-    
-    // Destacar peças do jogador atual
-    if (piece.playerId === playerPosition) {
-      pieceElement.classList.add('my-piece');
-    }
-    
-    pieceElement.textContent = piece.pieceId;
-    pieceElement.dataset.id = piece.id;
-    
-    // Rotacionar a peça na direção oposta ao tabuleiro para manter orientação correta
-    //if (playerPosition !== undefined) {
-    //  pieceElement.style.transform = `rotate(${-playerPosition * 90}deg)`;
-    //}
-    
-    // Adicionar evento de clique
-    pieceElement.addEventListener('click', (e) => {
-      e.stopPropagation();
-      handlePieceClick(piece.id);
-    });
-    
+
+    const first = pieceElement.getBoundingClientRect();
     cell.appendChild(pieceElement);
-    console.log(`Peça ${piece.id} posicionada com sucesso`);
+    const last = pieceElement.getBoundingClientRect();
+    const deltaX = first.left - last.left;
+    const deltaY = first.top - last.top;
+    pieceElement.style.transition = 'none';
+    pieceElement.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+    requestAnimationFrame(() => {
+      pieceElement.style.transition = 'transform 0.3s';
+      pieceElement.style.transform = '';
+    });
   });
 }
 
