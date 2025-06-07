@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const prefillRoomId = params.get('roomId');
     if (prefillRoomId) {
         roomIdInput.value = prefillRoomId;
-        showJoinRoomScreen();
+        // Permanecer na tela inicial para que o jogador informe seu nome
     }
     
     // Inicializar Socket.io
