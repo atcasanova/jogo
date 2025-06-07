@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 import random
 from collections import deque
+import threading
 
 from config import TRAINING_CONFIG
 from json_logger import info
@@ -68,6 +69,9 @@ class GameBot:
         self.games_played = 0
         self.total_reward = 0
         self.losses = []
+
+        # Synchronization lock for multi-threaded training
+        self.lock = threading.Lock()
     
     def remember(self, state, action, reward, next_state, done):
         """Store experience in replay buffer"""
@@ -78,9 +82,12 @@ class GameBot:
         if np.random.random() <= self.epsilon:
             return random.choice(valid_actions)
         
-        # Move state to GPU
+        # Move state to GPU and run network in evaluation mode without grad
         state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-        q_values = self.q_network(state_tensor)
+        self.q_network.eval()
+        with torch.no_grad():
+            q_values = self.q_network(state_tensor)
+        self.q_network.train()
         
         # Mask invalid actions
         masked_q_values = q_values.clone()
@@ -96,25 +103,26 @@ class GameBot:
         """Train the model on a batch of experiences"""
         if len(self.memory) < self.batch_size:
             return
-        
+
         batch = random.sample(self.memory, self.batch_size)
-        
+
         # Move tensors to GPU
         states = torch.FloatTensor(np.array([e[0] for e in batch])).to(self.device)
         actions = torch.LongTensor(np.array([e[1] for e in batch])).to(self.device)
         rewards = torch.FloatTensor(np.array([e[2] for e in batch])).to(self.device)
         next_states = torch.FloatTensor(np.array([e[3] for e in batch])).to(self.device)
         dones = torch.BoolTensor(np.array([e[4] for e in batch])).to(self.device)
-        
-        current_q_values = self.q_network(states).gather(1, actions.unsqueeze(1))
-        next_q_values = self.target_network(next_states).max(1)[0].detach()
-        target_q_values = rewards + (self.gamma * next_q_values * ~dones)
-        
-        loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
-        
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+
+        with self.lock:
+            current_q_values = self.q_network(states).gather(1, actions.unsqueeze(1))
+            next_q_values = self.target_network(next_states).max(1)[0].detach()
+            target_q_values = rewards + (self.gamma * next_q_values * ~dones)
+
+            loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
         
         self.losses.append(loss.item())
         
@@ -123,7 +131,8 @@ class GameBot:
     
     def update_target_network(self):
         """Copy weights from main network to target network"""
-        self.target_network.load_state_dict(self.q_network.state_dict())
+        with self.lock:
+            self.target_network.load_state_dict(self.q_network.state_dict())
     
     def save_model(self, filepath):
         """Save the trained model"""
