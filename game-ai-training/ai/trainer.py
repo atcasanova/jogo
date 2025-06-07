@@ -144,7 +144,7 @@ class TrainingManager:
 
         return episode_rewards
     
-    def train(self, num_episodes=None, save_freq=None, stats_freq=None, num_envs: int = 1):
+    def train(self, num_episodes=None, save_freq=None, stats_freq=None, num_envs: int = 1, save_match_log: bool = False):
         """Train using one or more environments in parallel."""
         num_episodes = num_episodes or TRAINING_CONFIG['num_episodes']
         save_freq = save_freq or TRAINING_CONFIG['save_frequency']
@@ -168,11 +168,12 @@ class TrainingManager:
 
                     if (episode + 1) % save_freq == 0:
                         self.save_models(f"{MODEL_DIR}/episode_{episode + 1}")
-                        log_file = os.path.join(
-                            LOG_DIR,
-                            f"episode_{episode + 1}_env_{self.env.env_id}.log"
-                        )
-                        self.env.save_history(log_file)
+                        if save_match_log:
+                            log_file = os.path.join(
+                                LOG_DIR,
+                                f"episode_{episode + 1}_env_{self.env.env_id}.log"
+                            )
+                            self.env.save_history(log_file)
 
                 info("Training completed")
                 self.save_models(f"{MODEL_DIR}/final")
@@ -201,12 +202,13 @@ class TrainingManager:
                         self.save_models(
                             f"{MODEL_DIR}/episode_{(episode + 1) * num_envs}"
                         )
-                        for env in self.envs:
-                            log_file = os.path.join(
-                                LOG_DIR,
-                                f"episode_{(episode + 1) * num_envs}_env_{env.env_id}.log"
-                            )
-                            env.save_history(log_file)
+                        if save_match_log:
+                            for env in self.envs:
+                                log_file = os.path.join(
+                                    LOG_DIR,
+                                    f"episode_{(episode + 1) * num_envs}_env_{env.env_id}.log"
+                                )
+                                env.save_history(log_file)
 
                 info("Training completed")
                 self.save_models(f"{MODEL_DIR}/final")

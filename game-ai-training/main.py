@@ -18,6 +18,12 @@ def main():
         default=1,
         help="Number of parallel environments to run",
     )
+    parser.add_argument(
+        "--save-match-log",
+        dest="save_match_log",
+        action="store_true",
+        help="Save move history every save_frequency episodes",
+    )
     args = parser.parse_args()
 
     info("Game AI Training System starting")
@@ -41,7 +47,7 @@ def main():
     # Start training
     info("Starting training process")
     try:
-        trainer.train(num_envs=args.num_envs)
+        trainer.train(num_envs=args.num_envs, save_match_log=args.save_match_log)
     except KeyboardInterrupt:
         info("Training interrupted by user")
         trainer.save_models("models/interrupted")
