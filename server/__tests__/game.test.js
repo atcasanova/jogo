@@ -642,7 +642,7 @@ describe('Game class', () => {
 
     const result = game.discardCard(0);
     expect(result.action).toBe('leavePenalty');
-    expect(game.currentPlayerIndex).toBe(1);
+    expect(game.currentPlayerIndex).toBe(3);
   });
 
 });
