@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 import random
 from collections import deque
+import threading
 
 from config import TRAINING_CONFIG
 from json_logger import info
@@ -68,6 +69,9 @@ class GameBot:
         self.games_played = 0
         self.total_reward = 0
         self.losses = []
+
+        # Synchronization lock for multi-threaded training
+        self.lock = threading.Lock()
     
     def remember(self, state, action, reward, next_state, done):
         """Store experience in replay buffer"""
@@ -96,9 +100,9 @@ class GameBot:
         """Train the model on a batch of experiences"""
         if len(self.memory) < self.batch_size:
             return
-        
+
         batch = random.sample(self.memory, self.batch_size)
-        
+
         # Move tensors to GPU
         states = torch.FloatTensor(np.array([e[0] for e in batch])).to(self.device)
         actions = torch.LongTensor(np.array([e[1] for e in batch])).to(self.device)
@@ -112,9 +116,10 @@ class GameBot:
         
         loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
         
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+        with self.lock:
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
         
         self.losses.append(loss.item())
         
@@ -123,7 +128,8 @@ class GameBot:
     
     def update_target_network(self):
         """Copy weights from main network to target network"""
-        self.target_network.load_state_dict(self.q_network.state_dict())
+        with self.lock:
+            self.target_network.load_state_dict(self.q_network.state_dict())
     
     def save_model(self, filepath):
         """Save the trained model"""
