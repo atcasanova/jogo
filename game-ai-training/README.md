@@ -28,6 +28,14 @@ python3 game-ai-training/main.py --continue
 
 The trainer will load the models from `models/final` if they exist.
 
+## Match Logging
+
+Passing the `--save-match-log` flag to `main.py` writes the move history of
+every game played at each save interval to the `logs/` directory. The log files
+follow the pattern `episode_<N>_env_<ID>.log` where `<N>` is the episode number
+and `<ID>` identifies the environment when multiple environments run in
+parallel.
+
 ## Multi-GPU Support
 
 When multiple CUDA devices are available, the training manager will now
