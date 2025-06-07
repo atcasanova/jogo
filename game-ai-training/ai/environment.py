@@ -25,11 +25,6 @@ class GameEnvironment:
     def start_node_game(self):
         """Start the Node.js game process"""
         try:
-            # Kill any existing processes
-            subprocess.run(['pkill', '-f', 'game_wrapper.js'], 
-                          capture_output=True, check=False)
-            time.sleep(1)
-            
             info("Starting Node.js game process")
             
             # Start process with unbuffered I/O

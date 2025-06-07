@@ -8,6 +8,8 @@ class MockGameEnvironment:
         self.state_size = 1
         self.action_space_size = 1
         self.game_state = {'currentPlayerIndex': 0, 'gameEnded': False, 'winningTeam': None}
+        # provide env_id attribute expected by TrainingManager
+        self.env_id = 0
         self.saved_file = None
 
     def reset(self):
