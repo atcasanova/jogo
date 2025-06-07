@@ -177,6 +177,7 @@ startGame() {
     this.currentPlayerIndex = 0;
     this.isActive = false;
     this.pendingSpecialMove = null;
+    this.history = [];
     for (const player of this.players) {
       player.cards = [];
     }
