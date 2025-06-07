@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const team1List = document.getElementById('team1-list');
     const team2List = document.getElementById('team2-list');
     const waitingMessage = document.getElementById('waiting-message');
+    const copyLinkBtn = document.getElementById('copy-link-btn');
     
     // Botões
     const createRoomBtn = document.getElementById('create-room-btn');
@@ -27,7 +28,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let players = [];
     let teams = [[], []];
     let isRoomCreator = false;
+    let shareLink = '';
     const playerColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
+
+    const params = new URLSearchParams(window.location.search);
+    const prefillRoomId = params.get('roomId');
+    if (prefillRoomId) {
+        roomIdInput.value = prefillRoomId;
+        showJoinRoomScreen();
+    }
     
     // Inicializar Socket.io
     function initSocket() {
@@ -48,16 +57,18 @@ document.addEventListener('DOMContentLoaded', () => {
         roomId = data.roomId;
         playerId = data.playerId;
         isRoomCreator = true;
-        
+        shareLink = `${window.location.origin}/?roomId=${roomId}`;
+
         roomCodeSpan.textContent = roomId;
         showWaitingRoom();
     }
     
     function handleRoomJoined(data) {
         console.log('Evento roomJoined recebido:', data);
-        
+
         roomId = data.roomId;
         playerId = data.playerId;
+        shareLink = `${window.location.origin}/?roomId=${roomId}`;
         
         roomCodeSpan.textContent = roomId;
         showWaitingRoom();
@@ -273,6 +284,13 @@ function handleError(message) {
     
     backBtn.addEventListener('click', () => {
         showWelcomeScreen();
+    });
+
+    copyLinkBtn.addEventListener('click', () => {
+        if (!shareLink) return;
+        navigator.clipboard.writeText(shareLink).then(() => {
+            alert('Link copiado para a área de transferência');
+        });
     });
     
     confirmTeamsBtn.addEventListener('click', () => {

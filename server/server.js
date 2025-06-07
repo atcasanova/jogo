@@ -895,11 +895,11 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
           const allDisconnected = game.players.every(p => p.disconnected);
           
           if (allDisconnected) {
-            // Definir um timer para remover a sala após 2 minutos se ninguém reconectar
+            // Definir um timer para remover a sala após 5 minutos se ninguém reconectar
             game.cleanupTimer = setTimeout(() => {
               console.log(`Todos os jogadores desconectados da sala ${roomId}. Removendo sala.`);
               rooms.delete(roomId);
-            }, 120000); // 2 minutos
+            }, 300000); // 5 minutos
           }
           
           // Não remover o jogador da sala ainda
