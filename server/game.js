@@ -1009,11 +1009,20 @@ discardCard(cardIndex) {
         p.position.row === piece.position.row &&
         p.position.col === piece.position.col
     );
-    
+
     if (capturedPieces.length === 0) {
       return { success: true, action: 'move' };
     }
-    
+
+    // Não é permitido capturar a própria peça
+    for (const capturedPiece of capturedPieces) {
+      if (capturedPiece.playerId === piece.playerId) {
+        // Reverter movimento antes de lançar o erro
+        piece.position = oldPosition;
+        throw new Error('Não é possível capturar sua própria peça.');
+      }
+    }
+
     const captures = [];
     
     for (const capturedPiece of capturedPieces) {
@@ -1147,12 +1156,17 @@ discardCard(cardIndex) {
   }
 
   isPartner(playerId1, playerId2) {
+    // Jogador não é parceiro de si mesmo
+    if (playerId1 === playerId2) return false;
+
     // Verificar se os jogadores são parceiros usando
     // os índices atuais na lista de jogadores
     const playerObj1 = this.players[playerId1];
     const playerObj2 = this.players[playerId2];
     if (!playerObj1 || !playerObj2) return false;
-    return this.teams.some(team => team.includes(playerObj1) && team.includes(playerObj2));
+    return this.teams.some(
+      team => team.includes(playerObj1) && team.includes(playerObj2)
+    );
   }
 
   hasAllPiecesInHomeStretch(playerId) {

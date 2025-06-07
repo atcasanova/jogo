@@ -243,6 +243,25 @@ describe('Game class', () => {
     expect(opponent.inPenaltyZone).toBe(true);
   });
 
+  test('movePieceForward cannot capture own piece', () => {
+    const game = new Game('selfCapture');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+
+    const mover = game.pieces.find(p => p.id === 'p0_1');
+    const ownPiece = game.pieces.find(p => p.id === 'p0_2');
+
+    mover.inPenaltyZone = false;
+    ownPiece.inPenaltyZone = false;
+    mover.position = { row: 0, col: 0 };
+    ownPiece.position = { row: 0, col: 3 };
+
+    expect(() => game.movePieceForward(mover, 3)).toThrow();
+  });
+
   test('landing exactly on home entrance does not offer entry option', () => {
     const game = new Game('room10');
     game.addPlayer('1', 'Alice');
