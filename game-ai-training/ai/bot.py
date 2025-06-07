@@ -27,9 +27,16 @@ class DQN(nn.Module):
         return self.network(x)
 
 class GameBot:
-    def __init__(self, player_id, state_size, action_size):
-        # Set device
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    def __init__(self, player_id, state_size, action_size, device=None):
+        """Initialize a bot and move models to the selected device."""
+
+        # Set device. Allow explicit device to be passed so bots can be
+        # distributed across multiple GPUs when available.
+        if device is None:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            self.device = torch.device(device)
+
         info("Bot using device", bot=player_id, device=str(self.device))
        
         self.player_id = player_id
