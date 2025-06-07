@@ -605,7 +605,7 @@ describe('Game class', () => {
     expect(mover.position).toEqual({ row: 1, col: 4 });
     expect(partner.position).toEqual({ row: 0, col: 14 });
   });
-});
+
   test('control uses currentPlayerIndex when player position is incorrect', () => {
     const game = new Game('positionMismatch');
     game.addPlayer('1', 'A');
@@ -628,3 +628,5 @@ describe('Game class', () => {
     expect(() => game.makeMove(partnerPiece.id, 0)).not.toThrow();
     expect(partnerPiece.position).toEqual({ row: 0, col: 1 });
   });
+
+});
