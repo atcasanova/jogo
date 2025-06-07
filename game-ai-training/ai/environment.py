@@ -134,6 +134,9 @@ class GameEnvironment:
             self.game_state['gameEnded'] = False
             self.game_state['winningTeam'] = response.get('winningTeam')
             info("Game reset successful")
+            board = response.get('board')
+            if board is not None:
+                info("Board state after reset", board=board)
         else:
             error("Game reset failed", response=response)
         

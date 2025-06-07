@@ -94,7 +94,8 @@ class GameWrapper {
                     if (this.setupGame()) {
                         return {
                             success: true,
-                            gameState: this.getGameState()
+                            gameState: this.getGameState(),
+                            board: this.game.board
                         };
                     } else {
                         return { error: "Failed to setup game" };
