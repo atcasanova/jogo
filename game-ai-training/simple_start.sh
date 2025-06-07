@@ -18,6 +18,9 @@ echo -e "${BLUE}=== Simple Game AI Training Launcher ===${NC}"
 # Create logs directory
 mkdir -p "$LOG_DIR"
 
+# Ensure we run from the script directory so relative paths resolve
+cd "$SCRIPT_DIR"
+
 # Function to cleanup any leftover processes
 cleanup() {
     echo -e "${BLUE}Cleaning up...${NC}"

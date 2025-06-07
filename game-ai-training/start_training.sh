@@ -21,6 +21,9 @@ NC='\033[0m' # No Color
 # Create logs directory
 mkdir -p "$LOG_DIR"
 
+# Always operate from the script directory so relative paths work
+cd "$SCRIPT_DIR"
+
 # Function to print colored output
 print_status() {
     echo -e "${BLUE}[INFO]${NC} $1"
