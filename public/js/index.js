@@ -29,13 +29,37 @@ document.addEventListener('DOMContentLoaded', () => {
     let teams = [[], []];
     let isRoomCreator = false;
     let shareLink = '';
+    let currentPlayerName = '';
     const playerColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
 
     const params = new URLSearchParams(window.location.search);
     const prefillRoomId = params.get('roomId');
+    const prefillPlayerId = params.get('playerId');
     if (prefillRoomId) {
         roomIdInput.value = prefillRoomId;
         // Permanecer na tela inicial para que o jogador informe seu nome
+    }
+
+    // Tentar reconectar automaticamente se roomId e playerId estiverem na URL
+    if (prefillRoomId && prefillPlayerId) {
+        const key = `game_${prefillRoomId}_player_${prefillPlayerId}`;
+        const stored = localStorage.getItem(key);
+        if (stored) {
+            try {
+                const data = JSON.parse(stored);
+                currentPlayerName = data.name;
+                playerNameInput.value = data.name;
+                initSocket();
+                socket.emit('joinRoom', {
+                    roomId: prefillRoomId,
+                    playerName: data.name,
+                    originalPosition: data.position,
+                    originalId: data.id
+                });
+            } catch (err) {
+                console.error('Erro ao parsear dados salvos', err);
+            }
+        }
     }
     
     // Inicializar Socket.io
@@ -59,6 +83,19 @@ document.addEventListener('DOMContentLoaded', () => {
         isRoomCreator = true;
         shareLink = `${window.location.origin}/?roomId=${roomId}`;
 
+        // Atualiza a URL para conter roomId e playerId
+        history.replaceState(null, '', `/?roomId=${roomId}&playerId=${playerId}`);
+
+        // Salva informações para possíveis reconexões
+        const playerKey = `game_${roomId}_player_${playerId}`;
+        const playerData = {
+            name: currentPlayerName,
+            position: 0,
+            id: playerId,
+            roomId
+        };
+        localStorage.setItem(playerKey, JSON.stringify(playerData));
+
         roomCodeSpan.textContent = roomId;
         showWaitingRoom();
     }
@@ -69,16 +106,28 @@ document.addEventListener('DOMContentLoaded', () => {
         roomId = data.roomId;
         playerId = data.playerId;
         shareLink = `${window.location.origin}/?roomId=${roomId}`;
-        
+
+        // Atualiza a URL
+        history.replaceState(null, '', `/?roomId=${roomId}&playerId=${playerId}`);
+
         roomCodeSpan.textContent = roomId;
         showWaitingRoom();
-        
+
+        const playerKey = `game_${roomId}_player_${playerId}`;
+        const playerData = {
+            name: data.playerName || currentPlayerName,
+            position: data.playerPosition,
+            id: playerId,
+            roomId
+        };
+        localStorage.setItem(playerKey, JSON.stringify(playerData));
+
         // Se for uma reconexão, não fazer nada mais
         if (data.isReconnection) {
             console.log('Reconectado à sala existente');
             return;
         }
-        
+
         console.log('Entrando na sala de espera');
     }
     
@@ -254,7 +303,7 @@ function handleError(message) {
             alert('Por favor, digite seu nome');
             return;
         }
-        
+        currentPlayerName = playerName;
         initSocket();
         socket.emit('createRoom', playerName);
     });
@@ -265,7 +314,7 @@ function handleError(message) {
             alert('Por favor, digite seu nome');
             return;
         }
-        
+        currentPlayerName = playerName;
         initSocket();
         showJoinRoomScreen();
     });
@@ -278,7 +327,7 @@ function handleError(message) {
             alert('Por favor, digite o código da sala');
             return;
         }
-        
+        currentPlayerName = playerName;
         socket.emit('joinRoom', { roomId, playerName });
     });
     
