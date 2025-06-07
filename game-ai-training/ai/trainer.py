@@ -4,14 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 import torch
+from concurrent.futures import ThreadPoolExecutor
 from ai.environment import GameEnvironment
 from ai.bot import GameBot
 from config import TRAINING_CONFIG, MODEL_DIR, PLOT_DIR, LOG_DIR
 from json_logger import info, warning
 
 class TrainingManager:
-    def __init__(self):
+    def __init__(self, num_envs: int = 1):
         self.env = GameEnvironment()
+        # Additional environments for parallel execution
+        self.envs = [GameEnvironment() for _ in range(max(1, num_envs))]
         self.bots = []
         self.training_stats = {
             'episode_rewards': [],
@@ -63,9 +66,12 @@ class TrainingManager:
 
         info("Created bots for training", count=num_bots, gpus=num_gpus)
     
-    def train_episode(self):
+    def train_episode(self, env=None):
+        """Run a single training episode using the provided environment."""
+        env = env or self.env
+
         # Reset environment
-        initial_state = self.env.reset()
+        initial_state = env.reset()
         
         episode_rewards = [0] * 4
         states = [None] * 4
@@ -76,12 +82,12 @@ class TrainingManager:
         
         while step_count < max_steps:
             # Get current player from game state
-            current_player = self.env.game_state.get('currentPlayerIndex', 0)
+            current_player = env.game_state.get('currentPlayerIndex', 0)
             current_bot = self.bots[current_player]
             
             # Get current state and valid actions
-            state = self.env.get_state(current_player)
-            valid_actions = self.env.get_valid_actions(current_player)
+            state = env.get_state(current_player)
+            valid_actions = env.get_valid_actions(current_player)
             
             if not valid_actions:
                 break
@@ -90,7 +96,7 @@ class TrainingManager:
             action = current_bot.act(state, valid_actions)
             
             # Execute action
-            next_state, reward, done = self.env.step(action, current_player)
+            next_state, reward, done = env.step(action, current_player)
             
             # Store experience
             if states[current_player] is not None:
@@ -126,8 +132,8 @@ class TrainingManager:
             bot.games_played += 1
         
         # Check for winners
-        if self.env.game_state.get('gameEnded', False):
-            winning_team = self.env.game_state.get('winningTeam', [])
+        if env.game_state.get('gameEnded', False):
+            winning_team = env.game_state.get('winningTeam', [])
             for player in winning_team:
                 player_pos = player.get('position', -1)
                 if 0 <= player_pos < len(self.bots):
@@ -138,37 +144,64 @@ class TrainingManager:
         
         return episode_rewards
     
-    def train(self, num_episodes=None, save_freq=None, stats_freq=None):
+    def train(self, num_episodes=None, save_freq=None, stats_freq=None, num_envs: int = 1):
+        """Train using one or more environments in parallel."""
         num_episodes = num_episodes or TRAINING_CONFIG['num_episodes']
         save_freq = save_freq or TRAINING_CONFIG['save_frequency']
         stats_freq = stats_freq or TRAINING_CONFIG['stats_frequency']
-        
-        info("Starting training", episodes=num_episodes)
-        
-        # Start the game environment
-        if not self.env.start_node_game():
-            warning("Failed to start Node.js game process")
-            return
-        
-        try:
-            for episode in range(num_episodes):
-                episode_rewards = self.train_episode()
-                
-                # Print progress
-                if episode % stats_freq == 0:
-                    self.print_statistics(episode)
-                    self.plot_training_progress()
-                
-                # Save models
-                if episode % save_freq == 0:
-                    self.save_models(f"{MODEL_DIR}/episode_{episode}")
-            
-            info("Training completed")
-            self.save_models(f"{MODEL_DIR}/final")
-            self.plot_training_progress()
-            
-        finally:
-            self.env.close()
+
+        info("Starting training", episodes=num_episodes, envs=num_envs)
+
+        if num_envs <= 1:
+            # Start the single environment
+            if not self.env.start_node_game():
+                warning("Failed to start Node.js game process")
+                return
+
+            try:
+                for episode in range(num_episodes):
+                    self.train_episode(self.env)
+
+                    if episode % stats_freq == 0:
+                        self.print_statistics(episode)
+                        self.plot_training_progress()
+
+                    if episode % save_freq == 0:
+                        self.save_models(f"{MODEL_DIR}/episode_{episode}")
+
+                info("Training completed")
+                self.save_models(f"{MODEL_DIR}/final")
+                self.plot_training_progress()
+
+            finally:
+                self.env.close()
+        else:
+            # Initialize and start multiple environments
+            self.envs = [GameEnvironment() for _ in range(num_envs)]
+            for env in self.envs:
+                if not env.start_node_game():
+                    warning("Failed to start Node.js game process")
+                    return
+
+            try:
+                for episode in range(num_episodes):
+                    with ThreadPoolExecutor(max_workers=num_envs) as executor:
+                        list(executor.map(self.train_episode, self.envs))
+
+                    if episode % stats_freq == 0:
+                        self.print_statistics(episode * num_envs)
+                        self.plot_training_progress()
+
+                    if episode % save_freq == 0:
+                        self.save_models(f"{MODEL_DIR}/episode_{episode * num_envs}")
+
+                info("Training completed")
+                self.save_models(f"{MODEL_DIR}/final")
+                self.plot_training_progress()
+
+            finally:
+                for env in self.envs:
+                    env.close()
     
     def print_statistics(self, episode):
         info("Episode statistics", episode=episode)
