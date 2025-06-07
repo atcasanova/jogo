@@ -34,3 +34,18 @@ When multiple CUDA devices are available, the training manager will now
 distribute bots across the GPUs in a round-robin fashion. No additional
 configuration is required – simply ensure that your GPUs are visible to PyTorch
 and start training as usual.
+
+## Parallel Environments
+
+The training manager can also run multiple game environments in parallel to
+speed up experience collection. Pass the `num_envs` argument to the `train`
+method to enable this:
+
+```python
+manager = TrainingManager(num_envs=2)
+manager.create_bots()
+manager.train(num_envs=2)
+```
+
+Each environment runs in its own thread with a separate Node.js game process.
+Statistics and model updates are aggregated automatically.
