@@ -33,11 +33,11 @@
 }
 
 .team1 {
-    background-color: rgba(52, 152, 219, 0.1);
+    background-color: #dbe9ff;
 }
 
 .team2 {
-    background-color: rgba(231, 76, 60, 0.1);
+    background-color: #f9d0d0;
 }
 
 .turn-info {
@@ -61,18 +61,18 @@
 }
 
 #turn-message.turn {
-    background-color: #2ecc71;
-    color: #ffffff;
+    background-color: #b9f6ca;
+    color: #000000;
 }
 
 #turn-message.error {
-    background-color: #e74c3c;
-    color: #ffffff;
+    background-color: #f5b7b1;
+    color: #000000;
 }
 
 #turn-message.info {
-    background-color: #3498db;
-    color: #ffffff;
+    background-color: #bbdefb;
+    color: #000000;
 }
 
 .board-container {
@@ -127,23 +127,23 @@
 
 /* Aplicar bordas apenas às células especiais */
 .cell.track {
-    background-color: #f0f0f0;
+    background-color: #f8f8f8;
     border: 2px solid #333;
 }
 
 .cell.penalty {
-    background-color: #ffecb3;
-    border: 2px solid #ff9800;
+    background-color: #fff3cd;
+    border: 2px solid #ffa000;
 }
 
 .cell.home-stretch {
-    background-color: #c8e6c9;
-    border: 2px solid #4caf50;
+    background-color: #d4edda;
+    border: 2px solid #388e3c;
 }
 
 .cell.discard-area {
-    background-color: #e1f5fe;
-    border: 2px solid #03a9f4;
+    background-color: #d1ecf1;
+    border: 2px solid #0288d1;
 }
 
 .piece {
@@ -159,6 +159,7 @@
     font-weight: bold;
     color: white;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: transform 0.3s;
 }
 
 .piece.player0 {
@@ -227,7 +228,7 @@
 
 .card.selected {
     border: 2px solid #3498db;
-    box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+    box-shadow: 0 0 6px rgba(52, 152, 219, 0.5);
 }
 
 .card-value {
@@ -401,8 +402,13 @@
 
 /* Adicione ao game.css */
 .piece.my-piece {
-  box-shadow: 0 0 10px 3px gold;
+  box-shadow: 0 0 6px 2px gold;
   border: 2px solid gold;
+}
+
+.piece.selected {
+  box-shadow: 0 0 6px 2px #8e44ad;
+  border: 2px solid #8e44ad;
 }
 
 .piece-indicator {
@@ -426,7 +432,7 @@
 }
 
 .joker-target:hover {
-  box-shadow: 0 0 10px 3px gold;
+  box-shadow: 0 0 6px 2px gold;
 }
 
 .card.discard-only {
