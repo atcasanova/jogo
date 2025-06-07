@@ -683,6 +683,9 @@ function updatePlayerLabels() {
     return;
   }
 
+  const rotationMap = [180, 90, 0, 270];
+  const rotation = rotationMap[playerPosition] || 0;
+
   console.log(`Posicionando ${gameState.pieces.length} peças`);
 
   gameState.pieces.forEach(piece => {
@@ -701,6 +704,7 @@ function updatePlayerLabels() {
       }
       pieceElement.textContent = piece.pieceId;
       pieceElement.dataset.id = piece.id;
+      pieceElement.style.transform = `rotate(${-rotation}deg)`;
       pieceElement.addEventListener('click', e => {
         e.stopPropagation();
         handlePieceClick(piece.id);
@@ -716,10 +720,10 @@ function updatePlayerLabels() {
     const deltaX = first.left - last.left;
     const deltaY = first.top - last.top;
     pieceElement.style.transition = 'none';
-    pieceElement.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+    pieceElement.style.transform = `translate(${deltaX}px, ${deltaY}px) rotate(${-rotation}deg)`;
     requestAnimationFrame(() => {
       pieceElement.style.transition = 'transform 0.3s';
-      pieceElement.style.transform = '';
+      pieceElement.style.transform = `rotate(${-rotation}deg)`;
     });
   });
 }
