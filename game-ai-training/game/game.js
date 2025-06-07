@@ -1242,8 +1242,9 @@ discardCard(cardIndex) {
   }
 
   nextTurn() {
-    // Passar para o próximo jogador
-    this.currentPlayerIndex = (this.currentPlayerIndex + 1) % 4;
+    // Passar para o próximo jogador no sentido horário
+    // (índice diminui porque a ordem original é anti-horária)
+    this.currentPlayerIndex = (this.currentPlayerIndex + 3) % 4;
   }
 
   checkWinCondition() {
