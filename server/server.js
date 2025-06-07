@@ -221,12 +221,13 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
         socket.join(roomId);
         
         // Enviar ID da sala e posição para o cliente
-        socket.emit('roomJoined', { 
-          roomId, 
+        socket.emit('roomJoined', {
+          roomId,
           playerId: socket.id,
           playerName: playerName,
           playerPosition: position,
-          isReconnection: true
+          isReconnection: true,
+          isCreator: position === 0
         });
         
         // Enviar estado atual do jogo
@@ -269,12 +270,13 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
     socket.join(roomId);
     
     // Enviar ID da sala para o cliente
-    socket.emit('roomJoined', { 
-      roomId, 
+    socket.emit('roomJoined', {
+      roomId,
       playerId: socket.id,
       playerName: playerName,
       playerPosition: existingPlayerIndex,
-      isReconnection: true
+      isReconnection: true,
+      isCreator: existingPlayerIndex === 0
     });
     
     // Enviar estado atual do jogo
@@ -320,11 +322,12 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
   console.log(`Socket ${socket.id} entrou na sala Socket.io ${roomId}`);
   
   // Enviar ID da sala para o cliente
-  socket.emit('roomJoined', { 
-    roomId, 
+  socket.emit('roomJoined', {
+    roomId,
     playerId: socket.id,
     playerName: playerName,
-    playerPosition: game.players.length - 1
+    playerPosition: game.players.length - 1,
+    isCreator: game.players.length === 1
   });
   console.log(`Enviado evento 'roomJoined' para ${socket.id}`);
   

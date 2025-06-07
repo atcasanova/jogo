@@ -106,6 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
         roomId = data.roomId;
         playerId = data.playerId;
         shareLink = `${window.location.origin}/?roomId=${roomId}`;
+        if (data.isCreator) {
+            isRoomCreator = true;
+        }
 
         // Atualiza a URL
         history.replaceState(null, '', `/?roomId=${roomId}&playerId=${playerId}`);
