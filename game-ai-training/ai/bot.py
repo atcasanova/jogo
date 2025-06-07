@@ -82,9 +82,12 @@ class GameBot:
         if np.random.random() <= self.epsilon:
             return random.choice(valid_actions)
         
-        # Move state to GPU
+        # Move state to GPU and run network in evaluation mode without grad
         state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-        q_values = self.q_network(state_tensor)
+        self.q_network.eval()
+        with torch.no_grad():
+            q_values = self.q_network(state_tensor)
+        self.q_network.train()
         
         # Mask invalid actions
         masked_q_values = q_values.clone()
@@ -109,14 +112,14 @@ class GameBot:
         rewards = torch.FloatTensor(np.array([e[2] for e in batch])).to(self.device)
         next_states = torch.FloatTensor(np.array([e[3] for e in batch])).to(self.device)
         dones = torch.BoolTensor(np.array([e[4] for e in batch])).to(self.device)
-        
-        current_q_values = self.q_network(states).gather(1, actions.unsqueeze(1))
-        next_q_values = self.target_network(next_states).max(1)[0].detach()
-        target_q_values = rewards + (self.gamma * next_q_values * ~dones)
-        
-        loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
-        
+
         with self.lock:
+            current_q_values = self.q_network(states).gather(1, actions.unsqueeze(1))
+            next_q_values = self.target_network(next_states).max(1)[0].detach()
+            target_q_values = rewards + (self.gamma * next_q_values * ~dones)
+
+            loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
+            
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
