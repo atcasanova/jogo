@@ -10,11 +10,17 @@ from typing import List, Tuple, Dict, Any
 from json_logger import info, error, warning
 
 class GameEnvironment:
-    def __init__(self):
+    def __init__(self, env_id: int = 0):
         self.node_process = None
         self.game_state = None
         self.action_space_size = 50
         self.state_size = 200
+
+        # identifier for logging when multiple environments are used
+        self.env_id = env_id
+
+        # store human-readable move history from the Node.js game
+        self.move_history: List[str] = []
         
     def start_node_game(self):
         """Start the Node.js game process"""
@@ -134,6 +140,8 @@ class GameEnvironment:
             self.game_state['gameEnded'] = False
             self.game_state['winningTeam'] = response.get('winningTeam')
             info("Game reset successful")
+            # clear previous move history
+            self.move_history = []
         else:
             error("Game reset failed", response=response)
         
@@ -222,6 +230,9 @@ class GameEnvironment:
             # Preserve win information returned by the Node process
             self.game_state['gameEnded'] = done
             self.game_state['winningTeam'] = response.get('winningTeam')
+            last_move = self.game_state.get('lastMove')
+            if last_move:
+                self.move_history.append(str(last_move))
         
         next_state = self.get_state(player_id)
         return next_state, reward, done
@@ -236,4 +247,17 @@ class GameEnvironment:
                 self.node_process.kill()
             finally:
                 self.node_process = None
+
+    def save_history(self, filepath: str) -> None:
+        """Persist the collected move history to a text file"""
+        if not self.move_history:
+            return
+
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                for line in self.move_history:
+                    f.write(f"{line}\n")
+            info("Saved move history", env=self.env_id, file=filepath)
+        except Exception as e:
+            warning("Failed to save move history", env=self.env_id, file=filepath, error=str(e))
 

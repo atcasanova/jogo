@@ -8,6 +8,7 @@ class MockGameEnvironment:
         self.state_size = 1
         self.action_space_size = 1
         self.game_state = {'currentPlayerIndex': 0, 'gameEnded': False, 'winningTeam': None}
+        self.saved_file = None
 
     def reset(self):
         self.game_state = {'currentPlayerIndex': 0, 'gameEnded': False, 'winningTeam': None}
@@ -29,6 +30,9 @@ class MockGameEnvironment:
 
     def close(self):
         pass
+
+    def save_history(self, filepath):
+        self.saved_file = filepath
 
 
 class DummyGameBot:
