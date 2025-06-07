@@ -125,7 +125,12 @@ class GameWrapper {
                 isActive: false
             };
         }
-        
+
+        // Prefer the game's own helper so fields like `lastMove` are included
+        if (typeof this.game.getGameState === 'function') {
+            return this.game.getGameState();
+        }
+
         return {
             players: this.game.players || [],
             pieces: this.game.pieces || [],
