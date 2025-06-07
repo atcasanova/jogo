@@ -141,12 +141,6 @@ class TrainingManager:
         
         self.training_stats['games_played'] += 1
         self.training_stats['episode_rewards'].append(sum(episode_rewards))
-        # Persist move log for analysis
-        log_file = os.path.join(
-            LOG_DIR,
-            f"episode_{self.training_stats['games_played']}_env_{env.env_id}.log"
-        )
-        env.save_history(log_file)
 
         return episode_rewards
     
@@ -168,12 +162,17 @@ class TrainingManager:
                 for episode in range(num_episodes):
                     self.train_episode(self.env)
 
-                    if episode % stats_freq == 0:
-                        self.print_statistics(episode)
+                    if (episode + 1) % stats_freq == 0:
+                        self.print_statistics(episode + 1)
                         self.plot_training_progress()
 
-                    if episode % save_freq == 0:
-                        self.save_models(f"{MODEL_DIR}/episode_{episode}")
+                    if (episode + 1) % save_freq == 0:
+                        self.save_models(f"{MODEL_DIR}/episode_{episode + 1}")
+                        log_file = os.path.join(
+                            LOG_DIR,
+                            f"episode_{episode + 1}_env_{self.env.env_id}.log"
+                        )
+                        self.env.save_history(log_file)
 
                 info("Training completed")
                 self.save_models(f"{MODEL_DIR}/final")
@@ -194,12 +193,20 @@ class TrainingManager:
                     with ThreadPoolExecutor(max_workers=num_envs) as executor:
                         list(executor.map(self.train_episode, self.envs))
 
-                    if episode % stats_freq == 0:
-                        self.print_statistics(episode * num_envs)
+                    if (episode + 1) % stats_freq == 0:
+                        self.print_statistics((episode + 1) * num_envs)
                         self.plot_training_progress()
 
-                    if episode % save_freq == 0:
-                        self.save_models(f"{MODEL_DIR}/episode_{episode * num_envs}")
+                    if (episode + 1) % save_freq == 0:
+                        self.save_models(
+                            f"{MODEL_DIR}/episode_{(episode + 1) * num_envs}"
+                        )
+                        for env in self.envs:
+                            log_file = os.path.join(
+                                LOG_DIR,
+                                f"episode_{(episode + 1) * num_envs}_env_{env.env_id}.log"
+                            )
+                            env.save_history(log_file)
 
                 info("Training completed")
                 self.save_models(f"{MODEL_DIR}/final")
