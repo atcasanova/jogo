@@ -1,3 +1,4 @@
+import json
 import numpy as np
 from unittest.mock import patch
 from ai.environment import GameEnvironment
@@ -36,3 +37,18 @@ def test_reset_initializes_win_fields():
         with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {}, 'winningTeam': None}):
             env.reset()
     assert env.game_state == {'gameEnded': False, 'winningTeam': None}
+
+
+def test_save_history_writes_json(tmp_path):
+    env = GameEnvironment()
+    env.move_history = [
+        {'move': 'foo', 'state': {'players': []}},
+        {'move': 'bar', 'state': {'players': []}}
+    ]
+
+    log_file = tmp_path / 'history.log'
+    env.save_history(str(log_file))
+
+    lines = log_file.read_text().splitlines()
+    assert len(lines) == 2
+    assert all('move' in json.loads(line) for line in lines)

@@ -19,8 +19,9 @@ class GameEnvironment:
         # identifier for logging when multiple environments are used
         self.env_id = env_id
 
-        # store human-readable move history from the Node.js game
-        self.move_history: List[str] = []
+        # store detailed history for debugging
+        # each entry will contain the textual move and the full game state
+        self.move_history: List[Dict[str, Any]] = []
         
     def start_node_game(self):
         """Start the Node.js game process"""
@@ -226,8 +227,16 @@ class GameEnvironment:
             self.game_state['gameEnded'] = done
             self.game_state['winningTeam'] = response.get('winningTeam')
             last_move = self.game_state.get('lastMove')
-            if last_move:
-                self.move_history.append(str(last_move))
+            if last_move is not None:
+                # store both the move description and a snapshot of the state
+                try:
+                    state_copy = json.loads(json.dumps(self.game_state))
+                except Exception:
+                    state_copy = self.game_state
+                self.move_history.append({
+                    'move': str(last_move),
+                    'state': state_copy
+                })
         
         next_state = self.get_state(player_id)
         return next_state, reward, done
@@ -250,8 +259,12 @@ class GameEnvironment:
 
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
-                for line in self.move_history:
-                    f.write(f"{line}\n")
+                for entry in self.move_history:
+                    if isinstance(entry, dict):
+                        json.dump(entry, f, ensure_ascii=False)
+                        f.write('\n')
+                    else:
+                        f.write(f"{entry}\n")
             info("Saved move history", env=self.env_id, file=filepath)
         except Exception as e:
             warning("Failed to save move history", env=self.env_id, file=filepath, error=str(e))
