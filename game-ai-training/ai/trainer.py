@@ -12,9 +12,9 @@ from json_logger import info, warning
 
 class TrainingManager:
     def __init__(self, num_envs: int = 1):
-        self.env = GameEnvironment()
+        self.env = GameEnvironment(env_id=0)
         # Additional environments for parallel execution
-        self.envs = [GameEnvironment() for _ in range(max(1, num_envs))]
+        self.envs = [GameEnvironment(env_id=i) for i in range(max(1, num_envs))]
         self.bots = []
         self.training_stats = {
             'episode_rewards': [],
@@ -141,7 +141,13 @@ class TrainingManager:
         
         self.training_stats['games_played'] += 1
         self.training_stats['episode_rewards'].append(sum(episode_rewards))
-        
+        # Persist move log for analysis
+        log_file = os.path.join(
+            LOG_DIR,
+            f"episode_{self.training_stats['games_played']}_env_{env.env_id}.log"
+        )
+        env.save_history(log_file)
+
         return episode_rewards
     
     def train(self, num_episodes=None, save_freq=None, stats_freq=None, num_envs: int = 1):
@@ -177,7 +183,7 @@ class TrainingManager:
                 self.env.close()
         else:
             # Initialize and start multiple environments
-            self.envs = [GameEnvironment() for _ in range(num_envs)]
+            self.envs = [GameEnvironment(env_id=i) for i in range(num_envs)]
             for env in self.envs:
                 if not env.start_node_game():
                     warning("Failed to start Node.js game process")
