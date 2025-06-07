@@ -629,4 +629,20 @@ describe('Game class', () => {
     expect(partnerPiece.position).toEqual({ row: 0, col: 1 });
   });
 
+  test('discardCard advances turn when leaving penalty zone', () => {
+    const game = new Game('discardTurn');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.startGame();
+
+    const player = game.getCurrentPlayer();
+    player.cards = [{ suit: '♠', value: 'A' }];
+
+    const result = game.discardCard(0);
+    expect(result.action).toBe('leavePenalty');
+    expect(game.currentPlayerIndex).toBe(1);
+  });
+
 });

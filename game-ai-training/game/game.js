@@ -285,6 +285,10 @@ discardCard(cardIndex) {
       this.logMoveDetails(player, firstPenaltyPiece.id, oldPos, result, card);
       const discardMsg = `${player.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
       this.history.push(discardMsg);
+
+      // Passar a vez para o próximo jogador
+      this.nextTurn();
+
       return result;
     }
   }

@@ -237,9 +237,13 @@ discardCard(cardIndex) {
       // Descartar a carta
       this.discardPile.push(card);
       player.cards.splice(cardIndex, 1);
-      
       // Sair do castigo com esta peça
-      return this.leavePenaltyZone(firstPenaltyPiece);
+      const result = this.leavePenaltyZone(firstPenaltyPiece);
+
+      // Passar a vez para o próximo jogador
+      this.nextTurn();
+
+      return result;
     }
   }
   
