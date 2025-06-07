@@ -3,6 +3,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
+import torch
 from ai.environment import GameEnvironment
 from ai.bot import GameBot
 from config import TRAINING_CONFIG, MODEL_DIR, PLOT_DIR, LOG_DIR
@@ -25,14 +26,42 @@ class TrainingManager:
     
     def create_bots(self, num_bots=4):
         self.bots = []
+
+        # Determine how many GPUs are available. When torch is mocked in tests
+        # these calls may not return integers, so fall back to CPU in that case.
+        num_gpus = 0
+        if torch.cuda.is_available():
+            try:
+                count = torch.cuda.device_count()
+                if isinstance(count, int):
+                    num_gpus = count
+            except Exception:
+                num_gpus = 0
+
         for i in range(num_bots):
-            bot = GameBot(
-                player_id=i,
-                state_size=self.env.state_size,
-                action_size=self.env.action_space_size
-            )
+            if num_gpus > 0:
+                device = f"cuda:{i % num_gpus}"
+            else:
+                device = "cpu"
+
+            try:
+                bot = GameBot(
+                    player_id=i,
+                    state_size=self.env.state_size,
+                    action_size=self.env.action_space_size,
+                    device=device
+                )
+            except TypeError:
+                # For backward compatibility or when GameBot is mocked without
+                # a device parameter
+                bot = GameBot(
+                    player_id=i,
+                    state_size=self.env.state_size,
+                    action_size=self.env.action_space_size
+                )
             self.bots.append(bot)
-        info("Created bots for training", count=num_bots)
+
+        info("Created bots for training", count=num_bots, gpus=num_gpus)
     
     def train_episode(self):
         # Reset environment
