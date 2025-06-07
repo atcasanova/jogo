@@ -17,6 +17,49 @@ class Game {
     this.history = [];
   }
 
+  logMoveDetails(player, pieceId, oldPos, result, card) {
+    const piece = this.pieces.find(p => p.id === pieceId);
+    if (!piece) return null;
+    const cardVal = card ? (card.value === 'JOKER' ? 'C' : card.value) : '';
+    let message = `${player.name} jogou um ${cardVal}`;
+
+    if (result && result.action === 'capture' && result.captures) {
+      for (const c of result.captures) {
+        const captured = this.pieces.find(p => p.id === c.pieceId);
+        const name = captured
+          ? this.players.find(p => p.position === captured.playerId)?.name ||
+            `player${captured.playerId + 1}`
+          : '';
+        if (c.action === 'partnerCapture') {
+          message += ` e comeu ${name} (parceiro)`;
+        } else if (c.action === 'opponentCapture') {
+          message += ` e comeu ${name} (adversário)`;
+        }
+      }
+    } else if (result && result.action === 'leavePenalty') {
+      message += ' e saiu do castigo';
+      if (result.captures) {
+        for (const c of result.captures) {
+          const captured = this.pieces.find(p => p.id === c.pieceId);
+          const name = captured
+            ? this.players.find(p => p.position === captured.playerId)?.name ||
+              `player${captured.playerId + 1}`
+            : '';
+          if (c.action === 'partnerCapture') {
+            message += ` e comeu ${name} (parceiro)`;
+          } else {
+            message += ` e comeu ${name} (adversário)`;
+          }
+        }
+      }
+    } else if (result && result.action === 'enterHomeStretch') {
+      message += ' e avançou para o corredor de chegada';
+    }
+
+    this.history.push(message);
+    return message;
+  }
+
   createBoard() {
     return boardLayout;
   }
@@ -236,9 +279,13 @@ discardCard(cardIndex) {
       // Descartar a carta
       this.discardPile.push(card);
       player.cards.splice(cardIndex, 1);
-      
+      const oldPos = { ...firstPenaltyPiece.position };
       // Sair do castigo com esta peça
-      return this.leavePenaltyZone(firstPenaltyPiece);
+      const result = this.leavePenaltyZone(firstPenaltyPiece);
+      this.logMoveDetails(player, firstPenaltyPiece.id, oldPos, result, card);
+      const discardMsg = `${player.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
+      this.history.push(discardMsg);
+      return result;
     }
   }
   
@@ -247,10 +294,12 @@ discardCard(cardIndex) {
     // Descartar a carta
     this.discardPile.push(card);
     player.cards.splice(cardIndex, 1);
-    
+    const discardMsg = `${player.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
+    this.history.push(discardMsg);
+
     // Passar para o próximo jogador
     this.nextTurn();
-    
+
     return { success: true, action: 'discard' };
   }
   
@@ -282,8 +331,10 @@ discardCard(cardIndex) {
       throw new Error("Esta peça não pertence a você");
     }
     
+    const oldPos = { ...piece.position };
     // Verificar se o movimento é válido e executá-lo
     const moveResult = this.executeMove(piece, card, enterHome);
+    this.logMoveDetails(player, pieceId, oldPos, moveResult, card);
 
     if (moveResult && (moveResult.action === 'homeEntryChoice' || moveResult.action === 'choosePosition')) {
       moveResult.cardIndex = cardIndex;
@@ -293,6 +344,8 @@ discardCard(cardIndex) {
     // Descartar a carta usada
     this.discardPile.push(card);
     player.cards.splice(cardIndex, 1);
+    const discardMsg = `${player.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
+    this.history.push(discardMsg);
     
     // NÃO comprar nova carta aqui - a carta já foi comprada no início do turno
     
@@ -344,6 +397,10 @@ discardCard(cardIndex) {
         Object.prototype.hasOwnProperty.call(move, 'enterHome') ? move.enterHome : null
       );
 
+      this.logMoveDetails(player, piece.id, oldPosition, result, { value: '7' });
+
+      this.logMoveDetails(player, piece.id, oldPosition, result, { value: '7' });
+
       moveResults.push({
         pieceId: piece.id,
         oldPosition,
@@ -365,6 +422,8 @@ discardCard(cardIndex) {
     // Remover a carta 7 da mão do jogador
     this.discardPile.push(player.cards[cardIndex]);
     player.cards.splice(cardIndex, 1);
+    const discardMsg7 = `${player.name} descartou um 7`;
+    this.history.push(discardMsg7);
     
     // NÃO comprar nova carta aqui - a carta já foi comprada no início do turno
     
@@ -420,6 +479,8 @@ discardCard(cardIndex) {
     const player = this.getCurrentPlayer();
     this.discardPile.push(player.cards[cardIndex]);
     player.cards.splice(cardIndex, 1);
+    const discardMsg7b = `${player.name} descartou um 7`;
+    this.history.push(discardMsg7b);
 
     this.nextTurn();
     this.pendingSpecialMove = null;
