@@ -119,7 +119,7 @@ class GameBot:
             target_q_values = rewards + (self.gamma * next_q_values * ~dones)
 
             loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
-
+            
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
