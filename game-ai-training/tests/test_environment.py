@@ -1,6 +1,9 @@
 import json
 import numpy as np
 from unittest.mock import patch
+import subprocess
+from pathlib import Path
+import tempfile
 from ai.environment import GameEnvironment
 
 
@@ -52,3 +55,46 @@ def test_save_history_writes_json(tmp_path):
     lines = log_file.read_text().splitlines()
     assert len(lines) == 2
     assert all('move' in json.loads(line) for line in lines)
+
+
+def _run_get_valid_actions_mock(has_move: bool):
+    """Helper to execute GameWrapper.getValidActions under Node with mocked
+    hasAnyValidMove."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "code = code.replace('return validActions.length > 0 ? validActions.slice(0, 10) : [0];', 'return validActions;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.setupGame();",
+        f"wrapper.game.hasAnyValidMove = () => {str(has_move).lower()};",
+        "process.stdout.write(JSON.stringify(wrapper.getValidActions(0)));"
+    ]
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    # Parse last JSON line which contains the actions
+    lines = [line for line in output.splitlines() if line.startswith('[')]
+    return json.loads(lines[-1]) if lines else []
+
+
+def test_no_discard_actions_when_moves_available():
+    actions = _run_get_valid_actions_mock(True)
+    assert 40 not in actions
+
+
+def test_includes_discard_actions_when_no_moves():
+    actions = _run_get_valid_actions_mock(False)
+    assert 40 in actions

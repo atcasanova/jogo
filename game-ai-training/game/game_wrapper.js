@@ -156,9 +156,11 @@ class GameWrapper {
                 }
             }
             
-            // Add discard actions
-            for (let cardIdx = 0; cardIdx < 5; cardIdx++) {
-                validActions.push(40 + cardIdx);
+            // Add discard actions only when the player has no valid moves
+            if (!this.game.hasAnyValidMove(playerId)) {
+                for (let cardIdx = 0; cardIdx < 5; cardIdx++) {
+                    validActions.push(40 + cardIdx);
+                }
             }
             
             return validActions.length > 0 ? validActions.slice(0, 10) : [0]; // Limit to 10 actions
