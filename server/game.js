@@ -183,6 +183,10 @@ startGame() {
     }
   }
 
+  endGame() {
+    this.isActive = false;
+  }
+
   getCurrentPlayer() {
     console.log(`Obtendo jogador atual. Índice: ${this.currentPlayerIndex}, Total de jogadores: ${this.players.length}`);
     
@@ -224,11 +228,13 @@ discardCard(cardIndex) {
   }
   
   const card = player.cards[cardIndex];
-  
+
   // Verificar se todas as peças estão no castigo
   const playerPieces = this.pieces.filter(p => p.playerId === player.position);
   const allInPenalty = playerPieces.every(p => p.inPenaltyZone);
-  
+
+  const hasMove = this.hasAnyValidMove(player.position);
+
   // Se todas as peças estão no castigo e a carta é A, K, Q ou J, tentar sair do castigo
   if (allInPenalty && ['A', 'K', 'Q', 'J'].includes(card.value)) {
     // Encontrar a primeira peça no castigo
@@ -246,7 +252,7 @@ discardCard(cardIndex) {
       return result;
     }
   }
-  
+
   // Se todas as peças estão no castigo e a carta não é A, K, Q ou J, permitir descarte
   if (allInPenalty && !['A', 'K', 'Q', 'J'].includes(card.value)) {
     // Descartar a carta
@@ -258,12 +264,21 @@ discardCard(cardIndex) {
     
     return { success: true, action: 'discard' };
   }
-  
+
   // Se nem todas as peças estão no castigo, verificar se o jogador tem peças fora
   if (!allInPenalty) {
-    throw new Error("Você deve mover uma peça fora do castigo");
+    if (hasMove) {
+      throw new Error("Você ainda tem jogadas disponíveis");
+    }
+    // Não possui movimentos válidos, permitir descarte
+    this.discardPile.push(card);
+    player.cards.splice(cardIndex, 1);
+
+    this.nextTurn();
+
+    return { success: true, action: 'discard' };
   }
-  
+
   throw new Error("Você deve usar A, K, Q ou J para sair do castigo ou ter peças fora do castigo para usar outras cartas");
 }
 

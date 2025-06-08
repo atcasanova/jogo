@@ -374,7 +374,13 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     // Verificar se todas as peças estão no castigo
     const playerPieces = game.pieces.filter(p => p.playerId === currentPlayer.position);
     const allInPenalty = playerPieces.every(p => p.inPenaltyZone);
-    
+    const hasMove = game.hasAnyValidMove(currentPlayer.position);
+
+    if (!allInPenalty && hasMove) {
+      socket.emit('error', 'Você ainda tem jogadas disponíveis');
+      return;
+    }
+
     // Se todas as peças estão no castigo e a carta é A, K, Q ou J, permitir sair do castigo
     if (allInPenalty && ['A', 'K', 'Q', 'J'].includes(card.value)) {
       // Encontrar a primeira peça no castigo
@@ -539,6 +545,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       io.to(roomId).emit('gameOver', {
         winners: game.getWinningTeam()
       });
+      game.endGame();
       return;
     }
 
@@ -670,6 +677,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
       io.to(roomId).emit('gameOver', {
         winners: game.getWinningTeam()
       });
+      game.endGame();
       return;
     }
 
@@ -725,6 +733,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       io.to(roomId).emit('gameOver', {
         winners: game.getWinningTeam()
       });
+      game.endGame();
       return;
     }
 
@@ -792,6 +801,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         io.to(roomId).emit('gameOver', {
           winners: game.getWinningTeam()
         });
+        game.endGame();
         return;
       }
       
@@ -857,6 +867,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         io.to(roomId).emit('gameOver', {
           winners: game.getWinningTeam()
         });
+        game.endGame();
         return;
       }
 

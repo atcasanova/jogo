@@ -645,4 +645,28 @@ describe('Game class', () => {
     expect(game.currentPlayerIndex).toBe(3);
   });
 
+  test('discardCard cannot discard when a move exists', () => {
+    const game = new Game('discardGuard');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.startGame();
+
+    const player = game.getCurrentPlayer();
+    player.cards = [{ suit: '♠', value: 'A' }];
+    const piece = game.pieces.find(p => p.playerId === player.position);
+    piece.inPenaltyZone = false;
+    piece.position = { row: 0, col: 0 };
+
+    expect(() => game.discardCard(0)).toThrow();
+  });
+
+  test('endGame sets game inactive', () => {
+    const game = new Game('lock');
+    game.isActive = true;
+    game.endGame();
+    expect(game.isActive).toBe(false);
+  });
+
 });
