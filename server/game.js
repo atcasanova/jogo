@@ -1167,6 +1167,9 @@ discardCard(cardIndex) {
         captures.push({ pieceId: occupyingPiece.id, action: 'partnerCapture', result });
       } else {
         this.sendToPenaltyZone(occupyingPiece, capturingPlayerId);
+        // Atualiza estatísticas de captura e de capturado para o adversário
+        this.stats.captures[capturingPlayerId]++;
+        this.stats.timesCaptured[occupyingPiece.playerId]++;
         captures.push({ pieceId: occupyingPiece.id, action: 'opponentCapture' });
       }
     }
@@ -1211,10 +1214,8 @@ discardCard(cardIndex) {
         piece.position = pos;
         piece.inPenaltyZone = true;
         piece.inHomeStretch = false;
-        if (capturingPlayerId !== null) {
-          this.stats.captures[capturingPlayerId]++;
-        }
-        this.stats.timesCaptured[piece.playerId]++;
+        // Se houver jogador responsável pela captura, as estatísticas serão
+        // atualizadas pela função que invocou sendToPenaltyZone.
         return;
       }
     }
@@ -1223,10 +1224,9 @@ discardCard(cardIndex) {
     piece.position = penaltyZone[0];
     piece.inPenaltyZone = true;
     piece.inHomeStretch = false;
-    if (capturingPlayerId !== null) {
-      this.stats.captures[capturingPlayerId]++;
-    }
-    this.stats.timesCaptured[piece.playerId]++;
+    // Da mesma forma, não incrementamos as estatísticas aqui para evitar
+    // contagem dupla. O chamador é responsável por atualizar os contadores de
+    // captura.
   }
 
   isPartner(playerId1, playerId2) {
