@@ -197,14 +197,21 @@ class GameWrapper {
             }
 
             let result;
+            let playedCard;
             if (actionId >= 40) {
                 const cardIndex = actionId - 40;
+                playedCard = this.game.players[playerId].cards[cardIndex];
                 result = this.game.discardCard(cardIndex);
             } else {
                 const cardIndex = Math.floor(actionId / 10);
                 const pieceNumber = actionId % 10;
                 const pieceId = `p${playerId}_${pieceNumber}`;
+                playedCard = this.game.players[playerId].cards[cardIndex];
                 result = this.game.makeMove(pieceId, cardIndex);
+            }
+
+            if (playedCard && playedCard.value === 'JOKER') {
+                this.game.stats.jokersPlayed[playerId]++;
             }
 
             // After the move/discard the turn has advanced inside the game
@@ -221,7 +228,7 @@ class GameWrapper {
             const gameEnded = this.game.checkWinCondition();
             const winningTeam = gameEnded ? this.game.getWinningTeam() : null;
 
-            return {
+            const response = {
                 success: true,
                 action: result && result.action ? result.action : 'move',
                 captures: result && result.captures ? result.captures : [],
@@ -229,6 +236,15 @@ class GameWrapper {
                 gameEnded,
                 winningTeam
             };
+
+            if (gameEnded) {
+                response.stats = {
+                    summary: this.game.getStatisticsSummary(),
+                    full: this.game.stats
+                };
+            }
+
+            return response;
         } catch (error) {
             return {
                 success: false,

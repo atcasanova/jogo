@@ -233,6 +233,9 @@ class GameEnvironment:
             # Preserve win information returned by the Node process
             self.game_state['gameEnded'] = done
             self.game_state['winningTeam'] = response.get('winningTeam')
+            if 'stats' in response:
+                self.game_state['stats'] = response['stats'].get('full', {})
+                self.game_state['statsSummary'] = response['stats'].get('summary')
             last_move = self.game_state.get('lastMove')
             if last_move is not None:
                 # store both the move description and a snapshot of the state
