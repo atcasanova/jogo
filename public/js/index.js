@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isRoomCreator = false;
     let shareLink = '';
     let currentPlayerName = '';
-    const playerColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
+    const playerColors = ['#3498db', '#000000', '#e74c3c', '#ff00ff'];
 
     const params = new URLSearchParams(window.location.search);
     const prefillRoomId = params.get('roomId');
