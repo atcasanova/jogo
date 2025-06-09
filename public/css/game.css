@@ -192,9 +192,9 @@
 }
 
 .piece.player3 {
-    --piece-color: #ff00ff;
-    --piece-highlight: #ffb3ff;
-    --piece-shadow: #880088;
+    --piece-color: #2ecc71;
+    --piece-highlight: #abebc6;
+    --piece-shadow: #196f3d;
 }
 
 .player-hand {
