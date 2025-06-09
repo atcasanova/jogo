@@ -142,6 +142,22 @@ function logMoveDetails(player, pieceId, oldPos, result, game, card) {
   return message;
 }
 
+function announceHomeStretch(game, roomId) {
+  for (let i = 0; i < game.players.length; i++) {
+    if (!game.homeStretchAnnounced[i] && game.hasAllPiecesInHomeStretch(i)) {
+      const partnerId = game.partnerIdFor(i);
+      if (partnerId !== null) {
+        const playerName = game.players[i].name;
+        const partnerName = game.players[partnerId].name;
+        const msg = `${playerName} agora pode jogar com as peças de ${partnerName}`;
+        game.history.push(msg);
+        io.to(roomId).emit('lastMove', { message: msg });
+        game.homeStretchAnnounced[i] = true;
+      }
+    }
+  }
+}
+
 function launchGame(game) {
   const roomId = game.roomId;
 
@@ -405,6 +421,7 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
 
     // Atualizar estado do jogo para todos já com o próximo jogador definido
     io.to(roomId).emit('gameStateUpdate', game.getGameState());
+    announceHomeStretch(game, roomId);
     logTurnState(game);
 
     // Enviar cartas atualizadas para o jogador
@@ -538,6 +555,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
 
     // Enviar estado atualizado para todos os jogadores
     io.to(roomId).emit('gameStateUpdate', game.getGameState());
+    announceHomeStretch(game, roomId);
 
     socket.emit('updateCards', {
       cards: currentPlayer.cards
@@ -667,6 +685,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
     // Atualizar estado do jogo para todos
     const updatedState = game.getGameState();
     io.to(roomId).emit('gameStateUpdate', updatedState);
+    announceHomeStretch(game, roomId);
     logTurnState(game);
 
     // Enviar cartas atualizadas para o jogador que fez o movimento
@@ -724,12 +743,13 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
      const msg = logMoveDetails(currentPlayer, pieceId, oldPos, moveResult, game, playedCard);
      io.to(roomId).emit('lastMove', { message: msg });
 
-     const updatedState = game.getGameState();
-     io.to(roomId).emit('gameStateUpdate', updatedState);
+    const updatedState = game.getGameState();
+    io.to(roomId).emit('gameStateUpdate', updatedState);
+    announceHomeStretch(game, roomId);
 
-     socket.emit('updateCards', {
-       cards: currentPlayer.cards
-     });
+    socket.emit('updateCards', {
+      cards: currentPlayer.cards
+    });
 
     if (game.checkWinCondition()) {
       saveReplay(game);
@@ -796,6 +816,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
       // Atualizar estado do jogo para todos
       io.to(roomId).emit('gameStateUpdate', game.getGameState());
+      announceHomeStretch(game, roomId);
       logTurnState(game);
       
       // Verificar se o jogo acabou
@@ -863,6 +884,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       }
 
       io.to(roomId).emit('gameStateUpdate', game.getGameState());
+      announceHomeStretch(game, roomId);
       logTurnState(game);
 
       if (game.checkWinCondition()) {

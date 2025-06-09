@@ -15,6 +15,7 @@ class Game {
     this.cleanupTimer = null;
     this.pendingSpecialMove = null;
     this.history = [];
+    this.homeStretchAnnounced = [false, false, false, false];
   }
 
   createBoard() {
@@ -123,8 +124,10 @@ class Game {
   }
 
 // No arquivo game.js do servidor
-startGame() {
-  console.log(`Iniciando jogo. Jogadores: ${this.players.length}`);
+  startGame() {
+    console.log(`Iniciando jogo. Jogadores: ${this.players.length}`);
+
+    this.homeStretchAnnounced = [false, false, false, false];
 
   // Criar e embaralhar o deck
   this.deck = shuffle(createDeck());
@@ -178,6 +181,7 @@ startGame() {
     this.isActive = false;
     this.pendingSpecialMove = null;
     this.history = [];
+    this.homeStretchAnnounced = [false, false, false, false];
     for (const player of this.players) {
       player.cards = [];
     }
