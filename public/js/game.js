@@ -1170,9 +1170,7 @@ function makeMove() {
             canControlPiece(playerPosition, p.playerId) && !p.inPenaltyZone && !p.completed
         );
 
-        const movableOnTrack = movable.filter(p => !p.inHomeStretch);
-
-        if (movableOnTrack.length <= 1) {
+        if (movable.length <= 1) {
             socket.emit('makeSpecialMove', {
                 roomId,
                 moves: [{ pieceId: selectedPieceId, steps: 7 }],
