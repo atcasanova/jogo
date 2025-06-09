@@ -262,6 +262,31 @@ describe('Game class', () => {
     expect(() => game.movePieceForward(mover, 3)).toThrow();
   });
 
+  test('movePieceBackward reverts position on invalid partner capture', () => {
+    const game = new Game('revertBack');
+    game.addPlayer('1', 'Alice');
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+
+    const mover = game.pieces.find(p => p.id === 'p1_4');
+    const partner = game.pieces.find(p => p.id === 'p3_4');
+    const blocker = game.pieces.find(p => p.id === 'p3_3');
+
+    mover.inPenaltyZone = false;
+    mover.position = { row: 4, col: 18 };
+
+    partner.inPenaltyZone = false;
+    partner.position = { row: 0, col: 14 };
+
+    blocker.inPenaltyZone = false;
+    blocker.position = { row: 14, col: 0 };
+
+    expect(() => game.movePieceBackward(mover, 8)).toThrow();
+    expect(mover.position).toEqual({ row: 4, col: 18 });
+  });
+
   test('landing exactly on home entrance does not offer entry option', () => {
     const game = new Game('room10');
     game.addPlayer('1', 'Alice');
