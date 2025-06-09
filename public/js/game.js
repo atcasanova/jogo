@@ -1083,7 +1083,7 @@ function makeMove() {
 
         const movableOnTrack = movable.filter(p => !p.inHomeStretch);
 
-        if (movable.length <= 1) {
+        if (movableOnTrack.length <= 1) {
             socket.emit('makeSpecialMove', {
                 roomId,
                 moves: [{ pieceId: selectedPieceId, steps: 7 }],
