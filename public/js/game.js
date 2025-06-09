@@ -652,7 +652,8 @@ function updatePlayerLabels() {
         ];
 
         homeStretches.forEach((stretch, idx) => {
-            outlineZone(stretch, 'home-stretch', idx);
+            // Outline and color every cell in the home stretch for better visibility
+            outlineZone(stretch, 'home-stretch', idx, true);
         });
         
         // Marcar área de descarte (centro)
@@ -674,22 +675,26 @@ function updatePlayerLabels() {
         }
     }
 
-    function outlineZone(zone, className, playerId) {
+    function outlineZone(zone, className, playerId, fillAll = false) {
         zone.forEach(pos => {
             const cell = getCell(pos.row, pos.col);
             if (!cell) return;
             cell.classList.add(className, `player${playerId}`);
             const color = playerColors[playerId];
-            const neighbors = {
-                Top: { row: pos.row - 1, col: pos.col },
-                Bottom: { row: pos.row + 1, col: pos.col },
-                Left: { row: pos.row, col: pos.col - 1 },
-                Right: { row: pos.row, col: pos.col + 1 }
-            };
-            for (const [edge, n] of Object.entries(neighbors)) {
-                const exists = zone.some(p => p.row === n.row && p.col === n.col);
-                if (!exists) {
-                    cell.style[`border${edge}Color`] = color;
+            if (fillAll) {
+                cell.style.borderColor = color;
+            } else {
+                const neighbors = {
+                    Top: { row: pos.row - 1, col: pos.col },
+                    Bottom: { row: pos.row + 1, col: pos.col },
+                    Left: { row: pos.row, col: pos.col - 1 },
+                    Right: { row: pos.row, col: pos.col + 1 }
+                };
+                for (const [edge, n] of Object.entries(neighbors)) {
+                    const exists = zone.some(p => p.row === n.row && p.col === n.col);
+                    if (!exists) {
+                        cell.style[`border${edge}Color`] = color;
+                    }
                 }
             }
         });
