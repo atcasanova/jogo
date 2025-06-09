@@ -54,6 +54,36 @@ document.addEventListener('DOMContentLoaded', () => {
     let secondPieceId = null;
     let awaitingSecondPiece = false;
     const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
+    const homeStretches = [
+      [
+        { row: 1, col: 4 },
+        { row: 2, col: 4 },
+        { row: 3, col: 4 },
+        { row: 4, col: 4 },
+        { row: 5, col: 4 }
+      ],
+      [
+        { row: 4, col: 17 },
+        { row: 4, col: 16 },
+        { row: 4, col: 15 },
+        { row: 4, col: 14 },
+        { row: 4, col: 13 }
+      ],
+      [
+        { row: 17, col: 14 },
+        { row: 16, col: 14 },
+        { row: 15, col: 14 },
+        { row: 14, col: 14 },
+        { row: 13, col: 14 }
+      ],
+      [
+        { row: 14, col: 1 },
+        { row: 14, col: 2 },
+        { row: 14, col: 3 },
+        { row: 14, col: 4 },
+        { row: 14, col: 5 }
+      ]
+    ];
 
     const pieceElements = {};
 
@@ -1166,9 +1196,12 @@ function makeMove() {
 
     function initiateSpecialMove() {
         specialMoveCard = selectedCardIndex;
-        const movable = gameState.pieces.filter(p =>
-            canControlPiece(playerPosition, p.playerId) && !p.inPenaltyZone && !p.completed
-        );
+        const movable = gameState.pieces.filter(p => {
+            if (!canControlPiece(playerPosition, p.playerId)) return false;
+            if (p.inPenaltyZone || p.completed) return false;
+            if (p.inHomeStretch) return canMoveInHomeStretch(p);
+            return true;
+        });
 
         if (movable.length <= 1) {
             socket.emit('makeSpecialMove', {
@@ -1246,6 +1279,30 @@ function makeMove() {
             console.error(`Célula não encontrada: ${row},${col}`);
         }
         return cell;
+    }
+
+    function homeStretchForPlayer(id) {
+        return homeStretches[id];
+    }
+
+    function canMoveInHomeStretch(piece) {
+        const stretch = homeStretchForPlayer(piece.playerId);
+        const idx = stretch.findIndex(pos => pos.row === piece.position.row && pos.col === piece.position.col);
+        if (idx === -1) return false;
+
+        for (let steps = 1; steps <= 7 && idx + steps < stretch.length; steps++) {
+            let pathClear = true;
+            for (let i = idx + 1; i <= idx + steps; i++) {
+                const pos = stretch[i];
+                const occupying = gameState.pieces.find(p => p.id !== piece.id && !p.completed && !p.inPenaltyZone && p.position.row === pos.row && p.position.col === pos.col);
+                if (occupying) {
+                    pathClear = false;
+                    break;
+                }
+            }
+            if (pathClear) return true;
+        }
+        return false;
     }
     
     function verifyBoard() {
