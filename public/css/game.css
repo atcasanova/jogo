@@ -167,15 +167,15 @@
 }
 
 .piece.player1 {
-    background-color: #e74c3c;
+    background-color: #000000;
 }
 
 .piece.player2 {
-    background-color: #2ecc71;
+    background-color: #e74c3c;
 }
 
 .piece.player3 {
-    background-color: #f39c12;
+    background-color: #ff00ff;
 }
 
 .player-hand {
@@ -402,8 +402,8 @@
 
 /* Adicione ao game.css */
 .piece.my-piece {
-  box-shadow: 0 0 6px 2px gold;
-  border: 2px solid gold;
+  box-shadow: 0 0 6px 2px #ff9800;
+  border: 2px solid #ff9800;
 }
 
 .piece.selected {
@@ -432,7 +432,7 @@
 }
 
 .joker-target:hover {
-  box-shadow: 0 0 6px 2px gold;
+  box-shadow: 0 0 6px 2px #ff9800;
 }
 
 .card.discard-only {

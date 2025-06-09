@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let playerCards = [];
     let secondPieceId = null;
     let awaitingSecondPiece = false;
-    const playerColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
+    const playerColors = ['#3498db', '#000000', '#e74c3c', '#ff00ff'];
 
     const pieceElements = {};
 
