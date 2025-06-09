@@ -16,6 +16,12 @@ class Game {
     this.pendingSpecialMove = null;
     this.history = [];
     this.homeStretchAnnounced = [false, false, false, false];
+    this.stats = {
+      captures: [0, 0, 0, 0],
+      roundsWithoutPlay: [0, 0, 0, 0],
+      jokersPlayed: [0, 0, 0, 0],
+      timesCaptured: [0, 0, 0, 0]
+    };
   }
 
   createBoard() {
@@ -182,6 +188,12 @@ class Game {
     this.pendingSpecialMove = null;
     this.history = [];
     this.homeStretchAnnounced = [false, false, false, false];
+    this.stats = {
+      captures: [0, 0, 0, 0],
+      roundsWithoutPlay: [0, 0, 0, 0],
+      jokersPlayed: [0, 0, 0, 0],
+      timesCaptured: [0, 0, 0, 0]
+    };
     for (const player of this.players) {
       player.cards = [];
     }
@@ -262,7 +274,9 @@ discardCard(cardIndex) {
     // Descartar a carta
     this.discardPile.push(card);
     player.cards.splice(cardIndex, 1);
-    
+
+    this.stats.roundsWithoutPlay[player.position]++;
+
     // Passar para o próximo jogador
     this.nextTurn();
     
@@ -522,9 +536,13 @@ discardCard(cardIndex) {
 
       if (isPartner) {
         const result = this.handlePartnerCapture(occupyingPiece, piece.playerId);
+        this.stats.captures[piece.playerId]++;
+        this.stats.timesCaptured[occupyingPiece.playerId]++;
         captures.push({ pieceId: occupyingPiece.id, action: 'partnerCapture', result });
       } else {
-        this.sendToPenaltyZone(occupyingPiece);
+        this.sendToPenaltyZone(occupyingPiece, piece.playerId);
+        this.stats.captures[piece.playerId]++;
+        this.stats.timesCaptured[occupyingPiece.playerId]++;
         captures.push({ pieceId: occupyingPiece.id, action: 'opponentCapture' });
       }
     }
@@ -1071,6 +1089,8 @@ discardCard(cardIndex) {
       if (isPartner) {
         // Captura de parceiro - mover para corredor de chegada
         const result = this.handlePartnerCapture(capturedPiece, piece.playerId);
+        this.stats.captures[piece.playerId]++;
+        this.stats.timesCaptured[capturedPiece.playerId]++;
         captures.push({
           pieceId: capturedPiece.id,
           action: 'partnerCapture',
@@ -1078,7 +1098,9 @@ discardCard(cardIndex) {
         });
       } else {
         // Captura de adversário - mover para zona de castigo
-        this.sendToPenaltyZone(capturedPiece);
+        this.sendToPenaltyZone(capturedPiece, piece.playerId);
+        this.stats.timesCaptured[capturedPiece.playerId]++;
+        this.stats.captures[piece.playerId]++;
         captures.push({
           pieceId: capturedPiece.id,
           action: 'opponentCapture'
@@ -1137,9 +1159,11 @@ discardCard(cardIndex) {
 
       if (isPartner) {
         const result = this.handlePartnerCapture(occupyingPiece, capturingPlayerId);
+        this.stats.captures[capturingPlayerId]++;
+        this.stats.timesCaptured[occupyingPiece.playerId]++;
         captures.push({ pieceId: occupyingPiece.id, action: 'partnerCapture', result });
       } else {
-        this.sendToPenaltyZone(occupyingPiece);
+        this.sendToPenaltyZone(occupyingPiece, capturingPlayerId);
         captures.push({ pieceId: occupyingPiece.id, action: 'opponentCapture' });
       }
     }
@@ -1155,7 +1179,7 @@ discardCard(cardIndex) {
     return { position: target };
   }
 
-  sendToPenaltyZone(piece) {
+  sendToPenaltyZone(piece, capturingPlayerId = null) {
     // Enviar peça para zona de castigo
     const penaltyZones = [
       // Topo (jogador 0)
@@ -1184,6 +1208,10 @@ discardCard(cardIndex) {
         piece.position = pos;
         piece.inPenaltyZone = true;
         piece.inHomeStretch = false;
+        if (capturingPlayerId !== null) {
+          this.stats.captures[capturingPlayerId]++;
+        }
+        this.stats.timesCaptured[piece.playerId]++;
         return;
       }
     }
@@ -1192,6 +1220,10 @@ discardCard(cardIndex) {
     piece.position = penaltyZone[0];
     piece.inPenaltyZone = true;
     piece.inHomeStretch = false;
+    if (capturingPlayerId !== null) {
+      this.stats.captures[capturingPlayerId]++;
+    }
+    this.stats.timesCaptured[piece.playerId]++;
   }
 
   isPartner(playerId1, playerId2) {
@@ -1274,6 +1306,39 @@ discardCard(cardIndex) {
     return null;
   }
 
+  getStatisticsSummary() {
+    const stat = this.stats;
+    const pick = arr => {
+      const max = Math.max(...arr);
+      const idx = arr.indexOf(max);
+      return { idx, max };
+    };
+
+    const capt = pick(stat.captures);
+    const stuck = pick(stat.roundsWithoutPlay);
+    const jok = pick(stat.jokersPlayed);
+    const mostCap = pick(stat.timesCaptured);
+
+    return {
+      mostCaptures: {
+        name: this.players[capt.idx]?.name,
+        count: capt.max
+      },
+      mostRoundsStuck: {
+        name: this.players[stuck.idx]?.name,
+        count: stuck.max
+      },
+      mostJokers: {
+        name: this.players[jok.idx]?.name,
+        count: jok.max
+      },
+      mostCaptured: {
+        name: this.players[mostCap.idx]?.name,
+        count: mostCap.max
+      }
+    };
+  }
+
   cloneForSimulation() {
     const clone = new Game(this.roomId);
     clone.players = JSON.parse(JSON.stringify(this.players));
@@ -1352,7 +1417,8 @@ discardCard(cardIndex) {
       deckCount: this.deck.length,
       discardCount: this.discardPile.length,
       isActive: this.isActive,
-      lastMove: this.history.length > 0 ? this.history[this.history.length - 1] : null
+      lastMove: this.history.length > 0 ? this.history[this.history.length - 1] : null,
+      stats: this.stats
     };
   }
 }

@@ -549,6 +549,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
     // Descartar a carta Joker
     game.discardPile.push(card);
     currentPlayer.cards.splice(cardIndex, 1);
+    game.stats.jokersPlayed[currentPlayer.position]++;
 
     // Avançar o turno antes de enviar o novo estado
     game.nextTurn();
@@ -564,7 +565,8 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
     if (game.checkWinCondition()) {
       saveReplay(game);
       io.to(roomId).emit('gameOver', {
-        winners: game.getWinningTeam()
+        winners: game.getWinningTeam(),
+        stats: game.getStatisticsSummary()
       });
       game.endGame();
       return;
@@ -697,7 +699,8 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
     if (game.checkWinCondition()) {
       saveReplay(game);
       io.to(roomId).emit('gameOver', {
-        winners: game.getWinningTeam()
+        winners: game.getWinningTeam(),
+        stats: game.getStatisticsSummary()
       });
       game.endGame();
       return;
@@ -754,7 +757,8 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     if (game.checkWinCondition()) {
       saveReplay(game);
       io.to(roomId).emit('gameOver', {
-        winners: game.getWinningTeam()
+        winners: game.getWinningTeam(),
+        stats: game.getStatisticsSummary()
       });
       game.endGame();
       return;
@@ -823,7 +827,8 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       if (game.checkWinCondition()) {
         saveReplay(game);
         io.to(roomId).emit('gameOver', {
-          winners: game.getWinningTeam()
+          winners: game.getWinningTeam(),
+          stats: game.getStatisticsSummary()
         });
         game.endGame();
         return;
@@ -890,7 +895,8 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       if (game.checkWinCondition()) {
         saveReplay(game);
         io.to(roomId).emit('gameOver', {
-          winners: game.getWinningTeam()
+          winners: game.getWinningTeam(),
+          stats: game.getStatisticsSummary()
         });
         game.endGame();
         return;
