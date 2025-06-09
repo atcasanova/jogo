@@ -138,7 +138,11 @@ class TrainingManager:
                 player_pos = player.get('position', -1)
                 if 0 <= player_pos < len(self.bots):
                     self.bots[player_pos].wins += 1
-        
+
+        summary = env.game_state.get('statsSummary')
+        if summary:
+            info("Game summary", summary=summary)
+
         self.training_stats['games_played'] += 1
         self.training_stats['episode_rewards'].append(sum(episode_rewards))
 

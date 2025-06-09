@@ -15,49 +15,13 @@ class Game {
     this.cleanupTimer = null;
     this.pendingSpecialMove = null;
     this.history = [];
-  }
-
-  logMoveDetails(player, pieceId, oldPos, result, card) {
-    const piece = this.pieces.find(p => p.id === pieceId);
-    if (!piece) return null;
-    const cardVal = card ? (card.value === 'JOKER' ? 'C' : card.value) : '';
-    let message = `${player.name} jogou um ${cardVal}`;
-
-    if (result && result.action === 'capture' && result.captures) {
-      for (const c of result.captures) {
-        const captured = this.pieces.find(p => p.id === c.pieceId);
-        const name = captured
-          ? this.players.find(p => p.position === captured.playerId)?.name ||
-            `player${captured.playerId + 1}`
-          : '';
-        if (c.action === 'partnerCapture') {
-          message += ` e comeu ${name} (parceiro)`;
-        } else if (c.action === 'opponentCapture') {
-          message += ` e comeu ${name} (adversário)`;
-        }
-      }
-    } else if (result && result.action === 'leavePenalty') {
-      message += ' e saiu do castigo';
-      if (result.captures) {
-        for (const c of result.captures) {
-          const captured = this.pieces.find(p => p.id === c.pieceId);
-          const name = captured
-            ? this.players.find(p => p.position === captured.playerId)?.name ||
-              `player${captured.playerId + 1}`
-            : '';
-          if (c.action === 'partnerCapture') {
-            message += ` e comeu ${name} (parceiro)`;
-          } else {
-            message += ` e comeu ${name} (adversário)`;
-          }
-        }
-      }
-    } else if (result && result.action === 'enterHomeStretch') {
-      message += ' e avançou para o corredor de chegada';
-    }
-
-    this.history.push(message);
-    return message;
+    this.homeStretchAnnounced = [false, false, false, false];
+    this.stats = {
+      captures: [0, 0, 0, 0],
+      roundsWithoutPlay: [0, 0, 0, 0],
+      jokersPlayed: [0, 0, 0, 0],
+      timesCaptured: [0, 0, 0, 0]
+    };
   }
 
   createBoard() {
@@ -166,8 +130,10 @@ class Game {
   }
 
 // No arquivo game.js do servidor
-startGame() {
-  console.log(`Iniciando jogo. Jogadores: ${this.players.length}`);
+  startGame() {
+    console.log(`Iniciando jogo. Jogadores: ${this.players.length}`);
+
+    this.homeStretchAnnounced = [false, false, false, false];
 
   // Criar e embaralhar o deck
   this.deck = shuffle(createDeck());
@@ -220,6 +186,14 @@ startGame() {
     this.currentPlayerIndex = 0;
     this.isActive = false;
     this.pendingSpecialMove = null;
+    this.history = [];
+    this.homeStretchAnnounced = [false, false, false, false];
+    this.stats = {
+      captures: [0, 0, 0, 0],
+      roundsWithoutPlay: [0, 0, 0, 0],
+      jokersPlayed: [0, 0, 0, 0],
+      timesCaptured: [0, 0, 0, 0]
+    };
     for (const player of this.players) {
       player.cards = [];
     }
@@ -274,8 +248,9 @@ discardCard(cardIndex) {
   // Verificar se todas as peças estão no castigo
   const playerPieces = this.pieces.filter(p => p.playerId === player.position);
   const allInPenalty = playerPieces.every(p => p.inPenaltyZone);
+
   const hasMove = this.hasAnyValidMove(player.position);
-  
+
   // Se todas as peças estão no castigo e a carta é A, K, Q ou J, tentar sair do castigo
   if (allInPenalty && ['A', 'K', 'Q', 'J'].includes(card.value)) {
     // Encontrar a primeira peça no castigo
@@ -284,12 +259,8 @@ discardCard(cardIndex) {
       // Descartar a carta
       this.discardPile.push(card);
       player.cards.splice(cardIndex, 1);
-      const oldPos = { ...firstPenaltyPiece.position };
       // Sair do castigo com esta peça
       const result = this.leavePenaltyZone(firstPenaltyPiece);
-      this.logMoveDetails(player, firstPenaltyPiece.id, oldPos, result, card);
-      const discardMsg = `${player.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
-      this.history.push(discardMsg);
 
       // Passar a vez para o próximo jogador
       this.nextTurn();
@@ -297,21 +268,21 @@ discardCard(cardIndex) {
       return result;
     }
   }
-  
+
   // Se todas as peças estão no castigo e a carta não é A, K, Q ou J, permitir descarte
   if (allInPenalty && !['A', 'K', 'Q', 'J'].includes(card.value)) {
     // Descartar a carta
     this.discardPile.push(card);
     player.cards.splice(cardIndex, 1);
-    const discardMsg = `${player.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
-    this.history.push(discardMsg);
+
+    this.stats.roundsWithoutPlay[player.position]++;
 
     // Passar para o próximo jogador
     this.nextTurn();
-
+    
     return { success: true, action: 'discard' };
   }
-  
+
   // Se nem todas as peças estão no castigo, verificar se o jogador tem peças fora
   if (!allInPenalty) {
     if (hasMove) {
@@ -321,11 +292,14 @@ discardCard(cardIndex) {
     this.discardPile.push(card);
     player.cards.splice(cardIndex, 1);
 
+    // Contabilizar rodada sem jogada efetiva
+    this.stats.roundsWithoutPlay[player.position]++;
+
     this.nextTurn();
 
     return { success: true, action: 'discard' };
   }
-  
+
   throw new Error("Você deve usar A, K, Q ou J para sair do castigo ou ter peças fora do castigo para usar outras cartas");
 }
 
@@ -349,10 +323,8 @@ discardCard(cardIndex) {
       throw new Error("Esta peça não pertence a você");
     }
     
-    const oldPos = { ...piece.position };
     // Verificar se o movimento é válido e executá-lo
     const moveResult = this.executeMove(piece, card, enterHome);
-    this.logMoveDetails(player, pieceId, oldPos, moveResult, card);
 
     if (moveResult && (moveResult.action === 'homeEntryChoice' || moveResult.action === 'choosePosition')) {
       moveResult.cardIndex = cardIndex;
@@ -362,8 +334,6 @@ discardCard(cardIndex) {
     // Descartar a carta usada
     this.discardPile.push(card);
     player.cards.splice(cardIndex, 1);
-    const discardMsg = `${player.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
-    this.history.push(discardMsg);
     
     // NÃO comprar nova carta aqui - a carta já foi comprada no início do turno
     
@@ -415,10 +385,6 @@ discardCard(cardIndex) {
         Object.prototype.hasOwnProperty.call(move, 'enterHome') ? move.enterHome : null
       );
 
-      this.logMoveDetails(player, piece.id, oldPosition, result, { value: '7' });
-
-      this.logMoveDetails(player, piece.id, oldPosition, result, { value: '7' });
-
       moveResults.push({
         pieceId: piece.id,
         oldPosition,
@@ -440,8 +406,6 @@ discardCard(cardIndex) {
     // Remover a carta 7 da mão do jogador
     this.discardPile.push(player.cards[cardIndex]);
     player.cards.splice(cardIndex, 1);
-    const discardMsg7 = `${player.name} descartou um 7`;
-    this.history.push(discardMsg7);
     
     // NÃO comprar nova carta aqui - a carta já foi comprada no início do turno
     
@@ -497,8 +461,6 @@ discardCard(cardIndex) {
     const player = this.getCurrentPlayer();
     this.discardPile.push(player.cards[cardIndex]);
     player.cards.splice(cardIndex, 1);
-    const discardMsg7b = `${player.name} descartou um 7`;
-    this.history.push(discardMsg7b);
 
     this.nextTurn();
     this.pendingSpecialMove = null;
@@ -577,9 +539,13 @@ discardCard(cardIndex) {
 
       if (isPartner) {
         const result = this.handlePartnerCapture(occupyingPiece, piece.playerId);
+        this.stats.captures[piece.playerId]++;
+        this.stats.timesCaptured[occupyingPiece.playerId]++;
         captures.push({ pieceId: occupyingPiece.id, action: 'partnerCapture', result });
       } else {
-        this.sendToPenaltyZone(occupyingPiece);
+        this.sendToPenaltyZone(occupyingPiece, piece.playerId);
+        this.stats.captures[piece.playerId]++;
+        this.stats.timesCaptured[occupyingPiece.playerId]++;
         captures.push({ pieceId: occupyingPiece.id, action: 'opponentCapture' });
       }
     }
@@ -645,11 +611,16 @@ discardCard(cardIndex) {
     }
     
     // Mover para a nova posição
-    const oldPosition = {...piece.position};
+    const oldPosition = { ...piece.position };
     piece.position = newPosition;
-    
-    // Verificar se "comeu" alguma peça
-    return this.checkCapture(piece, oldPosition);
+
+    try {
+      // Verificar se "comeu" alguma peça
+      return this.checkCapture(piece, oldPosition);
+    } catch (err) {
+      piece.position = oldPosition;
+      throw err;
+    }
   }
 
   movePieceBackward(piece, steps) {
@@ -666,11 +637,16 @@ discardCard(cardIndex) {
     }
     
     // Mover para a nova posição
-    const oldPosition = {...piece.position};
+    const oldPosition = { ...piece.position };
     piece.position = newPosition;
-    
-    // Verificar se "comeu" alguma peça
-    return this.checkCapture(piece, oldPosition);
+
+    try {
+      // Verificar se "comeu" alguma peça
+      return this.checkCapture(piece, oldPosition);
+    } catch (err) {
+      piece.position = oldPosition;
+      throw err;
+    }
   }
 
   moveToOccupiedSpace(piece) {
@@ -716,10 +692,15 @@ discardCard(cardIndex) {
       throw new Error("Posição inválida");
     }
     
-    const oldPosition = {...piece.position};
-    piece.position = {...targetPiece.position};
-    
-    return this.checkCapture(piece, oldPosition);
+    const oldPosition = { ...piece.position };
+    piece.position = { ...targetPiece.position };
+
+    try {
+      return this.checkCapture(piece, oldPosition);
+    } catch (err) {
+      piece.position = oldPosition;
+      throw err;
+    }
   }
 
   calculateNewPosition(currentPos, steps, isForward) {
@@ -1088,11 +1069,20 @@ discardCard(cardIndex) {
         p.position.row === piece.position.row &&
         p.position.col === piece.position.col
     );
-    
+
     if (capturedPieces.length === 0) {
       return { success: true, action: 'move' };
     }
-    
+
+    // Não é permitido capturar a própria peça
+    for (const capturedPiece of capturedPieces) {
+      if (capturedPiece.playerId === piece.playerId) {
+        // Reverter movimento antes de lançar o erro
+        piece.position = oldPosition;
+        throw new Error('Não é possível capturar sua própria peça.');
+      }
+    }
+
     const captures = [];
     
     for (const capturedPiece of capturedPieces) {
@@ -1102,6 +1092,8 @@ discardCard(cardIndex) {
       if (isPartner) {
         // Captura de parceiro - mover para corredor de chegada
         const result = this.handlePartnerCapture(capturedPiece, piece.playerId);
+        this.stats.captures[piece.playerId]++;
+        this.stats.timesCaptured[capturedPiece.playerId]++;
         captures.push({
           pieceId: capturedPiece.id,
           action: 'partnerCapture',
@@ -1109,7 +1101,9 @@ discardCard(cardIndex) {
         });
       } else {
         // Captura de adversário - mover para zona de castigo
-        this.sendToPenaltyZone(capturedPiece);
+        this.sendToPenaltyZone(capturedPiece, piece.playerId);
+        this.stats.timesCaptured[capturedPiece.playerId]++;
+        this.stats.captures[piece.playerId]++;
         captures.push({
           pieceId: capturedPiece.id,
           action: 'opponentCapture'
@@ -1168,9 +1162,14 @@ discardCard(cardIndex) {
 
       if (isPartner) {
         const result = this.handlePartnerCapture(occupyingPiece, capturingPlayerId);
+        this.stats.captures[capturingPlayerId]++;
+        this.stats.timesCaptured[occupyingPiece.playerId]++;
         captures.push({ pieceId: occupyingPiece.id, action: 'partnerCapture', result });
       } else {
-        this.sendToPenaltyZone(occupyingPiece);
+        this.sendToPenaltyZone(occupyingPiece, capturingPlayerId);
+        // Atualiza estatísticas de captura e de capturado para o adversário
+        this.stats.captures[capturingPlayerId]++;
+        this.stats.timesCaptured[occupyingPiece.playerId]++;
         captures.push({ pieceId: occupyingPiece.id, action: 'opponentCapture' });
       }
     }
@@ -1186,7 +1185,7 @@ discardCard(cardIndex) {
     return { position: target };
   }
 
-  sendToPenaltyZone(piece) {
+  sendToPenaltyZone(piece, capturingPlayerId = null) {
     // Enviar peça para zona de castigo
     const penaltyZones = [
       // Topo (jogador 0)
@@ -1215,6 +1214,8 @@ discardCard(cardIndex) {
         piece.position = pos;
         piece.inPenaltyZone = true;
         piece.inHomeStretch = false;
+        // Se houver jogador responsável pela captura, as estatísticas serão
+        // atualizadas pela função que invocou sendToPenaltyZone.
         return;
       }
     }
@@ -1223,15 +1224,23 @@ discardCard(cardIndex) {
     piece.position = penaltyZone[0];
     piece.inPenaltyZone = true;
     piece.inHomeStretch = false;
+    // Da mesma forma, não incrementamos as estatísticas aqui para evitar
+    // contagem dupla. O chamador é responsável por atualizar os contadores de
+    // captura.
   }
 
   isPartner(playerId1, playerId2) {
+    // Jogador não é parceiro de si mesmo
+    if (playerId1 === playerId2) return false;
+
     // Verificar se os jogadores são parceiros usando
     // os índices atuais na lista de jogadores
     const playerObj1 = this.players[playerId1];
     const playerObj2 = this.players[playerId2];
     if (!playerObj1 || !playerObj2) return false;
-    return this.teams.some(team => team.includes(playerObj1) && team.includes(playerObj2));
+    return this.teams.some(
+      team => team.includes(playerObj1) && team.includes(playerObj2)
+    );
   }
 
   hasAllPiecesInHomeStretch(playerId) {
@@ -1257,7 +1266,8 @@ discardCard(cardIndex) {
 
   nextTurn() {
     // Passar para o próximo jogador no sentido horário
-    // (índice diminui porque a ordem original é anti-horária)
+    // (diminuindo o índice, pois os jogadores estão dispostos
+    // no sentido anti-horário em relação à pista)
     this.currentPlayerIndex = (this.currentPlayerIndex + 3) % 4;
   }
 
@@ -1297,6 +1307,39 @@ discardCard(cardIndex) {
     }
 
     return null;
+  }
+
+  getStatisticsSummary() {
+    const stat = this.stats;
+    const pick = arr => {
+      const max = Math.max(...arr);
+      const idx = arr.indexOf(max);
+      return { idx, max };
+    };
+
+    const capt = pick(stat.captures);
+    const stuck = pick(stat.roundsWithoutPlay);
+    const jok = pick(stat.jokersPlayed);
+    const mostCap = pick(stat.timesCaptured);
+
+    return {
+      mostCaptures: {
+        name: this.players[capt.idx]?.name,
+        count: capt.max
+      },
+      mostRoundsStuck: {
+        name: this.players[stuck.idx]?.name,
+        count: stuck.max
+      },
+      mostJokers: {
+        name: this.players[jok.idx]?.name,
+        count: jok.max
+      },
+      mostCaptured: {
+        name: this.players[mostCap.idx]?.name,
+        count: mostCap.max
+      }
+    };
   }
 
   cloneForSimulation() {
@@ -1377,7 +1420,8 @@ discardCard(cardIndex) {
       deckCount: this.deck.length,
       discardCount: this.discardPile.length,
       isActive: this.isActive,
-      lastMove: this.history.length > 0 ? this.history[this.history.length - 1] : null
+      lastMove: this.history.length > 0 ? this.history[this.history.length - 1] : null,
+      stats: this.stats
     };
   }
 }
