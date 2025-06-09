@@ -586,11 +586,16 @@ discardCard(cardIndex) {
     }
     
     // Mover para a nova posição
-    const oldPosition = {...piece.position};
+    const oldPosition = { ...piece.position };
     piece.position = newPosition;
-    
-    // Verificar se "comeu" alguma peça
-    return this.checkCapture(piece, oldPosition);
+
+    try {
+      // Verificar se "comeu" alguma peça
+      return this.checkCapture(piece, oldPosition);
+    } catch (err) {
+      piece.position = oldPosition;
+      throw err;
+    }
   }
 
   movePieceBackward(piece, steps) {
@@ -607,11 +612,16 @@ discardCard(cardIndex) {
     }
     
     // Mover para a nova posição
-    const oldPosition = {...piece.position};
+    const oldPosition = { ...piece.position };
     piece.position = newPosition;
-    
-    // Verificar se "comeu" alguma peça
-    return this.checkCapture(piece, oldPosition);
+
+    try {
+      // Verificar se "comeu" alguma peça
+      return this.checkCapture(piece, oldPosition);
+    } catch (err) {
+      piece.position = oldPosition;
+      throw err;
+    }
   }
 
   moveToOccupiedSpace(piece) {
@@ -657,10 +667,15 @@ discardCard(cardIndex) {
       throw new Error("Posição inválida");
     }
     
-    const oldPosition = {...piece.position};
-    piece.position = {...targetPiece.position};
-    
-    return this.checkCapture(piece, oldPosition);
+    const oldPosition = { ...piece.position };
+    piece.position = { ...targetPiece.position };
+
+    try {
+      return this.checkCapture(piece, oldPosition);
+    } catch (err) {
+      piece.position = oldPosition;
+      throw err;
+    }
   }
 
   calculateNewPosition(currentPos, steps, isForward) {
