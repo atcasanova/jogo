@@ -292,6 +292,9 @@ discardCard(cardIndex) {
     this.discardPile.push(card);
     player.cards.splice(cardIndex, 1);
 
+    // Contabilizar rodada sem jogada efetiva
+    this.stats.roundsWithoutPlay[player.position]++;
+
     this.nextTurn();
 
     return { success: true, action: 'discard' };
