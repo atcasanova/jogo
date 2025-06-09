@@ -416,14 +416,24 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         // Mostrar diálogo de fim de jogo
         const winners = data.winners.map(player => player.name).join(' e ');
         winnersDiv.textContent = `Parabéns! ${winners} venceram o jogo!`;
+
         if (data.stats && finalStatsDiv) {
+            const fullStats = data.stats.full || data.stats;
+            const summary = data.stats.summary || computeStatsSummary(fullStats);
+
             finalStatsDiv.innerHTML = `
-                <p>Maior número de capturas: <strong>${data.stats.mostCaptures.name || 'N/A'}</strong> (${data.stats.mostCaptures.count})</p>
-                <p>Mais rodadas preso: <strong>${data.stats.mostRoundsStuck.name || 'N/A'}</strong> (${data.stats.mostRoundsStuck.count})</p>
-                <p>Mais Jokers jogados: <strong>${data.stats.mostJokers.name || 'N/A'}</strong> (${data.stats.mostJokers.count})</p>
-                <p>Jogador mais capturado: <strong>${data.stats.mostCaptured.name || 'N/A'}</strong> (${data.stats.mostCaptured.count})</p>
+                <p>Maior número de capturas: <strong>${summary.mostCaptures.name || 'N/A'}</strong> (${summary.mostCaptures.count})</p>
+                <p>Mais rodadas preso: <strong>${summary.mostRoundsStuck.name || 'N/A'}</strong> (${summary.mostRoundsStuck.count})</p>
+                <p>Mais Jokers jogados: <strong>${summary.mostJokers.name || 'N/A'}</strong> (${summary.mostJokers.count})</p>
+                <p>Jogador mais capturado: <strong>${summary.mostCaptured.name || 'N/A'}</strong> (${summary.mostCaptured.count})</p>
+                <hr>
+                <p>Capturas: <strong>${fullStats.captures.map((c, i) => `${i+1}:${c}`).join(' ')}</strong></p>
+                <p>Preso: <strong>${fullStats.roundsWithoutPlay.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
+                <p>Jokers: <strong>${fullStats.jokersPlayed.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
+                <p>Capturado: <strong>${fullStats.timesCaptured.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
             `;
         }
+
         gameOverDialog.classList.remove('hidden');
     }
     
@@ -860,13 +870,51 @@ function updateTurnInfo() {
         }
     }
 
+    function computeStatsSummary(stats) {
+        if (!stats || !gameState) return null;
+
+        const getName = idx => {
+            const player = gameState.players.find(p => p.position === idx);
+            return player ? player.name : `Jogador ${idx + 1}`;
+        };
+
+        const pick = arr => {
+            const max = Math.max(...arr);
+            const idx = arr.indexOf(max);
+            return { idx, max };
+        };
+
+        return {
+            mostCaptures: (() => {
+                const { idx, max } = pick(stats.captures);
+                return { name: getName(idx), count: max };
+            })(),
+            mostRoundsStuck: (() => {
+                const { idx, max } = pick(stats.roundsWithoutPlay);
+                return { name: getName(idx), count: max };
+            })(),
+            mostJokers: (() => {
+                const { idx, max } = pick(stats.jokersPlayed);
+                return { name: getName(idx), count: max };
+            })(),
+            mostCaptured: (() => {
+                const { idx, max } = pick(stats.timesCaptured);
+                return { name: getName(idx), count: max };
+            })()
+        };
+    }
+
     function updateStats(stats) {
         if (!stats || !statsPanel) return;
+
+        const summary = computeStatsSummary(stats);
+        if (!summary) return;
+
         statsPanel.innerHTML = `
-            <p>Capturas: <strong>${stats.captures.map((c, i) => `${i+1}:${c}`).join(' ')}</strong></p>
-            <p>Preso: <strong>${stats.roundsWithoutPlay.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
-            <p>Jokers: <strong>${stats.jokersPlayed.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
-            <p>Capturado: <strong>${stats.timesCaptured.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
+            <p>Mais capturas: <strong>${summary.mostCaptures.name}</strong> (${summary.mostCaptures.count})</p>
+            <p>Preso: <strong>${summary.mostRoundsStuck.name}</strong> (${summary.mostRoundsStuck.count})</p>
+            <p>Mais coringas: <strong>${summary.mostJokers.name}</strong> (${summary.mostJokers.count})</p>
+            <p>Mais capturado: <strong>${summary.mostCaptured.name}</strong> (${summary.mostCaptured.count})</p>
         `;
         statsPanel.classList.remove('hidden');
     }

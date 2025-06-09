@@ -577,7 +577,10 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       saveReplay(game);
       io.to(roomId).emit('gameOver', {
         winners: game.getWinningTeam(),
-        stats: game.getStatisticsSummary()
+        stats: {
+          summary: game.getStatisticsSummary(),
+          full: game.stats
+        }
       });
       game.endGame();
       return;
@@ -711,7 +714,10 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
       saveReplay(game);
       io.to(roomId).emit('gameOver', {
         winners: game.getWinningTeam(),
-        stats: game.getStatisticsSummary()
+        stats: {
+          summary: game.getStatisticsSummary(),
+          full: game.stats
+        }
       });
       game.endGame();
       return;
@@ -769,7 +775,10 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       saveReplay(game);
       io.to(roomId).emit('gameOver', {
         winners: game.getWinningTeam(),
-        stats: game.getStatisticsSummary()
+        stats: {
+          summary: game.getStatisticsSummary(),
+          full: game.stats
+        }
       });
       game.endGame();
       return;
@@ -839,7 +848,10 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         saveReplay(game);
         io.to(roomId).emit('gameOver', {
           winners: game.getWinningTeam(),
-          stats: game.getStatisticsSummary()
+          stats: {
+            summary: game.getStatisticsSummary(),
+            full: game.stats
+          }
         });
         game.endGame();
         return;
@@ -907,7 +919,10 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         saveReplay(game);
         io.to(roomId).emit('gameOver', {
           winners: game.getWinningTeam(),
-          stats: game.getStatisticsSummary()
+          stats: {
+            summary: game.getStatisticsSummary(),
+            full: game.stats
+          }
         });
         game.endGame();
         return;
