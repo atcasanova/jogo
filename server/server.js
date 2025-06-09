@@ -543,8 +543,19 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       return;
     }
 
-    // Utilizar regra centralizada do jogo para mover a peça
-    game.moveToSelectedPosition(piece, targetPieceId);
+    // Utilizar regra centralizada do jogo para mover a peça e obter resultado
+    const oldPos = { ...piece.position };
+    const moveResult = game.moveToSelectedPosition(piece, targetPieceId);
+
+    const msg = logMoveDetails(
+      currentPlayer,
+      piece.id,
+      oldPos,
+      moveResult,
+      game,
+      { value: 'JOKER' }
+    );
+    io.to(roomId).emit('lastMove', { message: msg });
 
     // Descartar a carta Joker
     game.discardPile.push(card);

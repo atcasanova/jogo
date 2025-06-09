@@ -88,17 +88,26 @@
 
 /* Mensagem da última jogada */
 #last-move {
-    position: absolute;
-    /* posiciona abaixo da pilha de descarte, centralizado */
-    top: calc(50% + 6rem);
-    left: 50%;
-    transform: translate(-50%, 0);
     background-color: rgba(255, 255, 255, 0.9);
     padding: 2px 4px;
     border-radius: 4px;
     font-size: 0.7rem;
-    z-index: 20;
+    text-align: center;
+    margin-bottom: 0.3rem;
     pointer-events: none;
+}
+
+.game-info {
+    position: relative;
+}
+
+@media (min-width: 769px) {
+    #last-move {
+        position: absolute;
+        top: -1.4rem;
+        left: 50%;
+        transform: translateX(-50%);
+    }
 }
 
 .hidden {
