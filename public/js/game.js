@@ -451,16 +451,41 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
             const fullStats = data.stats.full || data.stats;
             const summary = data.stats.summary || computeStatsSummary(fullStats);
 
+            const getName = idx => {
+                const player = gameState?.players.find(p => p.position === idx);
+                return player ? player.name : `Jogador ${idx + 1}`;
+            };
+
+            const rows = fullStats.captures.map((_, i) => `
+                <tr>
+                    <td>${getName(i)}</td>
+                    <td>${fullStats.captures[i]}</td>
+                    <td>${fullStats.roundsWithoutPlay[i]}</td>
+                    <td>${fullStats.jokersPlayed[i]}</td>
+                    <td>${fullStats.timesCaptured[i]}</td>
+                </tr>`).join('');
+
+            const table = `
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Capturas</th>
+                            <th>Preso</th>
+                            <th>Jokers</th>
+                            <th>Capturado</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+
             finalStatsDiv.innerHTML = `
                 <p>Maior número de capturas: <strong>${summary.mostCaptures.name || 'N/A'}</strong> (${summary.mostCaptures.count})</p>
                 <p>Mais rodadas preso: <strong>${summary.mostRoundsStuck.name || 'N/A'}</strong> (${summary.mostRoundsStuck.count})</p>
                 <p>Mais Jokers jogados: <strong>${summary.mostJokers.name || 'N/A'}</strong> (${summary.mostJokers.count})</p>
                 <p>Jogador mais capturado: <strong>${summary.mostCaptured.name || 'N/A'}</strong> (${summary.mostCaptured.count})</p>
                 <hr>
-                <p>Capturas: <strong>${fullStats.captures.map((c, i) => `${i+1}:${c}`).join(' ')}</strong></p>
-                <p>Preso: <strong>${fullStats.roundsWithoutPlay.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
-                <p>Jokers: <strong>${fullStats.jokersPlayed.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
-                <p>Capturado: <strong>${fullStats.timesCaptured.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
+                ${table}
             `;
         }
 
