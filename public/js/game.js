@@ -713,6 +713,16 @@ function updatePlayerLabels() {
 
   console.log(`Posicionando ${gameState.pieces.length} peças`);
 
+  const allMineHome = hasAllPiecesInHomeStretch(playerPosition);
+  let partnerId = null;
+  if (gameState && gameState.teams) {
+    const team = gameState.teams.find(t => t.some(p => p.position === playerPosition));
+    if (team) {
+      const partner = team.find(p => p.position !== playerPosition);
+      partnerId = partner ? partner.position : null;
+    }
+  }
+
   gameState.pieces.forEach(piece => {
     const cell = getCell(piece.position.row, piece.position.col);
     if (!cell) {
@@ -721,10 +731,12 @@ function updatePlayerLabels() {
     }
 
     let pieceElement = pieceElements[piece.id];
+    const shouldHighlight = allMineHome ? piece.playerId === partnerId : piece.playerId === playerPosition;
+
     if (!pieceElement) {
       pieceElement = document.createElement('div');
       pieceElement.className = `piece player${piece.playerId}`;
-      if (piece.playerId === playerPosition) {
+      if (shouldHighlight) {
         pieceElement.classList.add('my-piece');
       }
       pieceElement.textContent = piece.pieceId;
@@ -739,6 +751,11 @@ function updatePlayerLabels() {
       return;
     }
 
+    pieceElement.className = `piece player${piece.playerId}`;
+    if (shouldHighlight) {
+      pieceElement.classList.add('my-piece');
+    }
+    
     const first = pieceElement.getBoundingClientRect();
     cell.appendChild(pieceElement);
     const last = pieceElement.getBoundingClientRect();
