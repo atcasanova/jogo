@@ -144,26 +144,35 @@ class GameWrapper {
             if (!this.game || !this.game.players || !this.game.players[playerId]) {
                 return [0];
             }
-            
+
             const validActions = [];
             const player = this.game.players[playerId];
-            
-            // Simple approach: just return some basic actions for now
-            // You can expand this based on your game's actual logic
-            for (let cardIdx = 0; cardIdx < 5; cardIdx++) {
-                for (let pieceId = 1; pieceId <= 5; pieceId++) {
-                    validActions.push(cardIdx * 10 + pieceId);
+
+            for (let cardIdx = 0; cardIdx < player.cards.length; cardIdx++) {
+                for (let pieceNum = 1; pieceNum <= 5; pieceNum++) {
+                    const pieceId = `p${playerId}_${pieceNum}`;
+                    const piece = this.game.pieces.find(p => p.id === pieceId);
+                    if (!piece || piece.completed) {
+                        continue;
+                    }
+
+                    const clone = this.game.cloneForSimulation();
+                    try {
+                        clone.makeMove(pieceId, cardIdx);
+                        validActions.push(cardIdx * 10 + pieceNum);
+                    } catch (e) {
+                        // invalid move, ignore
+                    }
                 }
             }
-            
-            // Add discard actions only when the player has no valid moves
-            if (!this.game.hasAnyValidMove(playerId)) {
-                for (let cardIdx = 0; cardIdx < 5; cardIdx++) {
+
+            if (validActions.length === 0 && !this.game.hasAnyValidMove(playerId)) {
+                for (let cardIdx = 0; cardIdx < player.cards.length; cardIdx++) {
                     validActions.push(40 + cardIdx);
                 }
             }
-            
-            return validActions.length > 0 ? validActions.slice(0, 10) : [0]; // Limit to 10 actions
+
+            return validActions.length > 0 ? validActions.slice(0, 10) : [0];
         } catch (error) {
             return [0];
         }
