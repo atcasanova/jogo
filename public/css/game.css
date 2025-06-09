@@ -133,12 +133,12 @@
 
 .cell.penalty {
     background-color: #fff3cd;
-    border: 2px solid #ffa000;
+    border: 2px solid transparent;
 }
 
 .cell.home-stretch {
     background-color: #d4edda;
-    border: 2px solid #388e3c;
+    border: 2px solid transparent;
 }
 
 .cell.discard-area {
