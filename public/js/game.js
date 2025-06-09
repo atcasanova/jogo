@@ -459,6 +459,7 @@ function updateBoard() {
   const cells = board.querySelectorAll('.cell');
   cells.forEach(cell => {
     cell.className = 'cell';
+    cell.removeAttribute('style');
     
     // Remover peças
     const piece = cell.querySelector('.piece');
@@ -624,38 +625,34 @@ function updatePlayerLabels() {
         
         // Marcar zonas de castigo (cruzes)
         const penaltyZones = [
-            // Topo
+            // Jogador 0 - topo
             [{row: 2, col: 8}, {row: 1, col: 8}, {row: 3, col: 8}, {row: 2, col: 7}, {row: 2, col: 9}],
-            // Direita
+            // Jogador 1 - direita
             [{row: 8, col: 16}, {row: 7, col: 16}, {row: 9, col: 16}, {row: 8, col: 15}, {row: 8, col: 17}],
-            // Fundo
+            // Jogador 2 - fundo
             [{row: 16, col: 10}, {row: 15, col: 10}, {row: 17, col: 10}, {row: 16, col: 9}, {row: 16, col: 11}],
-            // Esquerda
+            // Jogador 3 - esquerda
             [{row: 10, col: 2}, {row: 9, col: 2}, {row: 11, col: 2}, {row: 10, col: 1}, {row: 10, col: 3}]
         ];
-        
-        penaltyZones.forEach(zone => {
-            zone.forEach(pos => {
-                markCellIfExists(pos.row, pos.col, 'penalty');
-            });
+
+        penaltyZones.forEach((zone, idx) => {
+            outlineZone(zone, 'penalty', idx);
         });
         
         // Marcar corredores de chegada
         const homeStretches = [
-            // Topo-Esquerda
+            // Jogador 0 - topo-esquerda
             [{row: 1, col: 4}, {row: 2, col: 4}, {row: 3, col: 4}, {row: 4, col: 4}, {row: 5, col: 4}],
-            // Topo-Direita
+            // Jogador 1 - topo-direita
             [{row: 4, col: 13}, {row: 4, col: 14}, {row: 4, col: 15}, {row: 4, col: 16}, {row: 4, col: 17}],
-            // Fundo-Direita
+            // Jogador 2 - fundo-direita
             [{row: 13, col: 14}, {row: 14, col: 14}, {row: 15, col: 14}, {row: 16, col: 14}, {row: 17, col: 14}],
-            // Fundo-Esquerda
+            // Jogador 3 - fundo-esquerda
             [{row: 14, col: 1}, {row: 14, col: 2}, {row: 14, col: 3}, {row: 14, col: 4}, {row: 14, col: 5}]
         ];
-        
-        homeStretches.forEach(stretch => {
-            stretch.forEach(pos => {
-                markCellIfExists(pos.row, pos.col, 'home-stretch');
-            });
+
+        homeStretches.forEach((stretch, idx) => {
+            outlineZone(stretch, 'home-stretch', idx);
         });
         
         // Marcar área de descarte (centro)
@@ -675,6 +672,27 @@ function updatePlayerLabels() {
         } else {
             console.error(`Célula não encontrada: (${row}, ${col})`);
         }
+    }
+
+    function outlineZone(zone, className, playerId) {
+        zone.forEach(pos => {
+            const cell = getCell(pos.row, pos.col);
+            if (!cell) return;
+            cell.classList.add(className, `player${playerId}`);
+            const color = playerColors[playerId];
+            const neighbors = {
+                Top: { row: pos.row - 1, col: pos.col },
+                Bottom: { row: pos.row + 1, col: pos.col },
+                Left: { row: pos.row, col: pos.col - 1 },
+                Right: { row: pos.row, col: pos.col + 1 }
+            };
+            for (const [edge, n] of Object.entries(neighbors)) {
+                const exists = zone.some(p => p.row === n.row && p.col === n.col);
+                if (!exists) {
+                    cell.style[`border${edge}Color`] = color;
+                }
+            }
+        });
     }
     
    // Modifique a função positionPieces
