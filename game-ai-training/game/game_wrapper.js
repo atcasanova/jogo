@@ -148,7 +148,12 @@ class GameWrapper {
             const validActions = [];
             const player = this.game.players[playerId];
 
-            for (let cardIdx = 0; cardIdx < player.cards.length; cardIdx++) {
+            // Limit to the first 5 cards so that generated action IDs never
+            // exceed the Python trainer's action space of 50. Each card index
+            // contributes at most five piece moves (cardIdx * 10 + pieceNum) and
+            // cardIdx >= 5 would produce IDs >= 50.
+            const maxMoveCards = Math.min(player.cards.length, 5);
+            for (let cardIdx = 0; cardIdx < maxMoveCards; cardIdx++) {
                 for (let pieceNum = 1; pieceNum <= 5; pieceNum++) {
                     const pieceId = `p${playerId}_${pieceNum}`;
                     const piece = this.game.pieces.find(p => p.id === pieceId);
@@ -166,8 +171,11 @@ class GameWrapper {
                 }
             }
 
-            if (validActions.length === 0 && !this.game.hasAnyValidMove(playerId)) {
-                for (let cardIdx = 0; cardIdx < player.cards.length; cardIdx++) {
+            if (!this.game.hasAnyValidMove(playerId)) {
+                // Discard actions use IDs 40-49 (10 possible discards). Constrain
+                // the number of cards considered so action IDs remain < 50.
+                const maxDiscardCards = Math.min(player.cards.length, 10);
+                for (let cardIdx = 0; cardIdx < maxDiscardCards; cardIdx++) {
                     validActions.push(40 + cardIdx);
                 }
             }

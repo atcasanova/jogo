@@ -207,7 +207,14 @@ class GameEnvironment:
         })
         
         actions = response.get("validActions", [0])
-        return actions[:10] if len(actions) > 10 else actions  # Limit actions
+        # Ensure actions are within the defined action space. The Node.js
+        # wrapper should already enforce this, but extra validation guards
+        # against out-of-range values that would crash the PyTorch training.
+        filtered = [a for a in actions if 0 <= a < self.action_space_size]
+        if not filtered:
+            filtered = [0]
+
+        return filtered[:10] if len(filtered) > 10 else filtered  # Limit actions
     
     def step(self, action: int, player_id: int) -> Tuple[np.ndarray, float, bool]:
         """Execute action and return next_state, reward, done"""
