@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const jokerDialog = document.getElementById('joker-dialog');
     const gameOverDialog = document.getElementById('game-over');
     const winnersDiv = document.getElementById('winners');
+    const finalStatsDiv = document.getElementById('final-stats');
     const lastMoveDiv = document.getElementById('last-move');
     
     // Elementos do diálogo de movimento especial (carta 7)
@@ -31,6 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Elementos do diálogo de movimento com Joker
     const jokerPositions = document.getElementById('joker-positions');
     const cancelJokerMoveBtn = document.getElementById('cancel-joker-move');
+
+    const statsPanel = document.getElementById('stats-panel');
     
     // Botões do diálogo de fim de jogo
     const rematchBtn = document.getElementById('rematch-btn');
@@ -246,6 +249,7 @@ function handleGameStarted(state) {
   updateTeams();
   updateTurnInfo();
   updateDeckInfo();
+  updateStats(state.stats);
   if (state.lastMove) {
     showLastMove(state.lastMove);
   }
@@ -296,6 +300,7 @@ function handlePlayerInfo(data) {
         updateTeams();
         updateTurnInfo();
         updateDeckInfo();
+        updateStats(state.stats);
         if (state.lastMove) {
             showLastMove(state.lastMove);
         }
@@ -407,10 +412,18 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
 
     function handleGameOver(data) {
         isMyTurn = false;
-        
+
         // Mostrar diálogo de fim de jogo
         const winners = data.winners.map(player => player.name).join(' e ');
         winnersDiv.textContent = `Parabéns! ${winners} venceram o jogo!`;
+        if (data.stats && finalStatsDiv) {
+            finalStatsDiv.innerHTML = `
+                <p>Maior número de capturas: <strong>${data.stats.mostCaptures.name || 'N/A'}</strong> (${data.stats.mostCaptures.count})</p>
+                <p>Mais rodadas preso: <strong>${data.stats.mostRoundsStuck.name || 'N/A'}</strong> (${data.stats.mostRoundsStuck.count})</p>
+                <p>Mais Jokers jogados: <strong>${data.stats.mostJokers.name || 'N/A'}</strong> (${data.stats.mostJokers.count})</p>
+                <p>Jogador mais capturado: <strong>${data.stats.mostCaptured.name || 'N/A'}</strong> (${data.stats.mostCaptured.count})</p>
+            `;
+        }
         gameOverDialog.classList.remove('hidden');
     }
     
@@ -845,6 +858,17 @@ function updateTurnInfo() {
             topDiscard.innerHTML = '';
             topDiscard.classList.add('hidden');
         }
+    }
+
+    function updateStats(stats) {
+        if (!stats || !statsPanel) return;
+        statsPanel.innerHTML = `
+            <p>Capturas: <strong>${stats.captures.map((c, i) => `${i+1}:${c}`).join(' ')}</strong></p>
+            <p>Preso: <strong>${stats.roundsWithoutPlay.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
+            <p>Jokers: <strong>${stats.jokersPlayed.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
+            <p>Capturado: <strong>${stats.timesCaptured.map((c,i)=>`${i+1}:${c}`).join(' ')}</strong></p>
+        `;
+        statsPanel.classList.remove('hidden');
     }
     
 function updateCards(cards) {

@@ -79,6 +79,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    gap: 1rem;
     position: relative;
     width: fit-content;
     height: fit-content;
@@ -361,6 +362,11 @@
     font-size: 1.2rem;
 }
 
+#final-stats {
+    margin-top: 1rem;
+    text-align: left;
+}
+
 @media (max-width: 768px) {
     .game-info {
         flex-direction: column;
@@ -434,6 +440,23 @@
 }
 .card.discard-only:hover {
   background-color: #fadbd8;
+}
+
+.stats-panel {
+  background: #ffffff;
+  padding: 0.5rem;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  min-width: 150px;
+  position: absolute;
+  top: 0;
+  left: calc(100% + 1rem);
+}
+
+@media (max-width: 1000px) {
+  .stats-panel {
+    display: none;
+  }
 }
 /* Adicione ao arquivo game.css */
 .joker-mode .piece {
