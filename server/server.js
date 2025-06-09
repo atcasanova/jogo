@@ -415,6 +415,14 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     // Descartar a carta
     game.discardPile.push(card);
     currentPlayer.cards.splice(cardIndex, 1);
+
+    // Contabilizar rodada sem jogada quando aplicável
+    const shouldIncrement =
+      (allInPenalty && !['A', 'K', 'Q', 'J'].includes(card.value)) ||
+      (!allInPenalty && !hasMove);
+    if (shouldIncrement) {
+      game.stats.roundsWithoutPlay[currentPlayer.position]++;
+    }
     
     // Passar para o próximo jogador antes de enviar o novo estado
     game.nextTurn();
