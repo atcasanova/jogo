@@ -160,22 +160,31 @@
     color: white;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     transition: transform 0.3s;
+    background: radial-gradient(circle at 30% 30%, var(--piece-highlight, #fff) 0%, var(--piece-color, #000) 70%, var(--piece-shadow, #000) 100%);
 }
 
 .piece.player0 {
-    background-color: #3498db;
+    --piece-color: #3498db;
+    --piece-highlight: #85c1e9;
+    --piece-shadow: #21618c;
 }
 
 .piece.player1 {
-    background-color: #000000;
+    --piece-color: #000000;
+    --piece-highlight: #555555;
+    --piece-shadow: #000000;
 }
 
 .piece.player2 {
-    background-color: #e74c3c;
+    --piece-color: #e74c3c;
+    --piece-highlight: #f1948a;
+    --piece-shadow: #943126;
 }
 
 .piece.player3 {
-    background-color: #ff00ff;
+    --piece-color: #ff00ff;
+    --piece-highlight: #ffb3ff;
+    --piece-shadow: #880088;
 }
 
 .player-hand {
