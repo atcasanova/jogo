@@ -232,7 +232,7 @@ class Game {
   }
 
    // No arquivo game.js do servidor - Adicione este método
-discardCard(cardIndex) {
+  discardCard(cardIndex) {
   const player = this.getCurrentPlayer();
   
   if (!player) {
@@ -265,6 +265,7 @@ discardCard(cardIndex) {
       // Passar a vez para o próximo jogador
       this.nextTurn();
 
+      this.history.push(`${player.name} saiu do castigo`);
       return result;
     }
   }
@@ -279,7 +280,9 @@ discardCard(cardIndex) {
 
     // Passar para o próximo jogador
     this.nextTurn();
-    
+
+    const msg = `${player.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
+    this.history.push(msg);
     return { success: true, action: 'discard' };
   }
 
@@ -297,6 +300,8 @@ discardCard(cardIndex) {
 
     this.nextTurn();
 
+    const dMsg = `${player.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
+    this.history.push(dMsg);
     return { success: true, action: 'discard' };
   }
 
@@ -339,7 +344,9 @@ discardCard(cardIndex) {
     
     // Passar para o próximo jogador
     this.nextTurn();
-    
+
+    const msg = `${player.name} moveu ${pieceId} com ${card.value === 'JOKER' ? 'C' : card.value}`;
+    this.history.push(msg);
     return moveResult;
   }
 
@@ -414,6 +421,7 @@ discardCard(cardIndex) {
 
     this.pendingSpecialMove = null;
 
+    this.history.push(`${player.name} usou a carta 7`);
     return { success: true, moves: moveResults };
   }
 
@@ -464,6 +472,7 @@ discardCard(cardIndex) {
 
     this.nextTurn();
     this.pendingSpecialMove = null;
+    this.history.push(`${player.name} concluiu movimento especial`);
     return { success: true, moves: moveResults };
   }
 
