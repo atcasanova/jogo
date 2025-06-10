@@ -60,6 +60,10 @@ app.get('/replays/:file', (req, res) => {
 app.get('/debug', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/debug.html'));
 });
+app.get('/replay', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/replay.html'));
+});
+
 
 function logTurnState(game) {
   const player = game.getCurrentPlayer();
