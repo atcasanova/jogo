@@ -150,7 +150,9 @@ function logMoveDetails(player, pieceId, oldPos, result, game, card) {
     message += ' e avançou para o corredor de chegada';
   }
 
-  const snapshot = JSON.parse(JSON.stringify(game.getGameState()));
+  const snapState = game.getGameState();
+  delete snapState.lastMove;
+  const snapshot = JSON.parse(JSON.stringify(snapState));
   game.history.push({ move: message, state: snapshot });
   return message;
 }
@@ -163,7 +165,9 @@ function announceHomeStretch(game, roomId) {
         const playerName = game.players[i].name;
         const partnerName = game.players[partnerId].name;
         const msg = `${playerName} agora pode jogar com as peças de ${partnerName}`;
-        const snap = JSON.parse(JSON.stringify(game.getGameState()));
+        const snapState = game.getGameState();
+        delete snapState.lastMove;
+        const snap = JSON.parse(JSON.stringify(snapState));
         game.history.push({ move: msg, state: snap });
         io.to(roomId).emit('lastMove', { message: msg });
         game.homeStretchAnnounced[i] = true;
@@ -452,7 +456,9 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     });
 
     const discardMsg = `${currentPlayer.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
-    const snap = JSON.parse(JSON.stringify(game.getGameState()));
+    const snapState = game.getGameState();
+    delete snapState.lastMove;
+    const snap = JSON.parse(JSON.stringify(snapState));
     game.history.push({ move: discardMsg, state: snap });
     io.to(roomId).emit('lastMove', { message: discardMsg });
     
