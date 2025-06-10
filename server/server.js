@@ -98,6 +98,10 @@ function logTurnState(game) {
 function logMoveDetails(player, pieceId, oldPos, result, game, card) {
   const piece = game.pieces.find(p => p.id === pieceId);
   if (!piece) return null;
+
+  if (result && result.success === false) {
+    return null; // movimento ainda não finalizado
+  }
   console.log(`${player.name} moveu ${pieceId} de (${oldPos.row},${oldPos.col}) para (${piece.position.row},${piece.position.col})`);
 
   const cardVal = card ? (card.value === 'JOKER' ? 'C' : card.value) : '';
@@ -710,8 +714,6 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
     const oldPos = { ...piece.position };
     const playedCard = currentPlayer.cards[cardIndex];
     const moveResult = game.makeMove(pieceId, cardIndex, enterHome);
-    const msg = logMoveDetails(currentPlayer, pieceId, oldPos, moveResult, game, playedCard);
-    io.to(roomId).emit('lastMove', { message: msg });
 
     if (moveResult && moveResult.action === 'homeEntryChoice') {
       socket.emit('homeEntryChoice', moveResult);
@@ -725,6 +727,18 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
         validPositions: moveResult.validPositions
       });
       return;
+    }
+
+    const msg = logMoveDetails(
+      currentPlayer,
+      pieceId,
+      oldPos,
+      moveResult,
+      game,
+      playedCard
+    );
+    if (msg) {
+      io.to(roomId).emit('lastMove', { message: msg });
     }
 
     // Atualizar estado do jogo para todos
@@ -785,12 +799,14 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
    }
 
    try {
-     const piece = game.pieces.find(p => p.id === pieceId);
-     const oldPos = { ...piece.position };
-     const playedCard = currentPlayer.cards[cardIndex];
-     const moveResult = game.makeMove(pieceId, cardIndex, enterHome);
-     const msg = logMoveDetails(currentPlayer, pieceId, oldPos, moveResult, game, playedCard);
-     io.to(roomId).emit('lastMove', { message: msg });
+    const piece = game.pieces.find(p => p.id === pieceId);
+    const oldPos = { ...piece.position };
+    const playedCard = currentPlayer.cards[cardIndex];
+    const moveResult = game.makeMove(pieceId, cardIndex, enterHome);
+    const msg = logMoveDetails(currentPlayer, pieceId, oldPos, moveResult, game, playedCard);
+    if (msg) {
+      io.to(roomId).emit('lastMove', { message: msg });
+    }
 
     const updatedState = game.getGameState();
     io.to(roomId).emit('gameStateUpdate', updatedState);
@@ -850,10 +866,21 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       if (moveResult.moves) {
         const msgs = [];
         moveResult.moves.forEach(m => {
-          const mMsg = logMoveDetails(currentPlayer, m.pieceId, m.oldPosition, m.result, game, { value: '7' });
-          msgs.push(mMsg);
+          const mMsg = logMoveDetails(
+            currentPlayer,
+            m.pieceId,
+            m.oldPosition,
+            m.result,
+            game,
+            { value: '7' }
+          );
+          if (mMsg) {
+            msgs.push(mMsg);
+          }
         });
-        io.to(roomId).emit('lastMove', { message: msgs.join(' | ') });
+        if (msgs.length > 0) {
+          io.to(roomId).emit('lastMove', { message: msgs.join(' | ') });
+        }
       }
 
       if (moveResult && moveResult.action === 'homeEntryChoice') {
@@ -923,10 +950,21 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       if (moveResult.moves) {
         const msgs = [];
         moveResult.moves.forEach(m => {
-          const mMsg = logMoveDetails(currentPlayer, m.pieceId, m.oldPosition, m.result, game, { value: '7' });
-          msgs.push(mMsg);
+          const mMsg = logMoveDetails(
+            currentPlayer,
+            m.pieceId,
+            m.oldPosition,
+            m.result,
+            game,
+            { value: '7' }
+          );
+          if (mMsg) {
+            msgs.push(mMsg);
+          }
         });
-        io.to(roomId).emit('lastMove', { message: msgs.join(' | ') });
+        if (msgs.length > 0) {
+          io.to(roomId).emit('lastMove', { message: msgs.join(' | ') });
+        }
       }
 
       if (moveResult && moveResult.action === 'homeEntryChoice') {
