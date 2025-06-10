@@ -56,6 +56,11 @@ app.get('/replays/:file', (req, res) => {
   }
 });
 
+// Página de depuração para visualizar a interface sem iniciar um jogo
+app.get('/debug', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/debug.html'));
+});
+
 function logTurnState(game) {
   const player = game.getCurrentPlayer();
   if (!player) return;
