@@ -40,12 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const fileParam = params.get('file');
   if (fileParam) {
     fetch(`/replays/${encodeURIComponent(fileParam)}`)
-      .then(res => res.json())
-      .then(data => {
-        let arr = null;
-        if (Array.isArray(data)) arr = data;
-        else if (Array.isArray(data.history)) arr = data.history;
-        if (arr) startReplay(arr);
+      .then(res => res.text())
+      .then(text => {
+        const arr = parseInput(text);
+        if (arr && arr.length > 0) startReplay(arr);
       })
       .catch(err => console.error('Failed to load replay', err));
   }
