@@ -26,6 +26,8 @@ console.error = (...args) => {
 class GameWrapper {
     constructor() {
         this.game = null;
+        // Map of special action ids to move arrays for card 7
+        this.specialActions = {};
         this.rl = readline.createInterface({
             input: process.stdin,
             output: process.stdout,
@@ -107,6 +109,9 @@ class GameWrapper {
                     
                 case 'makeMove':
                     return this.makeMove(command.playerId, command.actionId);
+
+                case 'makeSpecialMove':
+                    return this.makeSpecialMove(command.playerId, command.actionId);
                     
                 default:
                     return { error: `Unknown action: ${command.action}` };
@@ -147,6 +152,8 @@ class GameWrapper {
 
             const validActions = [];
             const player = this.game.players[playerId];
+            this.specialActions = {};
+            let specialId = 50;
 
             // Limit to the first 5 cards so that generated action IDs never
             // exceed the Python trainer's action space of 50. Each card index
@@ -167,6 +174,41 @@ class GameWrapper {
                         validActions.push(cardIdx * 10 + pieceNum);
                     } catch (e) {
                         // invalid move, ignore
+                    }
+                }
+            }
+
+            // Generate special move actions for card 7
+            for (let cardIdx = 0; cardIdx < Math.min(player.cards.length, 4); cardIdx++) {
+                if (player.cards[cardIdx].value !== '7') continue;
+
+                const pieceIds = [];
+                for (let num1 = 1; num1 <= 5; num1++) {
+                    const id = `p${playerId}_${num1}`;
+                    const p = this.game.pieces.find(pp => pp.id === id);
+                    if (p && !p.completed && !p.inPenaltyZone) {
+                        pieceIds.push(id);
+                    }
+                }
+
+                for (let i = 0; i < pieceIds.length; i++) {
+                    for (let j = i + 1; j < pieceIds.length; j++) {
+                        for (let steps = 1; steps <= 6; steps++) {
+                            if (validActions.length >= 10) break;
+                            const moves = [
+                                { pieceId: pieceIds[i], steps },
+                                { pieceId: pieceIds[j], steps: 7 - steps }
+                            ];
+                            const clone = this.game.cloneForSimulation();
+                            try {
+                                clone.makeSpecialMove(moves);
+                                validActions.push(specialId);
+                                this.specialActions[specialId] = moves;
+                                specialId++;
+                            } catch (e) {
+                                // invalid split move, ignore
+                            }
+                        }
                     }
                 }
             }
@@ -244,6 +286,63 @@ class GameWrapper {
                 } catch (e) {
                     // ignore deck exhaustion
                 }
+            }
+
+            const gameEnded = this.game.checkWinCondition();
+            const winningTeam = gameEnded ? this.game.getWinningTeam() : null;
+
+            const response = {
+                success: true,
+                action: result && result.action ? result.action : 'move',
+                captures: result && result.captures ? result.captures : [],
+                gameState: this.getGameState(),
+                gameEnded,
+                winningTeam
+            };
+
+            if (gameEnded) {
+                response.stats = {
+                    summary: this.game.getStatisticsSummary(),
+                    full: this.game.stats
+                };
+            }
+
+            return response;
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                gameState: this.getGameState()
+            };
+        }
+    }
+
+    makeSpecialMove(playerId, actionId) {
+        try {
+            if (!this.game || !this.game.isActive) {
+                throw new Error('Game is not active');
+            }
+
+            if (playerId !== this.game.currentPlayerIndex) {
+                throw new Error('Not this player\'s turn');
+            }
+
+            const moves = this.specialActions[actionId];
+            if (!moves) {
+                throw new Error('Invalid special action');
+            }
+
+            let result = this.game.makeSpecialMove(moves);
+
+            if (result && result.action === 'homeEntryChoice') {
+                result = this.game.resumeSpecialMove(true);
+            }
+
+            const nextPlayer = this.game.getCurrentPlayer();
+            if (nextPlayer) {
+                try {
+                    nextPlayer.cards.push(this.game.drawCard());
+                } catch (e) {}
             }
 
             const gameEnded = this.game.checkWinCondition();
