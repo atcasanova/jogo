@@ -90,6 +90,65 @@ def _run_get_valid_actions_mock(has_move: bool):
     return json.loads(lines[-1]) if lines else []
 
 
+def _run_make_move_home_entry_mock():
+    """Run GameWrapper.makeMove when game.makeMove initially requests home entry."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  isActive: true,",
+        "  currentPlayerIndex: 0,",
+        "  players: [{ cards: [{}] }],",
+        "  pieces: [{ id: 'p0_1' }],",
+        "  discardPile: [],",
+        "  makeMoveCalls: [],",
+        "  makeMove: function(pid, cidx, enterHome) {",
+        "    this.makeMoveCalls.push([pid, cidx, enterHome]);",
+        "    if (this.makeMoveCalls.length === 1) {",
+        "      return { success: false, action: 'homeEntryChoice' };",
+        "    }",
+        "    this.discardPile.push('card');",
+        "    this.nextTurn();",
+        "    return { success: true, action: 'enterHomeStretch' };",
+        "  },",
+        "  nextTurnCalled: false,",
+        "  nextTurn: function() { this.nextTurnCalled = true; },",
+        "  getCurrentPlayer: function() { return this.players[this.currentPlayerIndex]; },",
+        "  drawCard: function() { return {}; },",
+        "  checkWinCondition: function() { return false; },",
+        "  getWinningTeam: function() { return null; },",
+        "  getGameState: function() { return {}; },",
+        "  stats: { jokersPlayed: [0] }",
+        "};",
+        "const result = wrapper.makeMove(0, 1);",
+        "process.stdout.write(JSON.stringify({",
+        "  calls: wrapper.game.makeMoveCalls,",
+        "  discard: wrapper.game.discardPile.length,",
+        "  nextTurn: wrapper.game.nextTurnCalled,",
+        "  result: result.action",
+        "}));"
+    ];
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.startswith('{')]
+    return json.loads(lines[-1]) if lines else {}
+
+
 def test_no_discard_actions_when_moves_available():
     actions = _run_get_valid_actions_mock(True)
     assert 40 not in actions
@@ -98,3 +157,12 @@ def test_no_discard_actions_when_moves_available():
 def test_includes_discard_actions_when_no_moves():
     actions = _run_get_valid_actions_mock(False)
     assert 40 in actions
+
+
+def test_make_move_handles_home_entry_choice():
+    result = _run_make_move_home_entry_mock()
+    assert len(result['calls']) == 2
+    assert result['calls'][1][2] is True
+    assert result['discard'] == 1
+    assert result['nextTurn'] is True
+    assert result['result'] == 'enterHomeStretch'
