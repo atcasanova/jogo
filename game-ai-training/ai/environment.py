@@ -5,6 +5,7 @@ import os
 import time
 import fcntl
 import select
+import threading
 from typing import List, Tuple, Dict, Any
 
 from json_logger import info, error, warning
@@ -22,6 +23,9 @@ class GameEnvironment:
         # store detailed history for debugging
         # each entry will contain the textual move and the full game state
         self.move_history: List[Dict[str, Any]] = []
+
+        # background thread to drain Node.js stderr
+        self.stderr_thread = None
         
     def start_node_game(self):
         """Start the Node.js game process"""
@@ -38,6 +42,19 @@ class GameEnvironment:
                 cwd='game',
                 bufsize=0  # Unbuffered
             )
+
+            # Drain stderr in the background to avoid blocking
+            def _drain():
+                try:
+                    for line in iter(self.node_process.stderr.readline, ''):
+                        line = line.strip()
+                        if line:
+                            info("node stderr", env=self.env_id, msg=line)
+                except Exception as e:
+                    warning("stderr thread error", env=self.env_id, error=str(e))
+
+            self.stderr_thread = threading.Thread(target=_drain, daemon=True)
+            self.stderr_thread.start()
             
             # Make stdout non-blocking
             fd = self.node_process.stdout.fileno()
@@ -261,6 +278,7 @@ class GameEnvironment:
                 self.node_process.kill()
             finally:
                 self.node_process = None
+                self.stderr_thread = None
 
     def save_history(self, filepath: str) -> None:
         """Persist the collected move history to a text file"""
