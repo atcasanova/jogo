@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(err => console.error('Failed to load replay', err));
   }
 
+
   if (fileList) {
     fetch('/replays')
       .then(res => res.json())
