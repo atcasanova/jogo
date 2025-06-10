@@ -3,7 +3,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
-const { nanoid } = require('nanoid');
+const { nanoid } = require('nanoid/non-secure');
 const { Game } = require('./game');
 const fs = require('fs');
 
@@ -48,9 +48,12 @@ app.get('/replays', (req, res) => {
 });
 
 app.get('/replays/:file', (req, res) => {
-  const filePath = path.join(REPLAY_DIR, req.params.file);
-  if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
+  const resolved = path.resolve(REPLAY_DIR, req.params.file);
+  if (!resolved.startsWith(REPLAY_DIR)) {
+    return res.status(400).send('Invalid file');
+  }
+  if (fs.existsSync(resolved)) {
+    res.sendFile(resolved);
   } else {
     res.status(404).send('Not found');
   }
@@ -933,7 +936,12 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-});
+
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+  });
+}
+
+module.exports = { app, server };
 
