@@ -23,6 +23,22 @@ document.addEventListener('DOMContentLoaded', () => {
   let idx = 0;
   let pieceElements = {};
 
+  const params = new URLSearchParams(window.location.search);
+  const fileParam = params.get('file');
+  if (fileParam) {
+    fetch(`/replays/${encodeURIComponent(fileParam)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          textarea.value = JSON.stringify(data);
+        } else if (Array.isArray(data.history)) {
+          textarea.value = JSON.stringify(data.history);
+        }
+        loadBtn.click();
+      })
+      .catch(err => console.error('Failed to load replay', err));
+  }
+
   loadBtn.addEventListener('click', () => {
     const parsed = parseInput(textarea.value);
     if (parsed && parsed.length > 0) {

@@ -4,7 +4,7 @@ function renderReplays(listEl, replays) {
   replays.forEach(r => {
     const li = document.createElement('li');
     const link = document.createElement('a');
-    link.href = `/replays/${encodeURIComponent(r.file)}`;
+    link.href = `/replay?file=${encodeURIComponent(r.file)}`;
     link.textContent = r.file;
     li.appendChild(link);
     if (r.players) {

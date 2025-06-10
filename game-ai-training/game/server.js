@@ -141,7 +141,8 @@ function logMoveDetails(player, pieceId, oldPos, result, game, card) {
     message += ' e avançou para o corredor de chegada';
   }
 
-  game.history.push(message);
+  const snapshot = JSON.parse(JSON.stringify(game.getGameState()));
+  game.history.push({ move: message, state: snapshot });
   return message;
 }
 
@@ -413,7 +414,8 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     });
 
     const discardMsg = `${currentPlayer.name} descartou um ${card.value === 'JOKER' ? 'C' : card.value}`;
-    game.history.push(discardMsg);
+    const snap = JSON.parse(JSON.stringify(game.getGameState()));
+    game.history.push({ move: discardMsg, state: snap });
     io.to(roomId).emit('lastMove', { message: discardMsg });
     
     // Notificar próximo jogador
