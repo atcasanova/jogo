@@ -6,6 +6,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const team2Span = document.getElementById('team2-players');
   const currentPlayerSpan = document.getElementById('current-player');
   const pagination = document.getElementById('debug-pagination');
+  const cardsContainer = document.getElementById('cards-container');
+  const deckCountSpan = document.getElementById('deck-count');
+  const discardCountSpan = document.getElementById('discard-count');
+  const topDiscard = document.getElementById('top-discard');
 
   const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
 
@@ -16,11 +20,29 @@ document.addEventListener('DOMContentLoaded', () => {
     { id: 'p3', name: 'Jogador 4', position: 3 }
   ];
 
+  const cardValues = ['A','2','3','4','5','6','7','8','9','T','J','Q','K'];
+  const cardSuits = ['\u2660','\u2665','\u2666','\u2663']; // ♠ ♥ ♦ ♣
+
+  function generateHands() {
+    return cardSuits.map((suit, idx) => {
+      const start = (idx * 3) % cardValues.length;
+      const hand = [];
+      for (let i = 0; i < 6; i++) {
+        hand.push({ value: cardValues[(start + i) % cardValues.length], suit });
+      }
+      return hand;
+    });
+  }
+
   const gameState = {
     players,
     teams: [ [players[0], players[2]], [players[1], players[3]] ],
     currentPlayerIndex: 0,
-    pieces: initializePieces()
+    pieces: initializePieces(),
+    hands: generateHands(),
+    discardPile: [{ value: 'Q', suit: '\u2663' }],
+    deckCount: 100,
+    discardCount: 1
   };
 
   let playerPosition = 0;
@@ -33,6 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
   rotateBoard();
   updatePlayerLabels();
   rotateBoard();
+  updateDeckInfo();
+  updateCards();
   adjustBoardSize();
 
   window.addEventListener('resize', adjustBoardSize);
@@ -63,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     rotateBoard();
     updatePlayerLabels();
     rotateBoard();
+    updateCards();
   }
 
   function updateInfo() {
@@ -249,6 +274,43 @@ document.addEventListener('DOMContentLoaded', () => {
       label.style.gridColumnEnd=pos.colEnd+2;
       container.appendChild(label);
     });
+  }
+
+  function getDisplayValue(card) {
+    return card.value === 'JOKER' ? 'C' : card.value;
+  }
+
+  function createCardHTML(card) {
+    const isRed = card.suit === '\u2665' || card.suit === '\u2666';
+    const val = getDisplayValue(card);
+    return `\n      <div class="card-value">${val}</div>\n      <div class="card-suit ${isRed ? 'red' : 'black'}">${card.suit}</div>`;
+  }
+
+  function updateCards() {
+    const cards = gameState.hands[playerPosition];
+    cardsContainer.innerHTML = '';
+    cards.forEach(card => {
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.innerHTML = createCardHTML(card);
+      cardsContainer.appendChild(el);
+    });
+    cardsContainer.classList.remove('compact');
+    if (cardsContainer.scrollWidth > cardsContainer.clientWidth) {
+      cardsContainer.classList.add('compact');
+    }
+  }
+
+  function updateDeckInfo() {
+    deckCountSpan.textContent = gameState.deckCount;
+    discardCountSpan.textContent = gameState.discardCount;
+    if (gameState.discardPile && gameState.discardPile.length > 0) {
+      topDiscard.innerHTML = createCardHTML(gameState.discardPile[0]);
+      topDiscard.classList.remove('hidden');
+    } else {
+      topDiscard.innerHTML = '';
+      topDiscard.classList.add('hidden');
+    }
   }
 
   function adjustBoardSize() {
