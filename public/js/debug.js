@@ -6,6 +6,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const team2Span = document.getElementById('team2-players');
   const currentPlayerSpan = document.getElementById('current-player');
   const pagination = document.getElementById('debug-pagination');
+  const cardsContainer = document.getElementById('cards-container');
+  const deckCountSpan = document.getElementById('deck-count');
+  const discardCountSpan = document.getElementById('discard-count');
+  const topDiscard = document.getElementById('top-discard');
 
   const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
 
@@ -16,11 +20,43 @@ document.addEventListener('DOMContentLoaded', () => {
     { id: 'p3', name: 'Jogador 4', position: 3 }
   ];
 
+  const suits = ['\u2660', '\u2665', '\u2666', '\u2663'];
+  const values = ['A','2','3','4','5','6','7','8','9','T','J','Q','K'];
+
+  function createDeck() {
+    const d = [];
+    for (let i = 0; i < 2; i++) {
+      for (const s of suits) {
+        for (const v of values) {
+          d.push({ suit: s, value: v });
+        }
+      }
+    }
+    for (let i = 0; i < 4; i++) d.push({ suit: '\u2605', value: 'JOKER' });
+    return d;
+  }
+
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  const deck = shuffle(createDeck());
+  players.forEach(p => { p.cards = deck.splice(0, 6); });
+  const discardPile = [deck.pop()];
+
   const gameState = {
     players,
     teams: [ [players[0], players[2]], [players[1], players[3]] ],
     currentPlayerIndex: 0,
-    pieces: initializePieces()
+    pieces: initializePieces(),
+    deckCount: deck.length,
+    discardCount: discardPile.length,
+    discardPile
   };
 
   let playerPosition = 0;
@@ -34,6 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
   updatePlayerLabels();
   rotateBoard();
   adjustBoardSize();
+  updateCards(players[playerPosition].cards);
+  updateDeckInfo();
 
   window.addEventListener('resize', adjustBoardSize);
 
@@ -63,6 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
     rotateBoard();
     updatePlayerLabels();
     rotateBoard();
+    updateCards(players[playerPosition].cards);
+    updateDeckInfo();
   }
 
   function updateInfo() {
@@ -249,6 +289,45 @@ document.addEventListener('DOMContentLoaded', () => {
       label.style.gridColumnEnd=pos.colEnd+2;
       container.appendChild(label);
     });
+  }
+
+  function getDisplayValue(card) {
+    return card.value === 'JOKER' ? 'C' : card.value;
+  }
+
+  function createCardHTML(card) {
+    const isRed = card.suit === '\u2665' || card.suit === '\u2666';
+    const val = getDisplayValue(card);
+    return `
+      <div class="card-value">${val}</div>
+      <div class="card-suit ${isRed ? 'red' : 'black'}">${card.suit}</div>
+    `;
+  }
+
+  function updateDeckInfo() {
+    deckCountSpan.textContent = gameState.deckCount;
+    discardCountSpan.textContent = gameState.discardCount;
+    if (gameState.discardPile && gameState.discardPile.length > 0) {
+      topDiscard.innerHTML = createCardHTML(gameState.discardPile[0]);
+      topDiscard.classList.remove('hidden');
+    } else {
+      topDiscard.innerHTML = '';
+      topDiscard.classList.add('hidden');
+    }
+  }
+
+  function updateCards(cards) {
+    cardsContainer.innerHTML = '';
+    cards.forEach(card => {
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.innerHTML = createCardHTML(card);
+      cardsContainer.appendChild(el);
+    });
+    cardsContainer.classList.remove('compact');
+    if (cardsContainer.scrollWidth > cardsContainer.clientWidth) {
+      cardsContainer.classList.add('compact');
+    }
   }
 
   function adjustBoardSize() {
