@@ -271,3 +271,103 @@ def test_joker_updates_history():
 def test_discard_fails_when_move_available():
     result = _run_discard_validation_mock()
     assert result['success'] is False
+
+
+def _run_get_special_actions_mock():
+    """Run GameWrapper.getValidActions with a 7 card to ensure special actions are generated."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "code = code.replace('return validActions.length > 0 ? validActions.slice(0, 10) : [0];', 'return validActions;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  players: [{ cards: [{ value: '7' }] }],",
+        "  pieces: [",
+        "    { id: 'p0_1', completed: false, inPenaltyZone: false },",
+        "    { id: 'p0_2', completed: false, inPenaltyZone: false }",
+        "  ],",
+        "  cloneForSimulation: function() { return { makeMove: () => {}, makeSpecialMove: () => {} }; },",
+        "  hasAnyValidMove: () => true",
+        "};",
+        "process.stdout.write(JSON.stringify(wrapper.getValidActions(0)));"
+    ];
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.startswith('[')]
+    return json.loads(lines[-1]) if lines else []
+
+
+def _run_wrapper_special_move_mock():
+    """Invoke GameWrapper.makeSpecialMove with a stored mapping."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  isActive: true,",
+        "  currentPlayerIndex: 0,",
+        "  makeSpecialMove: function(moves) { this.called = moves; return { success: true }; },",
+        "  getCurrentPlayer: () => ({}),",
+        "  drawCard: () => ({}),",
+        "  checkWinCondition: () => false,",
+        "  getWinningTeam: () => null,",
+        "  getGameState: () => ({}) ,",
+        "  nextTurn: () => {},",
+        "  stats: { jokersPlayed: [0] },",
+        "  discardPile: []",
+        "};",
+        "wrapper.specialActions = { 50: [{ pieceId: 'p0_1', steps: 3 }, { pieceId: 'p0_2', steps: 4 }] };",
+        "const res = wrapper.makeSpecialMove(0, 50);",
+        "process.stdout.write(JSON.stringify({ moves: wrapper.game.called, success: res.success }));"
+    ];
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.startswith('{')]
+    return json.loads(lines[-1]) if lines else {}
+
+
+def test_special_actions_returned_for_card_seven():
+    actions = _run_get_special_actions_mock()
+    assert any(a >= 50 for a in actions)
+
+
+def test_wrapper_make_special_move_calls_game():
+    result = _run_wrapper_special_move_mock()
+    assert result['success'] is True
+    assert result['moves'][0]['steps'] == 3
+
+
+def test_step_dispatches_special_move():
+    env = GameEnvironment()
+    with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {}, 'gameEnded': False, 'winningTeam': None}) as mock:
+        with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+            env.step(50, 0)
+    assert mock.call_args[0][0]['action'] == 'makeSpecialMove'
