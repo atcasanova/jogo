@@ -97,10 +97,16 @@ document.addEventListener('DOMContentLoaded', () => {
     text = text.trim();
     if (!text) return null;
     try {
-      if (text.startsWith('[')) {
-        return JSON.parse(text);
+      const obj = JSON.parse(text);
+      if (Array.isArray(obj)) {
+        return obj;
       }
-    } catch (err) {}
+      if (obj && Array.isArray(obj.history)) {
+        return obj.history;
+      }
+    } catch (err) {
+      // Fallback to line-delimited JSON
+    }
     const lines = text.split(/\n/).filter(l => l.trim());
     const arr = [];
     for (const line of lines) {
