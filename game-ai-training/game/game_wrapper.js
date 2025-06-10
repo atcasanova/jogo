@@ -198,6 +198,7 @@ class GameWrapper {
 
             let result;
             let playedCard;
+            let jokerPlayed = false;
             if (actionId >= 40) {
                 const cardIndex = actionId - 40;
                 playedCard = this.game.players[playerId].cards[cardIndex];
@@ -208,9 +209,26 @@ class GameWrapper {
                 const pieceId = `p${playerId}_${pieceNumber}`;
                 playedCard = this.game.players[playerId].cards[cardIndex];
                 result = this.game.makeMove(pieceId, cardIndex);
+
+                if (result && result.action === 'homeEntryChoice') {
+                    result = this.game.makeMove(pieceId, cardIndex, true);
+                }
+
+                if (result && result.action === 'choosePosition') {
+                    const target = result.validPositions && result.validPositions[0];
+                    if (!target) {
+                        throw new Error('No valid Joker positions');
+                    }
+                    const piece = this.game.pieces.find(p => p.id === pieceId);
+                    result = this.game.moveToSelectedPosition(piece, target.id);
+                    this.game.discardPile.push(playedCard);
+                    this.game.players[playerId].cards.splice(cardIndex, 1);
+                    jokerPlayed = true;
+                    this.game.nextTurn();
+                }
             }
 
-            if (playedCard && playedCard.value === 'JOKER') {
+            if (jokerPlayed) {
                 this.game.stats.jokersPlayed[playerId]++;
             }
 
