@@ -224,6 +224,9 @@ class GameWrapper {
                     this.game.discardPile.push(playedCard);
                     this.game.players[playerId].cards.splice(cardIndex, 1);
                     jokerPlayed = true;
+                    const playerName = this.game.players[playerId].name;
+                    const msg = `${playerName} moveu ${pieceId} com C`;
+                    this.game.history.push(msg);
                     this.game.nextTurn();
                 }
             }
