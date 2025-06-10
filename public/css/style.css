@@ -146,6 +146,10 @@ input[type="text"] {
     font-weight: bold;
 }
 
+#replay-files {
+    margin-top: 0.5rem;
+}
+
 #room-code {
     font-weight: bold;
     color: #e74c3c;

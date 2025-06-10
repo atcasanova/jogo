@@ -24,18 +24,28 @@ document.addEventListener('DOMContentLoaded', () => {
   let idx = 0;
   let pieceElements = {};
 
+  function startReplay(dataArr) {
+    if (!Array.isArray(dataArr) || dataArr.length === 0) return;
+    replayData = dataArr;
+    idx = 0;
+    inputBlock.classList.add('hidden');
+    gameContainer.classList.remove('hidden');
+    createBoard();
+    markSpecialCells();
+    renderCurrent();
+    adjustBoardSize();
+  }
+
   const params = new URLSearchParams(window.location.search);
   const fileParam = params.get('file');
   if (fileParam) {
     fetch(`/replays/${encodeURIComponent(fileParam)}`)
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data)) {
-          textarea.value = JSON.stringify(data);
-        } else if (Array.isArray(data.history)) {
-          textarea.value = JSON.stringify(data.history);
-        }
-        loadBtn.click();
+        let arr = null;
+        if (Array.isArray(data)) arr = data;
+        else if (Array.isArray(data.history)) arr = data.history;
+        if (arr) startReplay(arr);
       })
       .catch(err => console.error('Failed to load replay', err));
   }
@@ -61,14 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadBtn.addEventListener('click', () => {
     const parsed = parseInput(textarea.value);
     if (parsed && parsed.length > 0) {
-      replayData = parsed;
-      idx = 0;
-      inputBlock.classList.add('hidden');
-      gameContainer.classList.remove('hidden');
-      createBoard();
-      markSpecialCells();
-      renderCurrent();
-      adjustBoardSize();
+      startReplay(parsed);
     }
   });
 
