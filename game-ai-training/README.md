@@ -61,3 +61,15 @@ python3 game-ai-training/main.py --num_envs 2
 
 Each environment runs in its own thread with a separate Node.js game process.
 Statistics and model updates are aggregated automatically.
+
+## Game Wrapper Behavior
+
+The Python environment communicates with a lightweight Node.js wrapper. This
+wrapper resolves certain prompts on its own so that training can proceed
+without manual intervention. Specifically, when a piece can enter the
+home-stretch or when a Joker move requires choosing a target position, the
+wrapper automatically selects the first valid option.
+
+Support for splitting the movement of a seven card is **not** implemented in
+the wrapper yet. If a bot attempts an unsupported action, no valid moves remain
+and the episode may finish very quickly as the agent runs out of legal actions.
