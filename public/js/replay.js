@@ -17,11 +17,45 @@ document.addEventListener('DOMContentLoaded', () => {
   const moveIndexSpan = document.getElementById('move-index');
   const prevBtn = document.getElementById('prev-move');
   const nextBtn = document.getElementById('next-move');
+  const fileList = document.getElementById('replay-files');
 
   const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
   let replayData = [];
   let idx = 0;
   let pieceElements = {};
+
+  const params = new URLSearchParams(window.location.search);
+  const fileParam = params.get('file');
+  if (fileParam) {
+    fetch(`/replays/${encodeURIComponent(fileParam)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          textarea.value = JSON.stringify(data);
+        } else if (Array.isArray(data.history)) {
+          textarea.value = JSON.stringify(data.history);
+        }
+        loadBtn.click();
+      })
+      .catch(err => console.error('Failed to load replay', err));
+  }
+
+  if (fileList) {
+    fetch('/replays')
+      .then(res => res.json())
+      .then(files => {
+        fileList.innerHTML = '';
+        files.forEach(f => {
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.href = `/replay?file=${encodeURIComponent(f.file)}`;
+          a.textContent = f.file;
+          li.appendChild(a);
+          fileList.appendChild(li);
+        });
+      })
+      .catch(err => console.error('Failed to load replay list', err));
+  }
 
   loadBtn.addEventListener('click', () => {
     const parsed = parseInput(textarea.value);
