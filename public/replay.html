@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Replay Viewer</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/game.css">
+  <style>
+    #replay-input { margin: 1rem auto; max-width: 800px; }
+    #replay-input textarea { width: 100%; height: 150px; }
+    #nav-controls { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+    #nav-controls button { padding: 0.3rem 0.6rem; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="replay-input" class="container">
+    <h2>Insira o código do replay</h2>
+    <textarea id="replay-data"></textarea>
+    <button id="load-replay" class="btn primary">Carregar</button>
+  </div>
+
+  <div class="game-container hidden">
+    <div class="game-info">
+      <div class="room-info">
+        <div class="room-code">Sala: <span id="room-code">REPLAY</span></div>
+        <div class="teams-info">
+          <div class="team-line team1">Time 1: <span id="team1-players"></span></div>
+          <div class="team-line team2">Time 2: <span id="team2-players"></span></div>
+        </div>
+      </div>
+      <div id="last-move" class="last-move-message"></div>
+      <div class="turn-info">
+        <h3>Turno: <span id="current-player"></span></h3>
+      </div>
+    </div>
+
+    <div id="nav-controls">
+      <button id="prev-move">&#8592;</button>
+      <span id="move-index">0/0</span>
+      <button id="next-move">&#8594;</button>
+    </div>
+
+    <div class="board-container">
+      <div id="board"></div>
+      <div id="player-labels"></div>
+      <div class="deck-area">
+        <div class="deck">
+          <div class="card-back"><span id="deck-count">0</span></div>
+        </div>
+        <div class="discard-pile">
+          <div id="top-discard" class="card"></div>
+          <span id="discard-count">0</span>
+        </div>
+      </div>
+      <div id="stats-panel" class="stats-panel hidden"></div>
+    </div>
+  </div>
+
+  <script src="js/replay.js"></script>
+</body>
+</html>
