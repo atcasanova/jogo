@@ -222,9 +222,9 @@ class GameWrapper {
                 }
             }
 
-            return validActions.length > 0 ? validActions.slice(0, 10) : [0];
+            return validActions.length > 0 ? validActions.slice(0, 10) : [];
         } catch (error) {
-            return [0];
+            return [];
         }
     }
     
