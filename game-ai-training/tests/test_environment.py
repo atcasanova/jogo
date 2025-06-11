@@ -177,12 +177,12 @@ def _run_make_move_home_entry_mock():
 
 def test_no_discard_actions_when_moves_available():
     actions = _run_get_valid_actions_mock(True)
-    assert 40 not in actions
+    assert 60 not in actions
 
 
 def test_includes_discard_actions_when_no_moves():
     actions = _run_get_valid_actions_mock(False)
-    assert 40 in actions
+    assert 60 in actions
 
 
 def test_make_move_handles_home_entry_choice():
@@ -275,7 +275,7 @@ def _run_discard_validation_mock():
         "  getGameState: function() { return {}; },",
         "  stats: { jokersPlayed: [0] }",
         "};",
-        "const res = wrapper.makeMove(0, 40);",
+        "const res = wrapper.makeMove(0, 60);",
         "process.stdout.write(JSON.stringify(res));"
     ]
     script = "\n".join(lines)
