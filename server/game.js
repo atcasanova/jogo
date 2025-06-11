@@ -685,7 +685,8 @@ discardCard(cardIndex) {
     const occupiedPositions = this.pieces.filter(p =>
       p.id !== piece.id &&
       !p.completed &&
-      !p.inPenaltyZone
+      !p.inPenaltyZone &&
+      !p.inHomeStretch
     );
     
     if (occupiedPositions.length === 0) {
