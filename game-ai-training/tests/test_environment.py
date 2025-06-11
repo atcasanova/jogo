@@ -41,6 +41,25 @@ def test_step_updates_game_state_and_returns_rewards():
     assert isinstance(next_state, np.ndarray)
 
 
+def test_step_updates_state_on_failure():
+    env = GameEnvironment()
+    response = {
+        'success': False,
+        'gameState': {'foo': 'bar', 'lastMove': 'moved'},
+        'gameEnded': False,
+        'winningTeam': None
+    }
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+            next_state, reward, done = env.step(1, 0)
+
+    assert reward == -0.1
+    assert done is False
+    assert env.game_state == {'foo': 'bar', 'lastMove': 'moved', 'gameEnded': False, 'winningTeam': None}
+    assert env.move_history[-1]['move'] == 'moved'
+    assert isinstance(next_state, np.ndarray)
+
+
 def test_reset_initializes_win_fields():
     env = GameEnvironment()
     with patch.object(env, 'start_node_game', return_value=True):

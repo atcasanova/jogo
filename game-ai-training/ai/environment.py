@@ -256,19 +256,21 @@ class GameEnvironment:
             }
 
         response = self.send_command(cmd)
-        
+
         # Calculate reward
         reward = 0.1 if response.get('success') else -0.1
         done = response.get('gameEnded', False)
 
-        if response.get('success'):
-            self.game_state = response.get("gameState", self.game_state)
+        # Update game state whenever provided
+        if 'gameState' in response:
+            self.game_state = response['gameState']
             # Preserve win information returned by the Node process
             self.game_state['gameEnded'] = done
             self.game_state['winningTeam'] = response.get('winningTeam')
             if 'stats' in response:
                 self.game_state['stats'] = response['stats'].get('full', {})
                 self.game_state['statsSummary'] = response['stats'].get('summary')
+
             last_move = self.game_state.get('lastMove')
             if last_move is not None:
                 # store both the move description and a snapshot of the state
@@ -280,6 +282,10 @@ class GameEnvironment:
                     'move': str(last_move),
                     'state': state_copy
                 })
+
+        # Log failures for easier debugging
+        if not response.get('success'):
+            error("Action failed", env=self.env_id, player=player_id, action=action, response=response)
         
         next_state = self.get_state(player_id)
         return next_state, reward, done
