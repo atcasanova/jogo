@@ -511,3 +511,24 @@ def test_step_retries_until_success():
 
     assert reward == 0.1
     assert mock_cmd.call_count == 3
+
+
+def test_step_discards_when_all_actions_fail():
+    env = GameEnvironment()
+
+    responses = [
+        {'success': False, 'gameState': {}, 'gameEnded': False, 'winningTeam': None},
+        {'success': False, 'gameState': {}, 'gameEnded': False, 'winningTeam': None},
+        {'success': True, 'gameState': {}, 'gameEnded': False, 'winningTeam': None}
+    ]
+
+    def _send(cmd):
+        return responses.pop(0)
+
+    with patch.object(env, 'send_command', side_effect=_send) as mock_cmd:
+        with patch.object(env, 'get_valid_actions', return_value=[1]):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                env.step(1, 0)
+
+    assert mock_cmd.call_count == 3
+    assert mock_cmd.call_args[0][0]['actionId'] >= 70

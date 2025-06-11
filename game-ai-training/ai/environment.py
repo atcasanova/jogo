@@ -277,6 +277,23 @@ class GameEnvironment:
             valid_actions = self.get_valid_actions(player_id)
             alt_actions = [a for a in valid_actions if a not in tried_actions]
             if not alt_actions:
+                # When every suggested move fails we attempt a discard action
+                # as a last resort. The Node.js wrapper will either accept the
+                # discard or fallback to any valid move it can perform,
+                # preventing the training loop from stalling indefinitely.
+                for discard in range(70, 80):
+                    if discard in tried_actions:
+                        continue
+                    cmd = {
+                        "action": "makeMove",
+                        "playerId": player_id,
+                        "actionId": discard
+                    }
+                    tried_actions.add(discard)
+                    response = self.send_command(cmd)
+                    if response.get('success'):
+                        break
+
                 break
 
             action = alt_actions[0]
