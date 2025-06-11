@@ -6,6 +6,7 @@ services:
     volumes:
       - ./server:/app/server
       - ./public:/app/public
+      - ./replays:/app/replays
     environment:
       DEBUG: "false"
       REPLAY_HISTORY: "10"
