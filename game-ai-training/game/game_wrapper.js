@@ -389,13 +389,17 @@ class GameWrapper {
                     }
                 }
             } else {
-                const cardIndex = Math.floor(actionId / 10);
                 let pieceNumber = actionId % 10;
+                let cardIndex;
                 // Piece numbers for partner pieces may encode as 10 which would
                 // otherwise wrap to 0 when using modulo 10. Normalize so 10 is
-                // preserved after the modulo operation.
+                // preserved after the modulo operation and adjust the card
+                // index accordingly.
                 if (pieceNumber === 0) {
                     pieceNumber = 10;
+                    cardIndex = (actionId - pieceNumber) / 10;
+                } else {
+                    cardIndex = Math.floor(actionId / 10);
                 }
                 let ownerId = playerId;
                 if (pieceNumber > 5) {
