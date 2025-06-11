@@ -264,17 +264,20 @@ class TrainingManager:
         axes[0, 1].set_ylabel('Win Rate (%)')
         
         # Average losses
+        has_loss_plots = False
         for i, bot in enumerate(self.bots):
             if bot.losses:
                 window_size = min(100, len(bot.losses))
                 if window_size > 0:
                     moving_avg = np.convolve(bot.losses, np.ones(window_size)/window_size, mode='valid')
                     axes[1, 0].plot(moving_avg, label=f'Bot {i}')
-        
+                    has_loss_plots = True
+
         axes[1, 0].set_title('Training Loss (Moving Average)')
         axes[1, 0].set_xlabel('Training Step')
         axes[1, 0].set_ylabel('Loss')
-        axes[1, 0].legend()
+        if has_loss_plots:
+            axes[1, 0].legend()
         
         # Epsilon decay
         epsilons = [bot.epsilon for bot in self.bots]
