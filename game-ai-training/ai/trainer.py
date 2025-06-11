@@ -89,7 +89,7 @@ class TrainingManager:
             state = env.get_state(current_player)
             valid_actions = env.get_valid_actions(current_player)
             
-            if not valid_actions:
+            if valid_actions == []:
                 break
             
             # Bot chooses action

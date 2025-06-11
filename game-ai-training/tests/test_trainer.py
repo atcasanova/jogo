@@ -80,3 +80,23 @@ def test_train_episode_increments_wins():
         initial_wins = manager.bots[0].wins
         manager.train_episode()
         assert manager.bots[0].wins == initial_wins + 1
+
+
+def test_train_episode_breaks_on_no_actions():
+    torch_mock = MagicMock()
+    sys.modules['torch'] = torch_mock
+    sys.modules['torch.nn'] = MagicMock()
+    sys.modules['torch.optim'] = MagicMock()
+
+    from ai.trainer import TrainingManager
+
+    with patch('ai.trainer.GameBot', DummyGameBot):
+        manager = TrainingManager()
+        env = MockGameEnvironment()
+        env.get_valid_actions = lambda pid: []
+        env.step = MagicMock()
+        manager.env = env
+        manager.create_bots(num_bots=4)
+
+        manager.train_episode()
+        env.step.assert_not_called()
