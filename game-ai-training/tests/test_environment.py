@@ -53,7 +53,7 @@ def test_step_updates_state_on_failure():
         with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
             next_state, reward, done = env.step(1, 0)
 
-    assert reward == -0.1
+    assert reward == -0.2
     assert done is False
     assert env.game_state == {'foo': 'bar', 'lastMove': 'moved', 'gameEnded': False, 'winningTeam': None}
     assert env.move_history[-1]['move'] == 'moved'
@@ -657,7 +657,7 @@ def test_step_retries_until_success():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 next_state, reward, done = env.step(1, 0)
 
-    assert reward == 0.1
+    assert reward == -0.1
     assert mock_cmd.call_count == 3
 
 

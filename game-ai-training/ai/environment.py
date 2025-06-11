@@ -263,12 +263,14 @@ class GameEnvironment:
             }
 
         response = self.send_command(cmd)
+        invalid_attempts = 0
 
         # If the chosen action failed, iteratively try other valid actions
         # until one succeeds or we run out of alternatives. This helps keep the
         # training loop moving even when the model proposes an invalid move.
         tried_actions = {action}
         while not response.get('success'):
+            invalid_attempts += 1
             error(
                 "Action failed", env=self.env_id, player=player_id,
                 action=action, response=response
@@ -310,6 +312,7 @@ class GameEnvironment:
 
         # Calculate reward based on the final response
         reward = 0.1 if response.get('success') else -0.1
+        reward -= 0.1 * invalid_attempts
         done = response.get('gameEnded', False)
 
         # Update game state whenever provided
