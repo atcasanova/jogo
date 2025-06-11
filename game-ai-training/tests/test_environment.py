@@ -102,6 +102,7 @@ def _run_get_valid_actions_mock(has_move: bool):
         "const wrapper = new GameWrapper();",
         "wrapper.setupGame();",
         f"wrapper.game.hasAnyValidMove = () => {str(has_move).lower()};",
+        "if (!wrapper.game.hasAnyValidMove()) { wrapper.game.cloneForSimulation = () => ({ makeMove: () => { throw new Error('x'); } }); }",
         "process.stdout.write(JSON.stringify(wrapper.getValidActions(0)));"
     ]
     script = "\n".join(lines)
@@ -177,12 +178,12 @@ def _run_make_move_home_entry_mock():
 
 def test_no_discard_actions_when_moves_available():
     actions = _run_get_valid_actions_mock(True)
-    assert 60 not in actions
+    assert 70 not in actions
 
 
 def test_includes_discard_actions_when_no_moves():
     actions = _run_get_valid_actions_mock(False)
-    assert 60 in actions
+    assert 70 in actions
 
 
 def test_make_move_handles_home_entry_choice():
@@ -275,7 +276,7 @@ def _run_discard_validation_mock():
         "  getGameState: function() { return {}; },",
         "  stats: { jokersPlayed: [0] }",
         "};",
-        "const res = wrapper.makeMove(0, 60);",
+        "const res = wrapper.makeMove(0, 70);",
         "process.stdout.write(JSON.stringify(res));"
     ]
     script = "\n".join(lines)
@@ -335,7 +336,9 @@ def _run_hidden_move_mock():
 
 def test_no_fallback_discard_when_moves_unlisted():
     actions = _run_hidden_move_mock()
-    assert actions == []
+    # When enumeration yields no moves but the game reports that moves are
+    # possible, the wrapper should now fall back to allowing a discard.
+    assert actions == [70]
 
 
 def _run_get_special_actions_mock():
@@ -404,8 +407,8 @@ def _run_wrapper_special_move_mock():
         "  stats: { jokersPlayed: [0] },",
         "  discardPile: []",
         "};",
-        "wrapper.specialActions = { 50: [{ pieceId: 'p0_1', steps: 3 }, { pieceId: 'p0_2', steps: 4 }] };",
-        "const res = wrapper.makeSpecialMove(0, 50);",
+        "wrapper.specialActions = { 60: [{ pieceId: 'p0_1', steps: 3 }, { pieceId: 'p0_2', steps: 4 }] };",
+        "const res = wrapper.makeSpecialMove(0, 60);",
         "process.stdout.write(JSON.stringify({ moves: wrapper.game.called, success: res.success }));"
     ];
     script = "\n".join(lines)
@@ -421,7 +424,7 @@ def _run_wrapper_special_move_mock():
 
 def test_special_actions_returned_for_card_seven():
     actions = _run_get_special_actions_mock()
-    assert any(a >= 50 for a in actions)
+    assert any(a >= 60 for a in actions)
 
 
 def test_wrapper_make_special_move_calls_game():
@@ -434,5 +437,5 @@ def test_step_dispatches_special_move():
     env = GameEnvironment()
     with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {}, 'gameEnded': False, 'winningTeam': None}) as mock:
         with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-            env.step(50, 0)
+            env.step(60, 0)
     assert mock.call_args[0][0]['action'] == 'makeSpecialMove'

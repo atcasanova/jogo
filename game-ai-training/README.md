@@ -71,6 +71,6 @@ home-stretch or when a Joker move requires choosing a target position, the
 wrapper automatically selects the first valid option.
 
 When a seven card can be split across multiple pieces, `getValidActions` may
-include special actions with IDs of 50 or higher to represent the available
+include special actions with IDs of 60 or higher to represent the available
 split moves. If a bot attempts an unsupported action, no valid moves remain and
 the episode may finish very quickly as the agent runs out of legal actions.

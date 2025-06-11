@@ -14,7 +14,7 @@ class GameEnvironment:
     def __init__(self, env_id: int = 0):
         self.node_process = None
         self.game_state = None
-        self.action_space_size = 70
+        self.action_space_size = 80
         self.state_size = 200
 
         # identifier for logging when multiple environments are used
@@ -243,13 +243,13 @@ class GameEnvironment:
     
     def step(self, action: int, player_id: int) -> Tuple[np.ndarray, float, bool]:
         """Execute action and return next_state, reward, done"""
-        if action >= 60:
+        if action >= 70:
             cmd = {
                 "action": "makeMove",
                 "playerId": player_id,
                 "actionId": action
             }
-        elif action >= 50:
+        elif action >= 60:
             cmd = {
                 "action": "makeSpecialMove",
                 "playerId": player_id,
