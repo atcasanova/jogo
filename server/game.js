@@ -59,17 +59,23 @@ class Game {
   }
 
   addPlayer(id, name) {
-    console.log(`Tentando adicionar jogador ${name} (${id}) à sala ${this.roomId}`);
+    if (process.env.DEBUG === 'true') {
+      console.log(`Tentando adicionar jogador ${name} (${id}) à sala ${this.roomId}`);
+    }
     
     if (this.players.length >= 4) {
-      console.log(`ERRO: Sala ${this.roomId} já está cheia`);
+      if (process.env.DEBUG === 'true') {
+        console.log(`ERRO: Sala ${this.roomId} já está cheia`);
+      }
       return false;
     }
     
     // Verificar se o jogador já existe
     const existingPlayer = this.players.find(p => p.id === id || p.name === name);
     if (existingPlayer) {
-      console.log(`Jogador ${name} já existe na sala`);
+      if (process.env.DEBUG === 'true') {
+        console.log(`Jogador ${name} já existe na sala`);
+      }
       return false;
     }
     
@@ -80,7 +86,9 @@ class Game {
       position: this.players.length // 0, 1, 2 ou 3
     });
     
-    console.log(`Jogador ${name} adicionado com sucesso. Total: ${this.players.length}`);
+    if (process.env.DEBUG === 'true') {
+      console.log(`Jogador ${name} adicionado com sucesso. Total: ${this.players.length}`);
+    }
     return true;
   }
 
@@ -131,13 +139,17 @@ class Game {
 
 // No arquivo game.js do servidor
   startGame() {
-    console.log(`Iniciando jogo. Jogadores: ${this.players.length}`);
+    if (process.env.DEBUG === 'true') {
+      console.log(`Iniciando jogo. Jogadores: ${this.players.length}`);
+    }
 
     this.homeStretchAnnounced = [false, false, false, false];
 
   // Criar e embaralhar o deck
   this.deck = shuffle(createDeck());
-  console.log(`Deck criado com ${this.deck.length} cartas`);
+  if (process.env.DEBUG === 'true') {
+    console.log(`Deck criado com ${this.deck.length} cartas`);
+  }
 
   this.discardPile = [];
 
@@ -153,28 +165,38 @@ class Game {
           player.cards.push(this.deck.splice(index, 1)[0]);
         }
       }
-      console.log(`Modo debug: cartas fixas distribuídas para ${player.name}`);
+      if (process.env.DEBUG === 'true') {
+        console.log(`Modo debug: cartas fixas distribuídas para ${player.name}`);
+      }
     }
   } else {
     // Distribuir 5 cartas para cada jogador
     for (const player of this.players) {
       player.cards = this.deck.splice(0, 5);
-      console.log(`Distribuídas 5 cartas para ${player.name}`);
+      if (process.env.DEBUG === 'true') {
+        console.log(`Distribuídas 5 cartas para ${player.name}`);
+      }
     }
   }
   
   // Sempre começar com o jogador 0 (p1)
   this.currentPlayerIndex = 0;
-  console.log(`Primeiro jogador escolhido: índice ${this.currentPlayerIndex}`);
+  if (process.env.DEBUG === 'true') {
+    console.log(`Primeiro jogador escolhido: índice ${this.currentPlayerIndex}`);
+  }
   
   // Garantir que os times estejam definidos
   if (this.teams[0].length !== 2 || this.teams[1].length !== 2) {
     this.setupTeams();
   }
-  console.log(`Times definidos: ${this.teams[0][0].name}/${this.teams[0][1].name} vs ${this.teams[1][0].name}/${this.teams[1][1].name}`);
+  if (process.env.DEBUG === 'true') {
+    console.log(`Times definidos: ${this.teams[0][0].name}/${this.teams[0][1].name} vs ${this.teams[1][0].name}/${this.teams[1][1].name}`);
+  }
   
   this.isActive = true;
-  console.log(`Jogo marcado como ativo`);
+  if (process.env.DEBUG === 'true') {
+    console.log(`Jogo marcado como ativo`);
+  }
 }
 
   resetForNewGame() {
@@ -204,17 +226,23 @@ class Game {
   }
 
   getCurrentPlayer() {
-    console.log(`Obtendo jogador atual. Índice: ${this.currentPlayerIndex}, Total de jogadores: ${this.players.length}`);
+    if (process.env.DEBUG === 'true') {
+      console.log(`Obtendo jogador atual. Índice: ${this.currentPlayerIndex}, Total de jogadores: ${this.players.length}`);
+    }
     
     if (this.currentPlayerIndex === undefined || 
         this.currentPlayerIndex < 0 || 
         this.currentPlayerIndex >= this.players.length) {
-      console.log(`ERRO: Índice de jogador atual inválido: ${this.currentPlayerIndex}`);
+      if (process.env.DEBUG === 'true') {
+        console.log(`ERRO: Índice de jogador atual inválido: ${this.currentPlayerIndex}`);
+      }
       return null;
     }
     
     const player = this.players[this.currentPlayerIndex];
-    console.log(`Jogador atual: ${player ? player.name : 'null'}`);
+    if (process.env.DEBUG === 'true') {
+      console.log(`Jogador atual: ${player ? player.name : 'null'}`);
+    }
     return player;
   }
 
