@@ -108,6 +108,10 @@ class GameEnvironment:
         """Send command to Node.js game and get response"""
         if not self.node_process:
             return {"error": "Game process not started"}
+
+        if self.node_process.poll() is not None:
+            error("Node.js process terminated", env=self.env_id)
+            return {"error": "Process terminated"}
         
         try:
             # Send command
