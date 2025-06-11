@@ -264,22 +264,32 @@ class GameEnvironment:
 
         response = self.send_command(cmd)
 
-        # If the chosen action failed, try a fallback action that is known to be
-        # valid. This helps keep the training loop moving even when the model
-        # proposes an invalid move.
-        if not response.get('success'):
-            error("Action failed", env=self.env_id, player=player_id, action=action, response=response)
+        # If the chosen action failed, iteratively try other valid actions
+        # until one succeeds or we run out of alternatives. This helps keep the
+        # training loop moving even when the model proposes an invalid move.
+        tried_actions = {action}
+        while not response.get('success'):
+            error(
+                "Action failed", env=self.env_id, player=player_id,
+                action=action, response=response
+            )
+
             valid_actions = self.get_valid_actions(player_id)
-            alt_actions = [a for a in valid_actions if a != action]
-            if alt_actions:
-                fallback = alt_actions[0]
-                if fallback >= 70:
-                    cmd = {"action": "makeMove", "playerId": player_id, "actionId": fallback}
-                elif fallback >= 60:
-                    cmd = {"action": "makeSpecialMove", "playerId": player_id, "actionId": fallback}
-                else:
-                    cmd = {"action": "makeMove", "playerId": player_id, "actionId": fallback}
-                response = self.send_command(cmd)
+            alt_actions = [a for a in valid_actions if a not in tried_actions]
+            if not alt_actions:
+                break
+
+            action = alt_actions[0]
+            tried_actions.add(action)
+
+            if action >= 70:
+                cmd = {"action": "makeMove", "playerId": player_id, "actionId": action}
+            elif action >= 60:
+                cmd = {"action": "makeSpecialMove", "playerId": player_id, "actionId": action}
+            else:
+                cmd = {"action": "makeMove", "playerId": player_id, "actionId": action}
+
+            response = self.send_command(cmd)
 
         # Calculate reward based on the final response
         reward = 0.1 if response.get('success') else -0.1
