@@ -222,6 +222,11 @@ class GameWrapper {
                 }
             }
 
+            if (validActions.length === 0 && player.cards.length > 0) {
+                // Fallback to discarding the first card so training can continue
+                validActions.push(60);
+            }
+
             return validActions.length > 0 ? validActions.slice(0, 10) : [];
         } catch (error) {
             return [];
