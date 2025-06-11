@@ -1383,7 +1383,14 @@ class Game {
   cloneForSimulation() {
     const clone = new Game(this.roomId);
     clone.players = JSON.parse(JSON.stringify(this.players));
-    clone.teams = JSON.parse(JSON.stringify(this.teams));
+
+    // Ensure team arrays reference the cloned player objects rather than
+    // fresh copies so that helper methods relying on object identity behave
+    // the same as in the main game instance.
+    clone.teams = this.teams.map(team =>
+      team.map(p => clone.players.find(cp => cp.id === p.id))
+    );
+
     clone.deck = JSON.parse(JSON.stringify(this.deck));
     clone.discardPile = JSON.parse(JSON.stringify(this.discardPile));
     clone.currentPlayerIndex = this.currentPlayerIndex;
