@@ -153,13 +153,14 @@ class GameWrapper {
             const validActions = [];
             const player = this.game.players[playerId];
             this.specialActions = {};
-            let specialId = 50; // range 50-59 reserved for special moves
+            // range 60-69 reserved for special moves
+            let specialId = 60;
 
-            // Limit to the first 5 cards so that generated action IDs never
-            // exceed the Python trainer's action space of 50. Each card index
-            // contributes at most five piece moves (cardIdx * 10 + pieceNum) and
-            // cardIdx >= 5 would produce IDs >= 50.
-            const maxMoveCards = Math.min(player.cards.length, 5);
+            // Limit to the first 6 cards so that move IDs remain below the
+            // special action range starting at 60. Each card index contributes
+            // at most five piece moves (cardIdx * 10 + pieceNum) and
+            // cardIdx >= 6 would yield IDs >= 60.
+            const maxMoveCards = Math.min(player.cards.length, 6);
             for (let cardIdx = 0; cardIdx < maxMoveCards; cardIdx++) {
                 for (let pieceNum = 1; pieceNum <= 5; pieceNum++) {
                     const pieceId = `p${playerId}_${pieceNum}`;
@@ -213,26 +214,18 @@ class GameWrapper {
                 }
             }
 
-            if (!this.game.hasAnyValidMove(playerId)) {
-                // Discard actions use IDs 60-69 (10 possible discards). Constrain
-                // the number of cards considered so action IDs remain < 70.
+            if (validActions.length === 0) {
+                // If no moves were generated, allow discarding any card. This
+                // ensures the Python trainer always receives at least one
+                // action even when a playable card lies outside the scanned
+                // range.
                 const maxDiscardCards = Math.min(player.cards.length, 10);
                 for (let cardIdx = 0; cardIdx < maxDiscardCards; cardIdx++) {
-                    validActions.push(60 + cardIdx);
+                    validActions.push(70 + cardIdx);
                 }
             }
 
-            if (
-                validActions.length === 0 &&
-                player.cards.length > 0 &&
-                !this.game.hasAnyValidMove(playerId)
-            ) {
-                // Fallback to discarding the first card so training can continue
-                // only when no valid move exists at all
-                validActions.push(60);
-            }
-
-            return validActions.length > 0 ? validActions.slice(0, 10) : [];
+            return validActions.slice(0, 10);
         } catch (error) {
             return [];
         }
@@ -251,8 +244,8 @@ class GameWrapper {
             let result;
             let playedCard;
             let jokerPlayed = false;
-            if (actionId >= 60) {
-                const cardIndex = actionId - 60;
+            if (actionId >= 70) {
+                const cardIndex = actionId - 70;
                 playedCard = this.game.players[playerId].cards[cardIndex];
                 result = this.game.discardCard(cardIndex);
             } else {
