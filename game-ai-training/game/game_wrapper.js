@@ -334,7 +334,19 @@ class GameWrapper {
                             }
                         }
 
-                        if (!result) throw e;
+                        if (!result) {
+                            // Could not find a valid move. Force the discard
+                            // so the training loop can proceed rather than
+                            // failing repeatedly.
+                            const fallbackCard = player.cards[cardIndex];
+                            this.game.discardPile.push(fallbackCard);
+                            player.cards.splice(cardIndex, 1);
+                            this.game.stats.roundsWithoutPlay[player.position]++;
+                            this.game.nextTurn();
+                            const dMsg = `${player.name} descartou um ${fallbackCard.value === 'JOKER' ? 'C' : fallbackCard.value}`;
+                            this.game.history.push(dMsg);
+                            result = { success: true, action: 'discard' };
+                        }
                     } else {
                         throw e;
                     }
