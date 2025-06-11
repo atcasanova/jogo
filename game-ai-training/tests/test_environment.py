@@ -392,6 +392,104 @@ def test_no_fallback_discard_when_moves_unlisted():
     assert actions == [70]
 
 
+def _run_partner_actions_mock():
+    """Return actions including partner pieces when all own pieces home."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  players: [{ cards: [{ value: '5' }] }, {}],",
+        "  pieces: [",
+        "    { id: 'p0_1', inHomeStretch: true },",
+        "    { id: 'p0_2', inHomeStretch: true },",
+        "    { id: 'p0_3', inHomeStretch: true },",
+        "    { id: 'p0_4', inHomeStretch: true },",
+        "    { id: 'p0_5', inHomeStretch: true },",
+        "    { id: 'p1_1', inPenaltyZone: false, completed: false }",
+        "  ],",
+        "  cloneForSimulation: () => ({ makeMove: () => {} }),",
+        "  hasAnyValidMove: () => true,",
+        "  hasAllPiecesInHomeStretch: id => id === 0,",
+        "  partnerIdFor: () => 1",
+        "};",
+        "process.stdout.write(JSON.stringify(wrapper.getValidActions(0)));"
+    ]
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    actions = [line for line in output.splitlines() if line.startswith('[')]
+    return json.loads(actions[-1]) if actions else []
+
+
+def _run_partner_move_mock():
+    """Execute a move targeting a partner piece."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  isActive: true,",
+        "  currentPlayerIndex: 0,",
+        "  players: [{ cards: [{}] }, {}],",
+        "  partnerIdFor: () => 1,",
+        "  pieces: [{ id: 'p1_1' }],",
+        "  discardPile: [],",
+        "  makeMove: function(pid, idx) { this.called = [pid, idx]; return { success: true }; },",
+        "  getCurrentPlayer: function() { return this.players[this.currentPlayerIndex]; },",
+        "  drawCard: function() { return {}; },",
+        "  checkWinCondition: function() { return false; },",
+        "  getWinningTeam: function() { return null; },",
+        "  getGameState: function() { return {}; },",
+        "  nextTurn: function() {},",
+        "  stats: { jokersPlayed: [0] }",
+        "};",
+        "wrapper.makeMove(0, 6);",
+        "process.stdout.write(JSON.stringify({ called: wrapper.game.called }));"
+    ]
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.startswith('{')]
+    return json.loads(lines[-1]) if lines else {}
+
+
+def test_partner_actions_listed_when_all_home():
+    actions = _run_partner_actions_mock()
+    assert 6 in actions
+
+
+def test_make_move_accepts_partner_piece():
+    result = _run_partner_move_mock()
+    assert result['called'][0] == 'p1_1'
+
+
 def _run_get_special_actions_mock():
     """Run GameWrapper.getValidActions with a 7 card to ensure special actions are generated."""
     lines = [

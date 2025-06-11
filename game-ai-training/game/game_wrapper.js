@@ -161,18 +161,32 @@ class GameWrapper {
             // at most five piece moves (cardIdx * 10 + pieceNum) and
             // cardIdx >= 6 would yield IDs >= 60.
             const maxMoveCards = Math.min(player.cards.length, 6);
+
+            const pieceInfos = [];
+            for (let n = 1; n <= 5; n++) {
+                pieceInfos.push({ owner: playerId, num: n, id: `p${playerId}_${n}` });
+            }
+            if (this.game.hasAllPiecesInHomeStretch && this.game.partnerIdFor &&
+                this.game.hasAllPiecesInHomeStretch(playerId)) {
+                const partner = this.game.partnerIdFor(playerId);
+                if (partner !== null && partner !== undefined) {
+                    for (let n = 1; n <= 5; n++) {
+                        pieceInfos.push({ owner: partner, num: n + 5, id: `p${partner}_${n}` });
+                    }
+                }
+            }
+
             for (let cardIdx = 0; cardIdx < maxMoveCards; cardIdx++) {
-                for (let pieceNum = 1; pieceNum <= 5; pieceNum++) {
-                    const pieceId = `p${playerId}_${pieceNum}`;
-                    const piece = this.game.pieces.find(p => p.id === pieceId);
+                for (const info of pieceInfos) {
+                    const piece = this.game.pieces.find(p => p.id === info.id);
                     if (!piece || piece.completed) {
                         continue;
                     }
 
                     const clone = this.game.cloneForSimulation();
                     try {
-                        clone.makeMove(pieceId, cardIdx);
-                        validActions.push(cardIdx * 10 + pieceNum);
+                        clone.makeMove(info.id, cardIdx);
+                        validActions.push(cardIdx * 10 + info.num);
                     } catch (e) {
                         // invalid move, ignore
                     }
@@ -183,22 +197,21 @@ class GameWrapper {
             for (let cardIdx = 0; cardIdx < Math.min(player.cards.length, 4); cardIdx++) {
                 if (player.cards[cardIdx].value !== '7') continue;
 
-                const pieceIds = [];
-                for (let num1 = 1; num1 <= 5; num1++) {
-                    const id = `p${playerId}_${num1}`;
-                    const p = this.game.pieces.find(pp => pp.id === id);
+                const movable = [];
+                for (const info of pieceInfos) {
+                    const p = this.game.pieces.find(pp => pp.id === info.id);
                     if (p && !p.completed && !p.inPenaltyZone) {
-                        pieceIds.push(id);
+                        movable.push(info.id);
                     }
                 }
 
-                for (let i = 0; i < pieceIds.length; i++) {
-                    for (let j = i + 1; j < pieceIds.length; j++) {
+                for (let i = 0; i < movable.length; i++) {
+                    for (let j = i + 1; j < movable.length; j++) {
                         for (let steps = 1; steps <= 6; steps++) {
                             if (validActions.length >= 10) break;
                             const moves = [
-                                { pieceId: pieceIds[i], steps },
-                                { pieceId: pieceIds[j], steps: 7 - steps }
+                                { pieceId: movable[i], steps },
+                                { pieceId: movable[j], steps: 7 - steps }
                             ];
                             const clone = this.game.cloneForSimulation();
                             try {
@@ -252,29 +265,41 @@ class GameWrapper {
                 } catch (e) {
                     if (e.message && e.message.includes('jogadas disponíveis')) {
                         const player = this.game.players[playerId];
+                        const infos = [];
+                        for (let n = 1; n <= 5; n++) {
+                            infos.push({ owner: playerId, id: `p${playerId}_${n}` });
+                        }
+                        if (this.game.hasAllPiecesInHomeStretch && this.game.partnerIdFor &&
+                            this.game.hasAllPiecesInHomeStretch(playerId)) {
+                            const partner = this.game.partnerIdFor(playerId);
+                            if (partner !== null && partner !== undefined) {
+                                for (let n = 1; n <= 5; n++) {
+                                    infos.push({ owner: partner, id: `p${partner}_${n}` });
+                                }
+                            }
+                        }
                         for (let ci = 0; ci < player.cards.length && !result; ci++) {
-                            for (let pn = 1; pn <= 5; pn++) {
-                                const pid = `p${playerId}_${pn}`;
-                                const piece = this.game.pieces.find(p => p.id === pid && !p.completed);
+                            for (const info of infos) {
+                                const piece = this.game.pieces.find(p => p.id === info.id && !p.completed);
                                 if (!piece) continue;
                                 const sim = this.game.cloneForSimulation();
                                 try {
-                                    sim.makeMove(pid, ci);
+                                    sim.makeMove(info.id, ci);
                                     playedCard = player.cards[ci];
-                                    result = this.game.makeMove(pid, ci);
+                                    result = this.game.makeMove(info.id, ci);
                                     if (result && result.action === 'homeEntryChoice') {
-                                        result = this.game.makeMove(pid, ci, true);
+                                        result = this.game.makeMove(info.id, ci, true);
                                     }
                                     if (result && result.action === 'choosePosition') {
                                         const target = result.validPositions && result.validPositions[0];
                                         if (!target) throw new Error('No valid Joker positions');
-                                        const realPiece = this.game.pieces.find(p => p.id === pid);
+                                        const realPiece = this.game.pieces.find(p => p.id === info.id);
                                         result = this.game.moveToSelectedPosition(realPiece, target.id);
                                         this.game.discardPile.push(playedCard);
                                         player.cards.splice(ci, 1);
                                         jokerPlayed = true;
                                         const playerName = player.name;
-                                        const msg = `${playerName} moveu ${pid} com C`;
+                                        const msg = `${playerName} moveu ${info.id} com C`;
                                         this.game.history.push(msg);
                                         this.game.nextTurn();
                                     }
@@ -289,8 +314,20 @@ class GameWrapper {
                             for (let ci = 0; ci < player.cards.length && !result; ci++) {
                                 if (player.cards[ci].value !== '7') continue;
                                 const pieceIds = [];
-                                for (let pn = 1; pn <= 5; pn++) {
-                                    const pid = `p${playerId}_${pn}`;
+                                const infoList = [];
+                                for (let n = 1; n <= 5; n++) {
+                                    infoList.push(`p${playerId}_${n}`);
+                                }
+                                if (this.game.hasAllPiecesInHomeStretch && this.game.partnerIdFor &&
+                                    this.game.hasAllPiecesInHomeStretch(playerId)) {
+                                    const partner = this.game.partnerIdFor(playerId);
+                                    if (partner !== null && partner !== undefined) {
+                                        for (let n = 1; n <= 5; n++) {
+                                            infoList.push(`p${partner}_${n}`);
+                                        }
+                                    }
+                                }
+                                for (const pid of infoList) {
                                     const p = this.game.pieces.find(pp => pp.id === pid && !pp.completed && !pp.inPenaltyZone);
                                     if (p) pieceIds.push(pid);
                                 }
@@ -353,8 +390,17 @@ class GameWrapper {
                 }
             } else {
                 const cardIndex = Math.floor(actionId / 10);
-                const pieceNumber = actionId % 10;
-                const pieceId = `p${playerId}_${pieceNumber}`;
+                let pieceNumber = actionId % 10;
+                let ownerId = playerId;
+                if (pieceNumber > 5) {
+                    const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
+                    if (partner === null || partner === undefined) {
+                        throw new Error('Invalid partner move');
+                    }
+                    ownerId = partner;
+                    pieceNumber -= 5;
+                }
+                const pieceId = `p${ownerId}_${pieceNumber}`;
                 playedCard = this.game.players[playerId].cards[cardIndex];
                 result = this.game.makeMove(pieceId, cardIndex);
 

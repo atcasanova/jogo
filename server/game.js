@@ -156,7 +156,7 @@ class Game {
   const debug = process.env.DEBUG === 'true';
 
   if (debug) {
-    const fixedValues = ['K', 'Q', '7', '8', 'JOKER'];
+    const fixedValues = ['K', 'Q', 'T', '8', 'JOKER'];
     for (const player of this.players) {
       player.cards = [];
       for (const value of fixedValues) {
