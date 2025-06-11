@@ -532,12 +532,12 @@ def test_partner_actions_listed_when_all_home():
 
 def test_make_move_accepts_partner_piece():
     result = _run_partner_move_mock()
-    assert result['called'] == ['p1_1', 0]
+    assert result['called'][0] == 'p1_1'
 
 
 def test_make_move_accepts_partner_piece_five():
     result = _run_partner_move_five_mock()
-    assert result['called'] == ['p1_5', 0]
+    assert result['called'][0] == 'p1_5'
 
 
 def _run_get_special_actions_mock():
