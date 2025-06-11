@@ -490,3 +490,24 @@ def test_step_dispatches_special_move():
         with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
             env.step(60, 0)
     assert mock.call_args[0][0]['action'] == 'makeSpecialMove'
+
+
+def test_step_retries_until_success():
+    env = GameEnvironment()
+
+    responses = [
+        {'success': False, 'gameState': {}, 'gameEnded': False, 'winningTeam': None},
+        {'success': False, 'gameState': {}, 'gameEnded': False, 'winningTeam': None},
+        {'success': True, 'gameState': {}, 'gameEnded': False, 'winningTeam': None}
+    ]
+
+    def _send(cmd):
+        return responses.pop(0)
+
+    with patch.object(env, 'send_command', side_effect=_send) as mock_cmd:
+        with patch.object(env, 'get_valid_actions', side_effect=[[1, 2, 3], [2, 3], [3]]):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                next_state, reward, done = env.step(1, 0)
+
+    assert reward == 0.1
+    assert mock_cmd.call_count == 3
