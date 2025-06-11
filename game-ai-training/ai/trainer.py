@@ -88,8 +88,11 @@ class TrainingManager:
             # Get current state and valid actions
             state = env.get_state(current_player)
             valid_actions = env.get_valid_actions(current_player)
-            
+
             if valid_actions == []:
+                warning(
+                    "No valid actions left", step=step_count, player=current_player
+                )
                 break
             
             # Bot chooses action
