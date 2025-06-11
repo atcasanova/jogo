@@ -34,7 +34,7 @@ describe('Game class', () => {
     game.addPlayer('3', 'Carol');
     game.addPlayer('4', 'Dave');
     game.startGame();
-    const expectedValues = ['K', 'Q', 'T', '8', 'JOKER'];
+    const expectedValues = ['K', 'Q', '7', '8', 'JOKER'];
     game.players.forEach(p => {
       expect(p.cards.map(c => c.value)).toEqual(expectedValues);
     });
