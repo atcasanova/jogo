@@ -70,6 +70,7 @@ without manual intervention. Specifically, when a piece can enter the
 home-stretch or when a Joker move requires choosing a target position, the
 wrapper automatically selects the first valid option.
 
-Support for splitting the movement of a seven card is **not** implemented in
-the wrapper yet. If a bot attempts an unsupported action, no valid moves remain
-and the episode may finish very quickly as the agent runs out of legal actions.
+When a seven card can be split across multiple pieces, `getValidActions` may
+include special actions with IDs of 50 or higher to represent the available
+split moves. If a bot attempts an unsupported action, no valid moves remain and
+the episode may finish very quickly as the agent runs out of legal actions.
