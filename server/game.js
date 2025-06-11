@@ -313,7 +313,7 @@ discardCard(cardIndex) {
 
   // Se nem todas as peças estão no castigo, verificar se o jogador tem peças fora
   if (!allInPenalty) {
-    if (hasMove) {
+    if (hasMove && player.cards.length <= 6) {
       throw new Error("Você ainda tem jogadas disponíveis");
     }
     // Não possui movimentos válidos, permitir descarte
