@@ -290,6 +290,52 @@ def _run_discard_validation_mock():
     return json.loads(lines[-1]) if lines else {}
 
 
+def _run_discard_fallback_mock():
+    """Discard is rejected but wrapper performs a move instead."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  isActive: true,",
+        "  currentPlayerIndex: 0,",
+        "  players: [{ name: 'Bot_0', cards: [{ value: '5' }] }],",
+        "  pieces: [{ id: 'p0_1', completed: false }],",
+        "  discardPile: [],",
+        "  discardCard: function() { throw new Error('Você ainda tem jogadas disponíveis'); },",
+        "  makeMove: function(pid, ci) { this.used = [pid, ci]; return { success: true, action: 'move' }; },",
+        "  cloneForSimulation: function() { return { makeMove: () => {} }; },",
+        "  nextTurn: function() {},",
+        "  getCurrentPlayer: function() { return this.players[this.currentPlayerIndex]; },",
+        "  drawCard: function() { return {}; },",
+        "  checkWinCondition: function() { return false; },",
+        "  getWinningTeam: function() { return null; },",
+        "  getGameState: function() { return {}; },",
+        "  stats: { jokersPlayed: [0] }",
+        "};",
+        "const res = wrapper.makeMove(0, 70);",
+        "process.stdout.write(JSON.stringify({ res, used: wrapper.game.used }));"
+    ]
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.startswith('{')]
+    return json.loads(lines[-1]) if lines else {}
+
+
 def test_joker_updates_history():
     result = _run_joker_history_mock()
     assert result['history'][-1] == 'Bot_0 moveu p0_1 com C'
@@ -298,6 +344,11 @@ def test_joker_updates_history():
 def test_discard_fails_when_move_available():
     result = _run_discard_validation_mock()
     assert result['success'] is False
+
+
+def test_discard_fallback_executes_move():
+    result = _run_discard_fallback_mock()
+    assert result['res']['success'] is True
 
 
 def _run_hidden_move_mock():
