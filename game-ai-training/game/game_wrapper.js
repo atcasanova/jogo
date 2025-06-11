@@ -284,6 +284,56 @@ class GameWrapper {
                                 }
                             }
                         }
+
+                        if (!result) {
+                            for (let ci = 0; ci < player.cards.length && !result; ci++) {
+                                if (player.cards[ci].value !== '7') continue;
+                                const pieceIds = [];
+                                for (let pn = 1; pn <= 5; pn++) {
+                                    const pid = `p${playerId}_${pn}`;
+                                    const p = this.game.pieces.find(pp => pp.id === pid && !pp.completed && !pp.inPenaltyZone);
+                                    if (p) pieceIds.push(pid);
+                                }
+                                for (let i = 0; i < pieceIds.length && !result; i++) {
+                                    for (let j = i + 1; j < pieceIds.length && !result; j++) {
+                                        for (let s = 1; s <= 6 && !result; s++) {
+                                            const moves = [
+                                                { pieceId: pieceIds[i], steps: s },
+                                                { pieceId: pieceIds[j], steps: 7 - s }
+                                            ];
+                                            const sim = this.game.cloneForSimulation();
+                                            try {
+                                                sim.makeSpecialMove(moves);
+                                                playedCard = player.cards[ci];
+                                                result = this.game.makeSpecialMove(moves);
+                                                if (result && result.action === 'homeEntryChoice') {
+                                                    result = this.game.resumeSpecialMove(true);
+                                                }
+                                            } catch (err) {
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
+                                if (!result) {
+                                    for (let k = 0; k < pieceIds.length && !result; k++) {
+                                        const moves = [{ pieceId: pieceIds[k], steps: 7 }];
+                                        const sim = this.game.cloneForSimulation();
+                                        try {
+                                            sim.makeSpecialMove(moves);
+                                            playedCard = player.cards[ci];
+                                            result = this.game.makeSpecialMove(moves);
+                                            if (result && result.action === 'homeEntryChoice') {
+                                                result = this.game.resumeSpecialMove(true);
+                                            }
+                                        } catch (err) {
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         if (!result) throw e;
                     } else {
                         throw e;
