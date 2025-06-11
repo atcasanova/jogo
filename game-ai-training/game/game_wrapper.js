@@ -247,7 +247,48 @@ class GameWrapper {
             if (actionId >= 70) {
                 const cardIndex = actionId - 70;
                 playedCard = this.game.players[playerId].cards[cardIndex];
-                result = this.game.discardCard(cardIndex);
+                try {
+                    result = this.game.discardCard(cardIndex);
+                } catch (e) {
+                    if (e.message && e.message.includes('jogadas disponíveis')) {
+                        const player = this.game.players[playerId];
+                        for (let ci = 0; ci < player.cards.length && !result; ci++) {
+                            for (let pn = 1; pn <= 5; pn++) {
+                                const pid = `p${playerId}_${pn}`;
+                                const piece = this.game.pieces.find(p => p.id === pid && !p.completed);
+                                if (!piece) continue;
+                                const sim = this.game.cloneForSimulation();
+                                try {
+                                    sim.makeMove(pid, ci);
+                                    playedCard = player.cards[ci];
+                                    result = this.game.makeMove(pid, ci);
+                                    if (result && result.action === 'homeEntryChoice') {
+                                        result = this.game.makeMove(pid, ci, true);
+                                    }
+                                    if (result && result.action === 'choosePosition') {
+                                        const target = result.validPositions && result.validPositions[0];
+                                        if (!target) throw new Error('No valid Joker positions');
+                                        const realPiece = this.game.pieces.find(p => p.id === pid);
+                                        result = this.game.moveToSelectedPosition(realPiece, target.id);
+                                        this.game.discardPile.push(playedCard);
+                                        player.cards.splice(ci, 1);
+                                        jokerPlayed = true;
+                                        const playerName = player.name;
+                                        const msg = `${playerName} moveu ${pid} com C`;
+                                        this.game.history.push(msg);
+                                        this.game.nextTurn();
+                                    }
+                                    break;
+                                } catch (err) {
+                                    continue;
+                                }
+                            }
+                        }
+                        if (!result) throw e;
+                    } else {
+                        throw e;
+                    }
+                }
             } else {
                 const cardIndex = Math.floor(actionId / 10);
                 const pieceNumber = actionId % 10;
