@@ -153,7 +153,7 @@ class GameWrapper {
             const validActions = [];
             const player = this.game.players[playerId];
             this.specialActions = {};
-            let specialId = 50;
+            let specialId = 50; // range 50-59 reserved for special moves
 
             // Limit to the first 5 cards so that generated action IDs never
             // exceed the Python trainer's action space of 50. Each card index
@@ -214,11 +214,11 @@ class GameWrapper {
             }
 
             if (!this.game.hasAnyValidMove(playerId)) {
-                // Discard actions use IDs 40-49 (10 possible discards). Constrain
-                // the number of cards considered so action IDs remain < 50.
+                // Discard actions use IDs 60-69 (10 possible discards). Constrain
+                // the number of cards considered so action IDs remain < 70.
                 const maxDiscardCards = Math.min(player.cards.length, 10);
                 for (let cardIdx = 0; cardIdx < maxDiscardCards; cardIdx++) {
-                    validActions.push(40 + cardIdx);
+                    validActions.push(60 + cardIdx);
                 }
             }
 
@@ -241,8 +241,8 @@ class GameWrapper {
             let result;
             let playedCard;
             let jokerPlayed = false;
-            if (actionId >= 40) {
-                const cardIndex = actionId - 40;
+            if (actionId >= 60) {
+                const cardIndex = actionId - 60;
                 playedCard = this.game.players[playerId].cards[cardIndex];
                 result = this.game.discardCard(cardIndex);
             } else {
