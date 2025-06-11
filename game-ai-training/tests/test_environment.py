@@ -23,6 +23,13 @@ def test_get_valid_actions_limits_to_ten():
     assert actions == list(range(10))
 
 
+def test_get_valid_actions_returns_empty_on_error():
+    env = GameEnvironment()
+    with patch.object(env, 'send_command', return_value={'error': 'fail'}):
+        actions = env.get_valid_actions(0)
+    assert actions == []
+
+
 def test_step_updates_game_state_and_returns_rewards():
     env = GameEnvironment()
     with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {'foo': 'bar'}, 'gameEnded': False, 'winningTeam': None}):

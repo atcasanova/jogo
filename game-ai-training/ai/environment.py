@@ -223,6 +223,9 @@ class GameEnvironment:
             "playerId": player_id
         })
         
+        if 'error' in response:
+            return []
+
         actions = response.get("validActions", [0])
         # Ensure actions are within the defined action space. The Node.js
         # wrapper should already enforce this, but extra validation guards
