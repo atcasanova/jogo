@@ -222,8 +222,13 @@ class GameWrapper {
                 }
             }
 
-            if (validActions.length === 0 && player.cards.length > 0) {
+            if (
+                validActions.length === 0 &&
+                player.cards.length > 0 &&
+                !this.game.hasAnyValidMove(playerId)
+            ) {
                 // Fallback to discarding the first card so training can continue
+                // only when no valid move exists at all
                 validActions.push(60);
             }
 
