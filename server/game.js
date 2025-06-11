@@ -1400,19 +1400,47 @@ discardCard(cardIndex) {
     }
 
     for (const card of player.cards) {
-      for (const piece of pieces) {
-        const tempGame = this.cloneForSimulation();
-        const tempPiece = tempGame.pieces.find(p => p.id === piece.id);
-
-        try {
-          if (card.value === '7') {
-            tempGame.movePieceForward(tempPiece, 7);
-          } else {
-            tempGame.executeMove(tempPiece, card);
+      if (card.value === '7') {
+        // First look for valid split moves involving two distinct pieces
+        for (const pieceA of pieces) {
+          for (const pieceB of pieces) {
+            if (pieceA.id === pieceB.id) continue;
+            for (let s = 1; s <= 6; s++) {
+              const moves = [
+                { pieceId: pieceA.id, steps: s },
+                { pieceId: pieceB.id, steps: 7 - s }
+              ];
+              const tempGame = this.cloneForSimulation();
+              try {
+                tempGame.makeSpecialMove(moves);
+                return true;
+              } catch (e) {
+                continue;
+              }
+            }
           }
-          return true;
-        } catch (e) {
-          continue;
+        }
+
+        // If no split is possible, check single-piece moves
+        for (const piece of pieces) {
+          const tempGame = this.cloneForSimulation();
+          try {
+            tempGame.makeSpecialMove([{ pieceId: piece.id, steps: 7 }]);
+            return true;
+          } catch (e) {
+            continue;
+          }
+        }
+      } else {
+        for (const piece of pieces) {
+          const tempGame = this.cloneForSimulation();
+          const tempPiece = tempGame.pieces.find(p => p.id === piece.id);
+          try {
+            tempGame.executeMove(tempPiece, card);
+            return true;
+          } catch (e) {
+            continue;
+          }
         }
       }
     }

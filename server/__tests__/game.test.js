@@ -541,6 +541,29 @@ describe('Game class', () => {
     expect(game.hasAnyValidMove(player.position)).toBe(false);
   });
 
+  test('hasAnyValidMove true with 7 when only one piece can move', () => {
+    const game = new Game('single7');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.startGame();
+
+    const movable = game.pieces.find(p => p.id === 'p0_1');
+    movable.inPenaltyZone = false;
+    movable.position = { row: 0, col: 0 };
+
+    const others = game.pieces.filter(p => p.playerId === 0 && p.id !== movable.id);
+    others.forEach(p => {
+      p.inPenaltyZone = true;
+    });
+
+    game.players[0].cards = [{ suit: '♠', value: '7' }];
+    game.currentPlayerIndex = 0;
+
+    expect(game.hasAnyValidMove(0)).toBe(true);
+  });
+
   test('player can control partner pieces after all in home stretch', () => {
     const game = new Game('partnerPlay');
     game.addPlayer('1', 'A');
