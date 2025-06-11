@@ -1410,7 +1410,13 @@ discardCard(cardIndex) {
   cloneForSimulation() {
     const clone = new Game(this.roomId);
     clone.players = JSON.parse(JSON.stringify(this.players));
-    clone.teams = JSON.parse(JSON.stringify(this.teams));
+
+    // Recreate team arrays referencing the cloned player objects so that
+    // identity checks like `team.includes(playerObj)` continue to work.
+    clone.teams = this.teams.map(team =>
+      team.map(p => clone.players.find(cp => cp.id === p.id))
+    );
+
     clone.deck = JSON.parse(JSON.stringify(this.deck));
     clone.discardPile = JSON.parse(JSON.stringify(this.discardPile));
     clone.currentPlayerIndex = this.currentPlayerIndex;
