@@ -399,43 +399,62 @@ class Game {
     
     const moveResults = [];
 
-    // Executar cada movimento
-    for (let i = 0; i < moves.length; i++) {
-      const move = moves[i];
-      const piece = this.pieces.find(p => p.id === move.pieceId);
+    // Salvar estado antes de executar os movimentos
+    const snapshot = {
+      pieces: JSON.parse(JSON.stringify(this.pieces)),
+      players: JSON.parse(JSON.stringify(this.players)),
+      discardPile: JSON.parse(JSON.stringify(this.discardPile)),
+      stats: JSON.parse(JSON.stringify(this.stats)),
+      pendingSpecialMove: this.pendingSpecialMove ? JSON.parse(JSON.stringify(this.pendingSpecialMove)) : null
+    };
 
-      const oldPosition = { ...piece.position };
-      
-      if (!piece) {
-        throw new Error("Peça inválida");
-      }
-      
-      if (!this.canControlPiece(this.currentPlayerIndex, piece.playerId)) {
-        throw new Error("Esta peça não pertence a você");
-      }
-      
-      const result = this.movePieceForward(
-        piece,
-        move.steps,
-        Object.prototype.hasOwnProperty.call(move, 'enterHome') ? move.enterHome : null
-      );
+    try {
+      // Executar cada movimento
+      for (let i = 0; i < moves.length; i++) {
+        const move = moves[i];
+        const piece = this.pieces.find(p => p.id === move.pieceId);
 
-      moveResults.push({
-        pieceId: piece.id,
-        oldPosition,
-        newPosition: { ...piece.position },
-        result
-      });
+        const oldPosition = { ...piece.position };
 
-      if (result && result.action === 'homeEntryChoice') {
-        this.pendingSpecialMove = {
-          moves,
-          moveResults,
-          nextIndex: i,
-          cardIndex
-        };
-        return { ...result, moveIndex: i, moves: moveResults };
+        if (!piece) {
+          throw new Error("Peça inválida");
+        }
+
+        if (!this.canControlPiece(this.currentPlayerIndex, piece.playerId)) {
+          throw new Error("Esta peça não pertence a você");
+        }
+
+        const result = this.movePieceForward(
+          piece,
+          move.steps,
+          Object.prototype.hasOwnProperty.call(move, 'enterHome') ? move.enterHome : null
+        );
+
+        moveResults.push({
+          pieceId: piece.id,
+          oldPosition,
+          newPosition: { ...piece.position },
+          result
+        });
+
+        if (result && result.action === 'homeEntryChoice') {
+          this.pendingSpecialMove = {
+            moves,
+            moveResults,
+            nextIndex: i,
+            cardIndex
+          };
+          return { ...result, moveIndex: i, moves: moveResults };
+        }
       }
+    } catch (err) {
+      // Reverter para o estado salvo
+      this.pieces = snapshot.pieces;
+      this.players = snapshot.players;
+      this.discardPile = snapshot.discardPile;
+      this.stats = snapshot.stats;
+      this.pendingSpecialMove = snapshot.pendingSpecialMove;
+      throw err;
     }
     
     // Remover a carta 7 da mão do jogador
@@ -449,7 +468,6 @@ class Game {
 
     this.pendingSpecialMove = null;
 
-    this.history.push(`${player.name} usou a carta 7`);
     return { success: true, moves: moveResults };
   }
 
@@ -461,37 +479,54 @@ class Game {
     const { moves, moveResults, nextIndex, cardIndex } = this.pendingSpecialMove;
     moves[nextIndex].enterHome = enterHome;
 
-    for (let i = nextIndex; i < moves.length; i++) {
-      const move = moves[i];
-      const piece = this.pieces.find(p => p.id === move.pieceId);
-      const oldPosition = { ...piece.position };
+    const snapshot = {
+      pieces: JSON.parse(JSON.stringify(this.pieces)),
+      players: JSON.parse(JSON.stringify(this.players)),
+      discardPile: JSON.parse(JSON.stringify(this.discardPile)),
+      stats: JSON.parse(JSON.stringify(this.stats)),
+      pendingSpecialMove: this.pendingSpecialMove ? JSON.parse(JSON.stringify(this.pendingSpecialMove)) : null
+    };
 
-      const result = this.movePieceForward(
-        piece,
-        move.steps,
-        Object.prototype.hasOwnProperty.call(move, 'enterHome') ? move.enterHome : null
-      );
+    try {
+      for (let i = nextIndex; i < moves.length; i++) {
+        const move = moves[i];
+        const piece = this.pieces.find(p => p.id === move.pieceId);
+        const oldPosition = { ...piece.position };
 
-      if (moveResults[i]) {
-        moveResults[i] = {
-          pieceId: piece.id,
-          oldPosition,
-          newPosition: { ...piece.position },
-          result
-        };
-      } else {
-        moveResults.push({
-          pieceId: piece.id,
-          oldPosition,
-          newPosition: { ...piece.position },
-          result
-        });
+        const result = this.movePieceForward(
+          piece,
+          move.steps,
+          Object.prototype.hasOwnProperty.call(move, 'enterHome') ? move.enterHome : null
+        );
+
+        if (moveResults[i]) {
+          moveResults[i] = {
+            pieceId: piece.id,
+            oldPosition,
+            newPosition: { ...piece.position },
+            result
+          };
+        } else {
+          moveResults.push({
+            pieceId: piece.id,
+            oldPosition,
+            newPosition: { ...piece.position },
+            result
+          });
+        }
+
+        if (result && result.action === 'homeEntryChoice') {
+          this.pendingSpecialMove = { moves, moveResults, nextIndex: i, cardIndex };
+          return { ...result, moveIndex: i, moves: moveResults };
+        }
       }
-
-      if (result && result.action === 'homeEntryChoice') {
-        this.pendingSpecialMove = { moves, moveResults, nextIndex: i, cardIndex };
-        return { ...result, moveIndex: i, moves: moveResults };
-      }
+    } catch (err) {
+      this.pieces = snapshot.pieces;
+      this.players = snapshot.players;
+      this.discardPile = snapshot.discardPile;
+      this.stats = snapshot.stats;
+      this.pendingSpecialMove = snapshot.pendingSpecialMove;
+      throw err;
     }
 
     const player = this.getCurrentPlayer();
@@ -500,7 +535,6 @@ class Game {
 
     this.nextTurn();
     this.pendingSpecialMove = null;
-    this.history.push(`${player.name} concluiu movimento especial`);
     return { success: true, moves: moveResults };
   }
 
