@@ -1523,6 +1523,17 @@ discardCard(cardIndex) {
       stats: this.stats
     };
   }
+
+  getGameStateWithCards() {
+    const state = this.getGameState();
+    state.players = this.players.map(p => ({
+      id: p.id,
+      name: p.name,
+      position: p.position,
+      cards: p.cards
+    }));
+    return state;
+  }
 }
 
 module.exports = { Game };

@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const prevBtn = document.getElementById('prev-move');
   const nextBtn = document.getElementById('next-move');
   const fileList = document.getElementById('replay-files');
+  const cardsContainer = document.getElementById('cards-container');
 
   const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
   let replayData = [];
@@ -128,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lastMoveDiv.textContent = item.move || '';
     updateInfo(state);
     updateBoard(state);
+    updateCards(state.currentPlayerCards || []);
   }
 
   function updateInfo(state) {
@@ -255,12 +257,28 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function updateCards(cards) {
+    if (!cardsContainer) return;
+    cardsContainer.innerHTML = '';
+    cards.forEach(card => {
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.innerHTML = createCardHTML(card);
+      cardsContainer.appendChild(el);
+    });
+    cardsContainer.classList.remove('compact');
+    if (cardsContainer.scrollWidth > cardsContainer.clientWidth) {
+      cardsContainer.classList.add('compact');
+    }
+  }
+
   function adjustBoardSize() {
     const info = document.querySelector('.game-info');
+    const hand = document.querySelector('.player-hand');
     const cssMax = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.8);
     let size = cssMax;
-    if (info) {
-      const available = window.innerHeight - info.offsetHeight - 32;
+    if (info && hand) {
+      const available = window.innerHeight - info.offsetHeight - hand.offsetHeight - 32;
       size = Math.min(cssMax, available);
     }
     board.style.width = `${size}px`;
