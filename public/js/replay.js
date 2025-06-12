@@ -129,7 +129,13 @@ document.addEventListener('DOMContentLoaded', () => {
     lastMoveDiv.textContent = item.move || '';
     updateInfo(state);
     updateBoard(state);
-    updateCards(state.currentPlayerCards || []);
+    const currentCards =
+      state.currentPlayerCards ||
+      (state.players &&
+        state.players[state.currentPlayerIndex] &&
+        state.players[state.currentPlayerIndex].cards) ||
+      [];
+    updateCards(currentCards);
   }
 
   function updateInfo(state) {
