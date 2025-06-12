@@ -1298,13 +1298,16 @@ discardCard(cardIndex) {
     // Jogador não é parceiro de si mesmo
     if (playerId1 === playerId2) return false;
 
-    // Verificar se os jogadores são parceiros usando
-    // os índices atuais na lista de jogadores
-    const playerObj1 = this.players[playerId1];
-    const playerObj2 = this.players[playerId2];
-    if (!playerObj1 || !playerObj2) return false;
-    return this.teams.some(
-      team => team.includes(playerObj1) && team.includes(playerObj2)
+    // Buscar os IDs atuais dos jogadores. Mesmo que os objetos dos jogadores
+    // tenham sido recriados (por exemplo, após uma reconexão ou carga de
+    // estado), seus IDs permanecem constantes. Usar os IDs evita depender da
+    // identidade dos objetos em `this.teams`, que pode ficar obsoleta.
+    const id1 = this.players[playerId1]?.id;
+    const id2 = this.players[playerId2]?.id;
+    if (!id1 || !id2) return false;
+
+    return this.teams.some(team =>
+      team.some(p => p.id === id1) && team.some(p => p.id === id2)
     );
   }
 
