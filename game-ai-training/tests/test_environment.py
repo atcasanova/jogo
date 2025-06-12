@@ -16,11 +16,11 @@ def test_reset_returns_zero_when_start_fails():
     assert np.all(state == 0)
 
 
-def test_get_valid_actions_limits_to_ten():
+def test_get_valid_actions_returns_all_actions():
     env = GameEnvironment()
     with patch.object(env, 'send_command', return_value={'validActions': list(range(15))}):
         actions = env.get_valid_actions(0)
-    assert actions == list(range(10))
+    assert actions == list(range(15))
 
 
 def test_get_valid_actions_returns_empty_on_error():
@@ -103,8 +103,6 @@ def _run_get_valid_actions_mock(has_move: bool):
         "const filename = path.join('game-ai-training','game','game_wrapper.js');",
         "let code = fs.readFileSync(filename, 'utf8');",
         "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
-        "code = code.replace('return validActions.length > 0 ? validActions.slice(0, 10) : [];', 'return validActions;');",
-        "code = code.replace('return validActions.slice(0, 10);', 'return validActions;');",
         "const m = new Module(filename);",
         "m.filename = filename;",
         "m.paths = Module._nodeModulePaths(path.dirname(filename));",
@@ -654,7 +652,6 @@ def _run_get_special_actions_mock():
         "const filename = path.join('game-ai-training','game','game_wrapper.js');",
         "let code = fs.readFileSync(filename, 'utf8');",
         "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
-        "code = code.replace('return validActions.length > 0 ? validActions.slice(0, 10) : [];', 'return validActions;');",
         "const m = new Module(filename);",
         "m.filename = filename;",
         "m.paths = Module._nodeModulePaths(path.dirname(filename));",
@@ -692,7 +689,6 @@ def _run_single_piece_seven_mock():
         "const filename = path.join('game-ai-training','game','game_wrapper.js');",
         "let code = fs.readFileSync(filename, 'utf8');",
         "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
-        "code = code.replace('return validActions.length > 0 ? validActions.slice(0, 10) : [];', 'return validActions;');",
         "const m = new Module(filename);",
         "m.filename = filename;",
         "m.paths = Module._nodeModulePaths(path.dirname(filename));",

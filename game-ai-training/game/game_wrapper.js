@@ -266,7 +266,9 @@ class GameWrapper {
                 }
             }
 
-            return validActions.slice(0, 10);
+            // Return the complete list of valid actions without truncation so
+            // the training environment can consider every possible move.
+            return validActions;
         } catch (error) {
             return [];
         }
