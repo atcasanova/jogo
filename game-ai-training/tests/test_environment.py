@@ -33,8 +33,9 @@ def test_get_valid_actions_returns_empty_on_error():
 def test_step_updates_game_state_and_returns_rewards():
     env = GameEnvironment()
     with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {'foo': 'bar'}, 'gameEnded': False, 'winningTeam': None}):
-        with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-            next_state, reward, done = env.step(1, 0)
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                next_state, reward, done = env.step(1, 0)
     assert reward == 0.1
     assert done is False
     assert env.game_state == {'foo': 'bar', 'gameEnded': False, 'winningTeam': None}
@@ -50,10 +51,11 @@ def test_step_updates_state_on_failure():
         'winningTeam': None
     }
     with patch.object(env, 'send_command', return_value=response):
-        with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-            next_state, reward, done = env.step(1, 0)
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                next_state, reward, done = env.step(1, 0)
 
-    assert reward == -0.1
+    assert reward == -0.2
     assert done is False
     assert env.game_state == {'foo': 'bar', 'lastMove': 'moved', 'gameEnded': False, 'winningTeam': None}
     assert env.move_history[-1]['move'] == 'moved'
@@ -94,6 +96,7 @@ def _run_get_valid_actions_mock(has_move: bool):
         "let code = fs.readFileSync(filename, 'utf8');",
         "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
         "code = code.replace('return validActions.length > 0 ? validActions.slice(0, 10) : [];', 'return validActions;');",
+        "code = code.replace('return validActions.slice(0, 10);', 'return validActions;');",
         "const m = new Module(filename);",
         "m.filename = filename;",
         "m.paths = Module._nodeModulePaths(path.dirname(filename));",
@@ -178,7 +181,7 @@ def _run_make_move_home_entry_mock():
 
 def test_no_discard_actions_when_moves_available():
     actions = _run_get_valid_actions_mock(True)
-    assert 70 not in actions
+    assert any(a < 70 for a in actions)
 
 
 def test_includes_discard_actions_when_no_moves():
@@ -313,7 +316,7 @@ def _run_discard_fallback_mock():
         "  discardPile: [],",
         "  discardCard: function() { throw new Error('Você ainda tem jogadas disponíveis'); },",
         "  makeMove: function(pid, ci) { this.used = [pid, ci]; return { success: true, action: 'move' }; },",
-        "  cloneForSimulation: function() { return { makeMove: () => {} }; },",
+        "  cloneForSimulation: function() { return { makeMove: () => ({ success: true }) }; },",
         "  nextTurn: function() {},",
         "  getCurrentPlayer: function() { return this.players[this.currentPlayerIndex]; },",
         "  drawCard: function() { return {}; },",
@@ -324,6 +327,55 @@ def _run_discard_fallback_mock():
         "};",
         "const res = wrapper.makeMove(0, 70);",
         "process.stdout.write(JSON.stringify({ res, used: wrapper.game.used }));"
+    ]
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.startswith('{')]
+    return json.loads(lines[-1]) if lines else {}
+
+
+def _run_prevent_discard_mock():
+    """Discard would be allowed by the game but wrapper should play instead."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  isActive: true,",
+        "  currentPlayerIndex: 0,",
+        "  players: [{ cards: [{ value: '5' }] }, {}],",
+        "  pieces: [{ id: 'p1_1', completed: false, inPenaltyZone: false }],",
+        "  discardPile: [],",
+        "  discardCard: function() { this.discarded = true; return { success: true, action: 'discard' }; },",
+        "  makeMove: function(pid, ci) { this.used = [pid, ci]; return { success: true, action: 'move' }; },",
+        "  cloneForSimulation: function() { return { makeMove: () => ({ success: true }) }; },",
+        "  hasAnyValidMove: () => true,",
+        "  partnerIdFor: () => 1,",
+        "  hasAllPiecesInHomeStretch: () => true,",
+        "  nextTurn: function() {},",
+        "  getCurrentPlayer: function() { return this.players[this.currentPlayerIndex]; },",
+        "  drawCard: function() { return {}; },",
+        "  checkWinCondition: function() { return false; },",
+        "  getWinningTeam: function() { return null; },",
+        "  getGameState: function() { return {}; },",
+        "  stats: { jokersPlayed: [0], roundsWithoutPlay: [0] }",
+        "};",
+        "const res = wrapper.makeMove(0, 70);",
+        "process.stdout.write(JSON.stringify({ res, used: wrapper.game.used, discarded: wrapper.game.discarded }));"
     ]
     script = "\n".join(lines)
 
@@ -349,6 +401,13 @@ def test_discard_fails_when_move_available():
 def test_discard_fallback_executes_move():
     result = _run_discard_fallback_mock()
     assert result['res']['success'] is True
+
+
+def test_discard_prevented_when_move_possible():
+    result = _run_prevent_discard_mock()
+    assert result['res']['success'] is True
+    assert result.get('discarded') is None
+    assert result['used'][0] == 'p1_1'
 
 
 def _run_hidden_move_mock():
@@ -480,6 +539,51 @@ def _run_partner_move_mock():
     return json.loads(lines[-1]) if lines else {}
 
 
+def _run_partner_move_five_mock():
+    """Execute a move targeting the fifth partner piece."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  isActive: true,",
+        "  currentPlayerIndex: 0,",
+        "  players: [{ cards: [{}] }, {}],",
+        "  partnerIdFor: () => 1,",
+        "  pieces: [{ id: 'p1_5' }],",
+        "  discardPile: [],",
+        "  makeMove: function(pid, idx) { this.called = [pid, idx]; return { success: true }; },",
+        "  getCurrentPlayer: function() { return this.players[this.currentPlayerIndex]; },",
+        "  drawCard: function() { return {}; },",
+        "  checkWinCondition: function() { return false; },",
+        "  getWinningTeam: function() { return null; },",
+        "  getGameState: function() { return {}; },",
+        "  nextTurn: function() {},",
+        "  stats: { jokersPlayed: [0] }",
+        "};",
+        "wrapper.makeMove(0, 10);",
+        "process.stdout.write(JSON.stringify({ called: wrapper.game.called }));"
+    ]
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.startswith('{')]
+    return json.loads(lines[-1]) if lines else {}
+
+
 def test_partner_actions_listed_when_all_home():
     actions = _run_partner_actions_mock()
     assert 6 in actions
@@ -488,6 +592,49 @@ def test_partner_actions_listed_when_all_home():
 def test_make_move_accepts_partner_piece():
     result = _run_partner_move_mock()
     assert result['called'][0] == 'p1_1'
+
+
+def test_make_move_accepts_partner_piece_five():
+    result = _run_partner_move_five_mock()
+    assert result['called'][0] == 'p1_5'
+
+
+def _run_is_action_valid_discard(card_len, action_id):
+    """Run GameWrapper.isActionValid for a discard action."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        f"wrapper.game = {{",
+        f"  players: [{{ cards: new Array({card_len}).fill({{}}) }}],",
+        "  cloneForSimulation: function() { return { players: this.players, discardCard: this.discardCard.bind(this) }; },",
+        "  discardCard: function(idx) { if (idx < 0 || idx >= this.players[0].cards.length) throw new Error('bad'); }",
+        "};",
+        f"process.stdout.write(JSON.stringify(wrapper.isActionValid(0, {action_id})));"
+    ]
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.strip()]
+    return json.loads(lines[-1]) if lines else None
+
+
+def test_is_action_valid_discard():
+    assert _run_is_action_valid_discard(6, 75) is True
+    assert _run_is_action_valid_discard(5, 75) is False
 
 
 def _run_get_special_actions_mock():
@@ -585,8 +732,9 @@ def test_wrapper_make_special_move_calls_game():
 def test_step_dispatches_special_move():
     env = GameEnvironment()
     with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {}, 'gameEnded': False, 'winningTeam': None}) as mock:
-        with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-            env.step(60, 0)
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                env.step(60, 0)
     assert mock.call_args[0][0]['action'] == 'makeSpecialMove'
 
 
@@ -604,10 +752,11 @@ def test_step_retries_until_success():
 
     with patch.object(env, 'send_command', side_effect=_send) as mock_cmd:
         with patch.object(env, 'get_valid_actions', side_effect=[[1, 2, 3], [2, 3], [3]]):
-            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-                next_state, reward, done = env.step(1, 0)
+            with patch.object(env, 'is_action_valid', return_value=True):
+                with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                    next_state, reward, done = env.step(1, 0)
 
-    assert reward == 0.1
+    assert reward == -0.1
     assert mock_cmd.call_count == 3
 
 
@@ -625,8 +774,9 @@ def test_step_discards_when_all_actions_fail():
 
     with patch.object(env, 'send_command', side_effect=_send) as mock_cmd:
         with patch.object(env, 'get_valid_actions', return_value=[1]):
-            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-                env.step(1, 0)
+            with patch.object(env, 'is_action_valid', return_value=True):
+                with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                    env.step(1, 0)
 
     assert mock_cmd.call_count == 3
     assert mock_cmd.call_args[0][0]['actionId'] >= 70

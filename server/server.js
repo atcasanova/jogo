@@ -93,6 +93,11 @@ function logTurnState(game) {
   console.log(`Mão: ${hand}`);
   console.log(`Suas peças: ${ownPieces}`);
   console.log(`Outros: ${others}`);
+
+  const snap = game.getGameStateWithCards();
+  delete snap.lastMove;
+  snap.currentPlayerCards = player.cards.map(c => ({ ...c }));
+  game.history.push({ move: `Turno de ${player.name}`, state: snap });
 }
 
 function logMoveDetails(player, pieceId, oldPos, result, game, card) {
@@ -154,7 +159,7 @@ function logMoveDetails(player, pieceId, oldPos, result, game, card) {
     message += ' e avançou para o corredor de chegada';
   }
 
-  const snapState = game.getGameState();
+  const snapState = game.getGameStateWithCards();
   delete snapState.lastMove;
   const snapshot = JSON.parse(JSON.stringify(snapState));
   game.history.push({ move: message, state: snapshot });
@@ -169,7 +174,7 @@ function announceHomeStretch(game, roomId) {
         const playerName = game.players[i].name;
         const partnerName = game.players[partnerId].name;
         const msg = `${playerName} agora pode jogar com as peças de ${partnerName}`;
-        const snapState = game.getGameState();
+        const snapState = game.getGameStateWithCards();
         delete snapState.lastMove;
         const snap = JSON.parse(JSON.stringify(snapState));
         game.history.push({ move: msg, state: snap });

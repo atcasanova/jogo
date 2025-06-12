@@ -112,7 +112,10 @@ class GameWrapper {
 
                 case 'makeSpecialMove':
                     return this.makeSpecialMove(command.playerId, command.actionId);
-                    
+
+                case 'isActionValid':
+                    return { valid: this.isActionValid(command.playerId, command.actionId) };
+
                 default:
                     return { error: `Unknown action: ${command.action}` };
             }
@@ -150,7 +153,8 @@ class GameWrapper {
                 return [0];
             }
 
-            const validActions = [];
+            const moveActions = [];
+            const specialActionsList = [];
             const player = this.game.players[playerId];
             this.specialActions = {};
             // range 60-69 reserved for special moves
@@ -176,24 +180,8 @@ class GameWrapper {
                 }
             }
 
-            for (let cardIdx = 0; cardIdx < maxMoveCards; cardIdx++) {
-                for (const info of pieceInfos) {
-                    const piece = this.game.pieces.find(p => p.id === info.id);
-                    if (!piece || piece.completed) {
-                        continue;
-                    }
-
-                    const clone = this.game.cloneForSimulation();
-                    try {
-                        clone.makeMove(info.id, cardIdx);
-                        validActions.push(cardIdx * 10 + info.num);
-                    } catch (e) {
-                        // invalid move, ignore
-                    }
-                }
-            }
-
-            // Generate special move actions for card 7
+            // Generate special move actions for card 7 first so they are not
+            // truncated when many normal moves exist.
             for (let cardIdx = 0; cardIdx < Math.min(player.cards.length, 4); cardIdx++) {
                 if (player.cards[cardIdx].value !== '7') continue;
 
@@ -208,7 +196,6 @@ class GameWrapper {
                 for (let i = 0; i < movable.length; i++) {
                     for (let j = i + 1; j < movable.length; j++) {
                         for (let steps = 1; steps <= 6; steps++) {
-                            if (validActions.length >= 10) break;
                             const moves = [
                                 { pieceId: movable[i], steps },
                                 { pieceId: movable[j], steps: 7 - steps }
@@ -216,7 +203,7 @@ class GameWrapper {
                             const clone = this.game.cloneForSimulation();
                             try {
                                 clone.makeSpecialMove(moves);
-                                validActions.push(specialId);
+                                specialActionsList.push(specialId);
                                 this.specialActions[specialId] = moves;
                                 specialId++;
                             } catch (e) {
@@ -226,6 +213,25 @@ class GameWrapper {
                     }
                 }
             }
+
+            for (let cardIdx = 0; cardIdx < maxMoveCards; cardIdx++) {
+                for (const info of pieceInfos) {
+                    const piece = this.game.pieces.find(p => p.id === info.id);
+                    if (!piece || piece.completed) {
+                        continue;
+                    }
+
+                    const clone = this.game.cloneForSimulation();
+                    try {
+                        clone.makeMove(info.id, cardIdx);
+                        moveActions.push(cardIdx * 10 + info.num);
+                    } catch (e) {
+                        // invalid move, ignore
+                    }
+                }
+            }
+
+            const validActions = [...specialActionsList, ...moveActions];
 
             if (validActions.length === 0) {
                 // If no moves were generated, allow discarding any card. This
@@ -241,6 +247,138 @@ class GameWrapper {
             return validActions.slice(0, 10);
         } catch (error) {
             return [];
+        }
+    }
+
+    findFirstAvailableAction(playerId) {
+        try {
+            if (!this.game || !this.game.players || !this.game.players[playerId]) {
+                return null;
+            }
+
+            const actions = this.getValidActions(playerId);
+            if (!actions || actions.length === 0) {
+                return null;
+            }
+
+            for (const action of actions) {
+                const clone = this.game.cloneForSimulation();
+
+                if (action >= 60) {
+                    const moves = this.specialActions[action];
+                    if (!moves) continue;
+                    try {
+                        clone.makeSpecialMove(moves);
+                        return action;
+                    } catch (e) {
+                        continue;
+                    }
+                } else {
+                    const cardIndex = Math.floor(action / 10);
+                    let pieceNumber = action % 10;
+                    if (pieceNumber === 0) {
+                        pieceNumber = 10;
+                    }
+                    let ownerId = playerId;
+                    if (pieceNumber > 5) {
+                        const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
+                        if (partner === null || partner === undefined) {
+                            continue;
+                        }
+                        ownerId = partner;
+                        pieceNumber -= 5;
+                    }
+                    const pid = `p${ownerId}_${pieceNumber}`;
+                    try {
+                        const res = clone.makeMove(pid, cardIndex);
+                        if (res && res.success !== false) {
+                            return action;
+                        }
+                        if (res && (res.action === 'homeEntryChoice' || res.action === 'choosePosition')) {
+                            return action;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            }
+
+            return null;
+        } catch (err) {
+            return null;
+        }
+    }
+
+    isActionValid(playerId, actionId) {
+        try {
+            if (!this.game || !this.game.players || !this.game.players[playerId]) {
+                return false;
+            }
+
+            const clone = this.game.cloneForSimulation();
+
+            if (actionId >= 70) {
+                const cardIndex = actionId - 70;
+                const player = clone.players[playerId];
+                if (!player || cardIndex < 0 || cardIndex >= player.cards.length) {
+                    return false;
+                }
+                try {
+                    clone.discardCard(cardIndex);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            if (actionId >= 60) {
+                const moves = this.specialActions[actionId];
+                if (!moves) return false;
+                try {
+                    let result = clone.makeSpecialMove(moves);
+                    if (result && result.action === 'homeEntryChoice') {
+                        result = clone.resumeSpecialMove(true);
+                    }
+                    if (result && result.success === false) {
+                        return false;
+                    }
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            const cardIndex = Math.floor(actionId / 10);
+            let pieceNumber = actionId % 10;
+            if (pieceNumber === 0) {
+                pieceNumber = 10;
+            }
+
+            let ownerId = playerId;
+            if (pieceNumber > 5) {
+                const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
+                if (partner === null || partner === undefined) {
+                    return false;
+                }
+                ownerId = partner;
+                pieceNumber -= 5;
+            }
+
+            const pid = `p${ownerId}_${pieceNumber}`;
+            let res;
+            try {
+                res = clone.makeMove(pid, cardIndex);
+            } catch (err) {
+                // Move is invalid if clone.makeMove throws (e.g., "Casa de chegada já ocupada")
+                return false;
+            }
+
+            if (res && res.success === false) {
+                return false;
+            }
+            return true;
+        } catch (e) {
+            return false;
         }
     }
     
@@ -260,6 +398,14 @@ class GameWrapper {
             if (actionId >= 70) {
                 const cardIndex = actionId - 70;
                 playedCard = this.game.players[playerId].cards[cardIndex];
+
+                if (this.game.hasAnyValidMove && this.game.hasAnyValidMove(playerId)) {
+                    const alt = this.findFirstAvailableAction(playerId);
+                    if (alt !== null) {
+                        return this.makeMove(playerId, alt);
+                    }
+                }
+
                 try {
                     result = this.game.discardCard(cardIndex);
                 } catch (e) {
@@ -389,8 +535,18 @@ class GameWrapper {
                     }
                 }
             } else {
-                const cardIndex = Math.floor(actionId / 10);
                 let pieceNumber = actionId % 10;
+                let cardIndex;
+                // Piece numbers for partner pieces may encode as 10 which would
+                // otherwise wrap to 0 when using modulo 10. Normalize so 10 is
+                // preserved after the modulo operation and adjust the card
+                // index accordingly.
+                if (pieceNumber === 0) {
+                    pieceNumber = 10;
+                    cardIndex = (actionId - pieceNumber) / 10;
+                } else {
+                    cardIndex = Math.floor(actionId / 10);
+                }
                 let ownerId = playerId;
                 if (pieceNumber > 5) {
                     const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
