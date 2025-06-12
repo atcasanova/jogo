@@ -112,7 +112,10 @@ class GameWrapper {
 
                 case 'makeSpecialMove':
                     return this.makeSpecialMove(command.playerId, command.actionId);
-                    
+
+                case 'isActionValid':
+                    return { valid: this.isActionValid(command.playerId, command.actionId) };
+
                 default:
                     return { error: `Unknown action: ${command.action}` };
             }
@@ -303,6 +306,56 @@ class GameWrapper {
             return null;
         } catch (err) {
             return null;
+        }
+    }
+
+    isActionValid(playerId, actionId) {
+        try {
+            if (!this.game || !this.game.players || !this.game.players[playerId]) {
+                return false;
+            }
+
+            const clone = this.game.cloneForSimulation();
+
+            if (actionId >= 60) {
+                const moves = this.specialActions[actionId];
+                if (!moves) return false;
+                try {
+                    clone.makeSpecialMove(moves);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            const cardIndex = Math.floor(actionId / 10);
+            let pieceNumber = actionId % 10;
+            if (pieceNumber === 0) {
+                pieceNumber = 10;
+            }
+
+            let ownerId = playerId;
+            if (pieceNumber > 5) {
+                const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
+                if (partner === null || partner === undefined) {
+                    return false;
+                }
+                ownerId = partner;
+                pieceNumber -= 5;
+            }
+
+            const pid = `p${ownerId}_${pieceNumber}`;
+            try {
+                const res = clone.makeMove(pid, cardIndex);
+                if (res && res.success === false) {
+                    return false;
+                }
+                return true;
+            } catch (err) {
+                return false;
+            }
+        } catch (e) {
+            return false;
         }
     }
     
