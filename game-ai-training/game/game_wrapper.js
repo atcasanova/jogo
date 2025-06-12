@@ -253,85 +253,8 @@ class GameWrapper {
                 return null;
             }
 
-            const player = this.game.players[playerId];
-            const pieceInfos = [];
-            for (let n = 1; n <= 5; n++) {
-                pieceInfos.push({ owner: playerId, num: n, id: `p${playerId}_${n}` });
-            }
-            if (this.game.hasAllPiecesInHomeStretch && this.game.partnerIdFor &&
-                this.game.hasAllPiecesInHomeStretch(playerId)) {
-                const partner = this.game.partnerIdFor(playerId);
-                if (partner !== null && partner !== undefined) {
-                    for (let n = 1; n <= 5; n++) {
-                        pieceInfos.push({ owner: partner, num: n + 5, id: `p${partner}_${n}` });
-                    }
-                }
-            }
-
-            this.specialActions = {};
-            let specialId = 60;
-
-            for (let cardIdx = 0; cardIdx < player.cards.length; cardIdx++) {
-                if (player.cards[cardIdx].value !== '7') continue;
-
-                const movable = [];
-                for (const info of pieceInfos) {
-                    const p = this.game.pieces.find(pp => pp.id === info.id);
-                    if (p && !p.completed && !p.inPenaltyZone) {
-                        movable.push(info.id);
-                    }
-                }
-
-                for (let i = 0; i < movable.length; i++) {
-                    for (let j = i + 1; j < movable.length; j++) {
-                        for (let steps = 1; steps <= 6; steps++) {
-                            const moves = [
-                                { pieceId: movable[i], steps },
-                                { pieceId: movable[j], steps: 7 - steps }
-                            ];
-                            const clone = this.game.cloneForSimulation();
-                            try {
-                                clone.makeSpecialMove(moves);
-                                this.specialActions[specialId] = moves;
-                                return specialId;
-                            } catch (e) {
-                                continue;
-                            }
-                        }
-                    }
-                }
-
-                for (const pid of movable) {
-                    const moves = [{ pieceId: pid, steps: 7 }];
-                    const clone = this.game.cloneForSimulation();
-                    try {
-                        clone.makeSpecialMove(moves);
-                        this.specialActions[specialId] = moves;
-                        return specialId;
-                    } catch (e) {
-                        continue;
-                    }
-                }
-            }
-
-            for (let cardIdx = 0; cardIdx < player.cards.length; cardIdx++) {
-                for (const info of pieceInfos) {
-                    const piece = this.game.pieces.find(p => p.id === info.id);
-                    if (!piece || piece.completed) {
-                        continue;
-                    }
-
-                    const clone = this.game.cloneForSimulation();
-                    try {
-                        clone.makeMove(info.id, cardIdx);
-                        return cardIdx * 10 + info.num;
-                    } catch (e) {
-                        continue;
-                    }
-                }
-            }
-
-            return null;
+            const actions = this.getValidActions(playerId);
+            return actions && actions.length > 0 ? actions[0] : null;
         } catch (err) {
             return null;
         }
