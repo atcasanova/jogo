@@ -335,7 +335,13 @@ class GameWrapper {
                 const moves = this.specialActions[actionId];
                 if (!moves) return false;
                 try {
-                    clone.makeSpecialMove(moves);
+                    let result = clone.makeSpecialMove(moves);
+                    if (result && result.action === 'homeEntryChoice') {
+                        result = clone.resumeSpecialMove(true);
+                    }
+                    if (result && result.success === false) {
+                        return false;
+                    }
                     return true;
                 } catch (e) {
                     return false;
