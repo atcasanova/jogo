@@ -247,7 +247,9 @@ class GameEnvironment:
                 return [discard_actions[0]]
             return []
 
-        return filtered[:10] if len(filtered) > 10 else filtered  # Limit actions
+        # Return the complete set of valid actions so the agent can evaluate
+        # every option provided by the game wrapper.
+        return filtered
 
     def is_action_valid(self, player_id: int, action: int) -> bool:
         """Ask the Node wrapper if a specific action is valid"""
