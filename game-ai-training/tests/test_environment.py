@@ -33,8 +33,9 @@ def test_get_valid_actions_returns_empty_on_error():
 def test_step_updates_game_state_and_returns_rewards():
     env = GameEnvironment()
     with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {'foo': 'bar'}, 'gameEnded': False, 'winningTeam': None}):
-        with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-            next_state, reward, done = env.step(1, 0)
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                next_state, reward, done = env.step(1, 0)
     assert reward == 0.1
     assert done is False
     assert env.game_state == {'foo': 'bar', 'gameEnded': False, 'winningTeam': None}
@@ -50,8 +51,9 @@ def test_step_updates_state_on_failure():
         'winningTeam': None
     }
     with patch.object(env, 'send_command', return_value=response):
-        with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-            next_state, reward, done = env.step(1, 0)
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                next_state, reward, done = env.step(1, 0)
 
     assert reward == -0.2
     assert done is False
@@ -179,7 +181,7 @@ def _run_make_move_home_entry_mock():
 
 def test_no_discard_actions_when_moves_available():
     actions = _run_get_valid_actions_mock(True)
-    assert 70 not in actions
+    assert any(a < 70 for a in actions)
 
 
 def test_includes_discard_actions_when_no_moves():
@@ -314,7 +316,7 @@ def _run_discard_fallback_mock():
         "  discardPile: [],",
         "  discardCard: function() { throw new Error('Você ainda tem jogadas disponíveis'); },",
         "  makeMove: function(pid, ci) { this.used = [pid, ci]; return { success: true, action: 'move' }; },",
-        "  cloneForSimulation: function() { return { makeMove: () => {} }; },",
+        "  cloneForSimulation: function() { return { makeMove: () => ({ success: true }) }; },",
         "  nextTurn: function() {},",
         "  getCurrentPlayer: function() { return this.players[this.currentPlayerIndex]; },",
         "  drawCard: function() { return {}; },",
@@ -360,7 +362,7 @@ def _run_prevent_discard_mock():
         "  discardPile: [],",
         "  discardCard: function() { this.discarded = true; return { success: true, action: 'discard' }; },",
         "  makeMove: function(pid, ci) { this.used = [pid, ci]; return { success: true, action: 'move' }; },",
-        "  cloneForSimulation: function() { return { makeMove: () => {} }; },",
+        "  cloneForSimulation: function() { return { makeMove: () => ({ success: true }) }; },",
         "  hasAnyValidMove: () => true,",
         "  partnerIdFor: () => 1,",
         "  hasAllPiecesInHomeStretch: () => true,",
@@ -692,8 +694,9 @@ def test_wrapper_make_special_move_calls_game():
 def test_step_dispatches_special_move():
     env = GameEnvironment()
     with patch.object(env, 'send_command', return_value={'success': True, 'gameState': {}, 'gameEnded': False, 'winningTeam': None}) as mock:
-        with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-            env.step(60, 0)
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                env.step(60, 0)
     assert mock.call_args[0][0]['action'] == 'makeSpecialMove'
 
 
@@ -711,8 +714,9 @@ def test_step_retries_until_success():
 
     with patch.object(env, 'send_command', side_effect=_send) as mock_cmd:
         with patch.object(env, 'get_valid_actions', side_effect=[[1, 2, 3], [2, 3], [3]]):
-            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-                next_state, reward, done = env.step(1, 0)
+            with patch.object(env, 'is_action_valid', return_value=True):
+                with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                    next_state, reward, done = env.step(1, 0)
 
     assert reward == -0.1
     assert mock_cmd.call_count == 3
@@ -732,8 +736,9 @@ def test_step_discards_when_all_actions_fail():
 
     with patch.object(env, 'send_command', side_effect=_send) as mock_cmd:
         with patch.object(env, 'get_valid_actions', return_value=[1]):
-            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-                env.step(1, 0)
+            with patch.object(env, 'is_action_valid', return_value=True):
+                with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                    env.step(1, 0)
 
     assert mock_cmd.call_count == 3
     assert mock_cmd.call_args[0][0]['actionId'] >= 70

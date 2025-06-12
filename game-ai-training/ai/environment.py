@@ -240,36 +240,56 @@ class GameEnvironment:
             return []
 
         return filtered[:10] if len(filtered) > 10 else filtered  # Limit actions
+
+    def is_action_valid(self, player_id: int, action: int) -> bool:
+        """Ask the Node wrapper if a specific action is valid"""
+        response = self.send_command({
+            "action": "isActionValid",
+            "playerId": player_id,
+            "actionId": action
+        })
+        return bool(response.get("valid"))
     
     def step(self, action: int, player_id: int) -> Tuple[np.ndarray, float, bool]:
         """Execute action and return next_state, reward, done"""
-        if action >= 70:
-            cmd = {
-                "action": "makeMove",
-                "playerId": player_id,
-                "actionId": action
-            }
-        elif action >= 60:
-            cmd = {
-                "action": "makeSpecialMove",
-                "playerId": player_id,
-                "actionId": action
-            }
-        else:
-            cmd = {
-                "action": "makeMove",
-                "playerId": player_id,
-                "actionId": action
-            }
-
-        response = self.send_command(cmd)
         invalid_attempts = 0
+        tried_actions = set()
 
-        # If the chosen action failed, iteratively try other valid actions
-        # until one succeeds or we run out of alternatives. This helps keep the
-        # training loop moving even when the model proposes an invalid move.
-        tried_actions = {action}
-        while not response.get('success'):
+        while True:
+            if not self.is_action_valid(player_id, action):
+                invalid_attempts += 1
+                tried_actions.add(action)
+                valid_actions = self.get_valid_actions(player_id)
+                alt_actions = [a for a in valid_actions if a not in tried_actions]
+                if not alt_actions:
+                    for discard in range(70, 80):
+                        if discard in tried_actions:
+                            continue
+                        cmd = {
+                            "action": "makeMove",
+                            "playerId": player_id,
+                            "actionId": discard
+                        }
+                        tried_actions.add(discard)
+                        response = self.send_command(cmd)
+                        if response.get('success'):
+                            break
+                    break
+                action = alt_actions[0]
+                continue
+
+            if action >= 70:
+                cmd = {"action": "makeMove", "playerId": player_id, "actionId": action}
+            elif action >= 60:
+                cmd = {"action": "makeSpecialMove", "playerId": player_id, "actionId": action}
+            else:
+                cmd = {"action": "makeMove", "playerId": player_id, "actionId": action}
+
+            response = self.send_command(cmd)
+            tried_actions.add(action)
+            if response.get('success'):
+                break
+
             invalid_attempts += 1
             error(
                 "Action failed", env=self.env_id, player=player_id,
@@ -279,10 +299,6 @@ class GameEnvironment:
             valid_actions = self.get_valid_actions(player_id)
             alt_actions = [a for a in valid_actions if a not in tried_actions]
             if not alt_actions:
-                # When every suggested move fails we attempt a discard action
-                # as a last resort. The Node.js wrapper will either accept the
-                # discard or fallback to any valid move it can perform,
-                # preventing the training loop from stalling indefinitely.
                 for discard in range(70, 80):
                     if discard in tried_actions:
                         continue
@@ -295,20 +311,9 @@ class GameEnvironment:
                     response = self.send_command(cmd)
                     if response.get('success'):
                         break
-
                 break
 
             action = alt_actions[0]
-            tried_actions.add(action)
-
-            if action >= 70:
-                cmd = {"action": "makeMove", "playerId": player_id, "actionId": action}
-            elif action >= 60:
-                cmd = {"action": "makeSpecialMove", "playerId": player_id, "actionId": action}
-            else:
-                cmd = {"action": "makeMove", "playerId": player_id, "actionId": action}
-
-            response = self.send_command(cmd)
 
         # Calculate reward based on the final response
         reward = 0.1 if response.get('success') else -0.1
