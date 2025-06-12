@@ -200,6 +200,21 @@ class GameWrapper {
                     }
                 }
 
+                // Single-piece seven moves
+                for (const pid of movable) {
+                    const moves = [{ pieceId: pid, steps: 7 }];
+                    const clone = this.game.cloneForSimulation();
+                    try {
+                        clone.makeSpecialMove(moves);
+                        specialActionsList.push(specialId);
+                        this.specialActions[specialId] = moves;
+                        specialId++;
+                    } catch (e) {
+                        // invalid move, ignore
+                    }
+                }
+
+                // Split moves across two pieces
                 for (let i = 0; i < movable.length; i++) {
                     for (let j = i + 1; j < movable.length; j++) {
                         for (let steps = 1; steps <= 6; steps++) {
