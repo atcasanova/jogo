@@ -710,6 +710,21 @@ describe('Game class', () => {
     expect(() => game.discardCard(0)).toThrow();
   });
 
+  test('isPartner works after player objects are replaced', () => {
+    const game = new Game('partnerRef');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.setupTeams();
+
+    // Simulate players being recreated (e.g., from a saved state)
+    game.players = game.players.map(p => ({ ...p }));
+
+    expect(game.isPartner(0, 2)).toBe(true);
+    expect(game.isPartner(1, 3)).toBe(true);
+  });
+
   test('endGame sets game inactive', () => {
     const game = new Game('lock');
     game.isActive = true;
