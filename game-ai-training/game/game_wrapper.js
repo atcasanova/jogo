@@ -359,15 +359,18 @@ class GameWrapper {
             }
 
             const pid = `p${ownerId}_${pieceNumber}`;
+            let res;
             try {
-                const res = clone.makeMove(pid, cardIndex);
-                if (res && res.success === false) {
-                    return false;
-                }
-                return true;
+                res = clone.makeMove(pid, cardIndex);
             } catch (err) {
+                // Move is invalid if clone.makeMove throws (e.g., "Casa de chegada já ocupada")
                 return false;
             }
+
+            if (res && res.success === false) {
+                return false;
+            }
+            return true;
         } catch (e) {
             return false;
         }

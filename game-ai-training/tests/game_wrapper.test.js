@@ -1,0 +1,41 @@
+const fs = require('fs');
+const Module = require('module');
+const path = require('path');
+
+function loadGameWrapper() {
+  const filename = path.join(__dirname, '..', 'game', 'game_wrapper.js');
+  let code = fs.readFileSync(filename, 'utf8');
+  code = code.replace(/new GameWrapper\(\);\s*$/, 'module.exports = GameWrapper;');
+  const m = new Module(filename);
+  m.filename = filename;
+  m.paths = Module._nodeModulePaths(path.dirname(filename));
+  m._compile(code, filename);
+  return m.exports;
+}
+
+describe('GameWrapper.isActionValid', () => {
+  test('returns false when final home square is occupied', () => {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+    wrapper.setupGame();
+
+    const game = wrapper.game;
+    const finalPos = { row: 5, col: 4 }; // last home stretch square for player 0
+
+    const donePiece = game.pieces.find(p => p.id === 'p0_1');
+    donePiece.inPenaltyZone = false;
+    donePiece.inHomeStretch = true;
+    donePiece.completed = true;
+    donePiece.position = finalPos;
+
+    const movingPiece = game.pieces.find(p => p.id === 'p0_2');
+    movingPiece.inPenaltyZone = false;
+    movingPiece.inHomeStretch = true;
+    movingPiece.position = { row: 4, col: 4 };
+
+    game.players[0].cards = [{ value: 'A' }];
+
+    const actionId = 0 * 10 + 2; // card index 0, piece number 2
+    expect(wrapper.isActionValid(0, actionId)).toBe(false);
+  });
+});
