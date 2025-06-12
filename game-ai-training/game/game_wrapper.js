@@ -317,6 +317,20 @@ class GameWrapper {
 
             const clone = this.game.cloneForSimulation();
 
+            if (actionId >= 70) {
+                const cardIndex = actionId - 70;
+                const player = clone.players[playerId];
+                if (!player || cardIndex < 0 || cardIndex >= player.cards.length) {
+                    return false;
+                }
+                try {
+                    clone.discardCard(cardIndex);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
             if (actionId >= 60) {
                 const moves = this.specialActions[actionId];
                 if (!moves) return false;
