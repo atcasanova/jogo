@@ -395,9 +395,14 @@ class GameWrapper {
                 return false;
             }
 
+            if (res && (res.action === 'homeEntryChoice' || res.action === 'choosePosition')) {
+                return true;
+            }
+
             if (res && res.success === false) {
                 return false;
             }
+
             return true;
         } catch (e) {
             return false;
