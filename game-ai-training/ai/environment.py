@@ -262,9 +262,16 @@ class GameEnvironment:
                 valid_actions = self.get_valid_actions(player_id)
                 alt_actions = [a for a in valid_actions if a not in tried_actions]
                 if not alt_actions:
-                    for discard in range(70, 80):
-                        if discard in tried_actions:
-                            continue
+                    discard_actions = [
+                        a for a in valid_actions
+                        if a >= 70 and a not in tried_actions
+                    ]
+                    if not discard_actions:
+                        discard_actions = [
+                            d for d in range(70, 80)
+                            if d not in tried_actions
+                        ]
+                    for discard in discard_actions:
                         cmd = {
                             "action": "makeMove",
                             "playerId": player_id,
@@ -299,9 +306,16 @@ class GameEnvironment:
             valid_actions = self.get_valid_actions(player_id)
             alt_actions = [a for a in valid_actions if a not in tried_actions]
             if not alt_actions:
-                for discard in range(70, 80):
-                    if discard in tried_actions:
-                        continue
+                discard_actions = [
+                    a for a in valid_actions
+                    if a >= 70 and a not in tried_actions
+                ]
+                if not discard_actions:
+                    discard_actions = [
+                        d for d in range(70, 80)
+                        if d not in tried_actions
+                    ]
+                for discard in discard_actions:
                     cmd = {
                         "action": "makeMove",
                         "playerId": player_id,
