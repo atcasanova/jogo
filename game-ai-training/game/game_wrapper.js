@@ -150,7 +150,8 @@ class GameWrapper {
                 return [0];
             }
 
-            const validActions = [];
+            const moveActions = [];
+            const specialActionsList = [];
             const player = this.game.players[playerId];
             this.specialActions = {};
             // range 60-69 reserved for special moves
@@ -176,24 +177,8 @@ class GameWrapper {
                 }
             }
 
-            for (let cardIdx = 0; cardIdx < maxMoveCards; cardIdx++) {
-                for (const info of pieceInfos) {
-                    const piece = this.game.pieces.find(p => p.id === info.id);
-                    if (!piece || piece.completed) {
-                        continue;
-                    }
-
-                    const clone = this.game.cloneForSimulation();
-                    try {
-                        clone.makeMove(info.id, cardIdx);
-                        validActions.push(cardIdx * 10 + info.num);
-                    } catch (e) {
-                        // invalid move, ignore
-                    }
-                }
-            }
-
-            // Generate special move actions for card 7
+            // Generate special move actions for card 7 first so they are not
+            // truncated when many normal moves exist.
             for (let cardIdx = 0; cardIdx < Math.min(player.cards.length, 4); cardIdx++) {
                 if (player.cards[cardIdx].value !== '7') continue;
 
@@ -208,7 +193,6 @@ class GameWrapper {
                 for (let i = 0; i < movable.length; i++) {
                     for (let j = i + 1; j < movable.length; j++) {
                         for (let steps = 1; steps <= 6; steps++) {
-                            if (validActions.length >= 10) break;
                             const moves = [
                                 { pieceId: movable[i], steps },
                                 { pieceId: movable[j], steps: 7 - steps }
@@ -216,7 +200,7 @@ class GameWrapper {
                             const clone = this.game.cloneForSimulation();
                             try {
                                 clone.makeSpecialMove(moves);
-                                validActions.push(specialId);
+                                specialActionsList.push(specialId);
                                 this.specialActions[specialId] = moves;
                                 specialId++;
                             } catch (e) {
@@ -226,6 +210,25 @@ class GameWrapper {
                     }
                 }
             }
+
+            for (let cardIdx = 0; cardIdx < maxMoveCards; cardIdx++) {
+                for (const info of pieceInfos) {
+                    const piece = this.game.pieces.find(p => p.id === info.id);
+                    if (!piece || piece.completed) {
+                        continue;
+                    }
+
+                    const clone = this.game.cloneForSimulation();
+                    try {
+                        clone.makeMove(info.id, cardIdx);
+                        moveActions.push(cardIdx * 10 + info.num);
+                    } catch (e) {
+                        // invalid move, ignore
+                    }
+                }
+            }
+
+            const validActions = [...specialActionsList, ...moveActions];
 
             if (validActions.length === 0) {
                 // If no moves were generated, allow discarding any card. This
@@ -241,6 +244,96 @@ class GameWrapper {
             return validActions.slice(0, 10);
         } catch (error) {
             return [];
+        }
+    }
+
+    findFirstAvailableAction(playerId) {
+        try {
+            if (!this.game || !this.game.players || !this.game.players[playerId]) {
+                return null;
+            }
+
+            const player = this.game.players[playerId];
+            const pieceInfos = [];
+            for (let n = 1; n <= 5; n++) {
+                pieceInfos.push({ owner: playerId, num: n, id: `p${playerId}_${n}` });
+            }
+            if (this.game.hasAllPiecesInHomeStretch && this.game.partnerIdFor &&
+                this.game.hasAllPiecesInHomeStretch(playerId)) {
+                const partner = this.game.partnerIdFor(playerId);
+                if (partner !== null && partner !== undefined) {
+                    for (let n = 1; n <= 5; n++) {
+                        pieceInfos.push({ owner: partner, num: n + 5, id: `p${partner}_${n}` });
+                    }
+                }
+            }
+
+            this.specialActions = {};
+            let specialId = 60;
+
+            for (let cardIdx = 0; cardIdx < player.cards.length; cardIdx++) {
+                if (player.cards[cardIdx].value !== '7') continue;
+
+                const movable = [];
+                for (const info of pieceInfos) {
+                    const p = this.game.pieces.find(pp => pp.id === info.id);
+                    if (p && !p.completed && !p.inPenaltyZone) {
+                        movable.push(info.id);
+                    }
+                }
+
+                for (let i = 0; i < movable.length; i++) {
+                    for (let j = i + 1; j < movable.length; j++) {
+                        for (let steps = 1; steps <= 6; steps++) {
+                            const moves = [
+                                { pieceId: movable[i], steps },
+                                { pieceId: movable[j], steps: 7 - steps }
+                            ];
+                            const clone = this.game.cloneForSimulation();
+                            try {
+                                clone.makeSpecialMove(moves);
+                                this.specialActions[specialId] = moves;
+                                return specialId;
+                            } catch (e) {
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                for (const pid of movable) {
+                    const moves = [{ pieceId: pid, steps: 7 }];
+                    const clone = this.game.cloneForSimulation();
+                    try {
+                        clone.makeSpecialMove(moves);
+                        this.specialActions[specialId] = moves;
+                        return specialId;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            }
+
+            for (let cardIdx = 0; cardIdx < player.cards.length; cardIdx++) {
+                for (const info of pieceInfos) {
+                    const piece = this.game.pieces.find(p => p.id === info.id);
+                    if (!piece || piece.completed) {
+                        continue;
+                    }
+
+                    const clone = this.game.cloneForSimulation();
+                    try {
+                        clone.makeMove(info.id, cardIdx);
+                        return cardIdx * 10 + info.num;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            }
+
+            return null;
+        } catch (err) {
+            return null;
         }
     }
     
@@ -260,6 +353,14 @@ class GameWrapper {
             if (actionId >= 70) {
                 const cardIndex = actionId - 70;
                 playedCard = this.game.players[playerId].cards[cardIndex];
+
+                if (this.game.hasAnyValidMove && this.game.hasAnyValidMove(playerId)) {
+                    const alt = this.findFirstAvailableAction(playerId);
+                    if (alt !== null) {
+                        return this.makeMove(playerId, alt);
+                    }
+                }
+
                 try {
                     result = this.game.discardCard(cardIndex);
                 } catch (e) {
