@@ -599,6 +599,44 @@ def test_make_move_accepts_partner_piece_five():
     assert result['called'][0] == 'p1_5'
 
 
+def _run_is_action_valid_discard(card_len, action_id):
+    """Run GameWrapper.isActionValid for a discard action."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        f"wrapper.game = {{",
+        f"  players: [{{ cards: new Array({card_len}).fill({{}}) }}],",
+        "  cloneForSimulation: function() { return { players: this.players, discardCard: this.discardCard.bind(this) }; },",
+        "  discardCard: function(idx) { if (idx < 0 || idx >= this.players[0].cards.length) throw new Error('bad'); }",
+        "};",
+        f"process.stdout.write(JSON.stringify(wrapper.isActionValid(0, {action_id})));"
+    ]
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.strip()]
+    return json.loads(lines[-1]) if lines else None
+
+
+def test_is_action_valid_discard():
+    assert _run_is_action_valid_discard(6, 75) is True
+    assert _run_is_action_valid_discard(5, 75) is False
+
+
 def _run_get_special_actions_mock():
     """Run GameWrapper.getValidActions with a 7 card to ensure special actions are generated."""
     lines = [
