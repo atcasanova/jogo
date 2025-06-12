@@ -231,10 +231,15 @@ class GameEnvironment:
             return []
 
         actions = response.get("validActions", [])
-        # Ensure actions are within the defined action space. The Node.js
-        # wrapper should already enforce this, but extra validation guards
-        # against out-of-range values that would crash the PyTorch training.
-        filtered = [a for a in actions if 0 <= a < self.action_space_size]
+        # Ensure actions are within the defined action space and remain valid
+        # when checked individually. The Node wrapper occasionally returns
+        # discard actions for cards that no longer exist. Filtering with
+        # ``is_action_valid`` prevents the agent from repeatedly sending
+        # impossible moves.
+        filtered: List[int] = []
+        for act in actions:
+            if 0 <= act < self.action_space_size and self.is_action_valid(player_id, act):
+                filtered.append(act)
 
         if not filtered:
             return []
