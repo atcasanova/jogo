@@ -242,6 +242,9 @@ class GameEnvironment:
                 filtered.append(act)
 
         if not filtered:
+            discard_actions = [a for a in actions if a >= 70]
+            if discard_actions:
+                return [discard_actions[0]]
             return []
 
         return filtered[:10] if len(filtered) > 10 else filtered  # Limit actions
