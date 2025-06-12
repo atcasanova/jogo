@@ -254,7 +254,53 @@ class GameWrapper {
             }
 
             const actions = this.getValidActions(playerId);
-            return actions && actions.length > 0 ? actions[0] : null;
+            if (!actions || actions.length === 0) {
+                return null;
+            }
+
+            for (const action of actions) {
+                const clone = this.game.cloneForSimulation();
+
+                if (action >= 60) {
+                    const moves = this.specialActions[action];
+                    if (!moves) continue;
+                    try {
+                        clone.makeSpecialMove(moves);
+                        return action;
+                    } catch (e) {
+                        continue;
+                    }
+                } else {
+                    const cardIndex = Math.floor(action / 10);
+                    let pieceNumber = action % 10;
+                    if (pieceNumber === 0) {
+                        pieceNumber = 10;
+                    }
+                    let ownerId = playerId;
+                    if (pieceNumber > 5) {
+                        const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
+                        if (partner === null || partner === undefined) {
+                            continue;
+                        }
+                        ownerId = partner;
+                        pieceNumber -= 5;
+                    }
+                    const pid = `p${ownerId}_${pieceNumber}`;
+                    try {
+                        const res = clone.makeMove(pid, cardIndex);
+                        if (res && res.success !== false) {
+                            return action;
+                        }
+                        if (res && (res.action === 'homeEntryChoice' || res.action === 'choosePosition')) {
+                            return action;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            }
+
+            return null;
         } catch (err) {
             return null;
         }
