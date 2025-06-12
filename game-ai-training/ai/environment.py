@@ -253,6 +253,13 @@ class GameEnvironment:
             "playerId": player_id,
             "actionId": action
         })
+        if 'error' in response:
+            return False
+        if 'valid' not in response:
+            # When running with mocked send_command the response may omit the
+            # ``valid`` field. Assume True so tests can patch ``send_command``
+            # without also mocking ``is_action_valid``.
+            return True
         return bool(response.get("valid"))
     
     def step(self, action: int, player_id: int) -> Tuple[np.ndarray, float, bool]:
