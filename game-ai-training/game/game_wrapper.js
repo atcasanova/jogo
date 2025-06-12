@@ -134,7 +134,14 @@ class GameWrapper {
             };
         }
 
-        // Prefer the game's own helper so fields like `lastMove` are included
+        // Prefer the game's helper that includes card information when
+        // available so saved history snapshots contain full state.
+        if (typeof this.game.getGameStateWithCards === 'function') {
+            return this.game.getGameStateWithCards();
+        }
+
+        // Fallback to basic game state without cards if the extended helper is
+        // not implemented.
         if (typeof this.game.getGameState === 'function') {
             return this.game.getGameState();
         }
