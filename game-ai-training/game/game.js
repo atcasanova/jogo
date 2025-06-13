@@ -727,6 +727,7 @@ class Game {
     }
     const occupiedPositions = this.pieces.filter(p =>
       p.id !== piece.id &&
+      p.playerId !== piece.playerId &&
       !p.completed &&
       !p.inPenaltyZone &&
       !p.inHomeStretch

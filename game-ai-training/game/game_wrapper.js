@@ -397,7 +397,20 @@ class GameWrapper {
                 return false;
             }
 
-            if (res && (res.action === 'homeEntryChoice' || res.action === 'choosePosition')) {
+            if (res && res.action === 'choosePosition') {
+                const piece = clone.pieces.find(p => p.id === pid);
+                for (const target of res.validPositions || []) {
+                    try {
+                        clone.moveToSelectedPosition(piece, target.id);
+                        return true;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                return false;
+            }
+
+            if (res && res.action === 'homeEntryChoice') {
                 return true;
             }
 
