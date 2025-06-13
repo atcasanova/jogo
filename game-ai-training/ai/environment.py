@@ -219,6 +219,15 @@ class GameEnvironment:
             warning("Error encoding state", exception=str(e))
         
         return state
+
+    def _default_discards(self, player_id: int) -> List[int]:
+        """Generate discard actions from the cached game state."""
+        players = self.game_state.get('players', []) if self.game_state else []
+        if 0 <= player_id < len(players):
+            cards = players[player_id].get('cards', [])
+            max_discards = min(len(cards), 10)
+            return [70 + i for i in range(max_discards)]
+        return []
     
     def get_valid_actions(self, player_id: int) -> List[int]:
         """Get valid actions for current player"""
@@ -228,7 +237,8 @@ class GameEnvironment:
         })
         
         if 'error' in response:
-            return []
+            fallback = self._default_discards(player_id)
+            return [fallback[0]] if fallback else []
 
         actions = response.get("validActions", [])
         # Ensure actions are within the defined action space and remain valid
@@ -242,9 +252,15 @@ class GameEnvironment:
                 filtered.append(act)
 
         if not filtered:
-            return []
+            discard_actions = [a for a in actions if a >= 70]
+            if discard_actions:
+                return [discard_actions[0]]
+            fallback = self._default_discards(player_id)
+            return [fallback[0]] if fallback else []
 
-        return filtered[:10] if len(filtered) > 10 else filtered  # Limit actions
+        # Return the complete set of valid actions so the agent can evaluate
+        # every option provided by the game wrapper.
+        return filtered
 
     def is_action_valid(self, player_id: int, action: int) -> bool:
         """Ask the Node wrapper if a specific action is valid"""
@@ -346,6 +362,25 @@ class GameEnvironment:
         reward -= 0.1 * invalid_attempts
         done = response.get('gameEnded', False)
 
+        # Additional incentives for specific actions
+        if response.get('success'):
+            # Reward captures. Partner captures are slightly more valuable than
+            # opponent captures so that bots still prioritise victory.
+            for cap in response.get('captures', []):
+                if cap.get('action') == 'partnerCapture':
+                    reward += 0.3
+                else:
+                    reward += 0.2
+
+        prev_pieces = {}
+        if self.game_state and 'pieces' in self.game_state:
+            for p in self.game_state['pieces']:
+                prev_pieces[p.get('id')] = {
+                    'in_home': p.get('inHomeStretch'),
+                    'completed': p.get('completed'),
+                    'pos': p.get('position')
+                }
+
         # Update game state whenever provided
         if 'gameState' in response:
             self.game_state = response['gameState']
@@ -367,6 +402,35 @@ class GameEnvironment:
                     'move': str(last_move),
                     'state': state_copy
                 })
+
+            # Compare piece progress before and after the move
+            for p in self.game_state.get('pieces', []):
+                pid = p.get('id')
+                if not pid:
+                    continue
+                prev = prev_pieces.get(pid)
+                if not prev:
+                    continue
+                now_home = p.get('inHomeStretch')
+                now_completed = p.get('completed')
+                if not prev['in_home'] and now_home:
+                    if now_completed and not prev['completed']:
+                        reward += 1.5
+                    else:
+                        reward += 0.8
+                elif prev['in_home'] and now_home:
+                    moved = prev['pos'] != p.get('position')
+                    if not prev['completed'] and now_completed:
+                        reward += 1.5
+                    elif moved:
+                        reward += 0.4
+
+        # Bonus for winning the game
+        if done and response.get('winningTeam'):
+            for pl in response['winningTeam']:
+                if pl.get('position') == player_id:
+                    reward += 2.0
+                    break
 
         # Log failures for easier debugging
         if not response.get('success'):

@@ -16,11 +16,11 @@ def test_reset_returns_zero_when_start_fails():
     assert np.all(state == 0)
 
 
-def test_get_valid_actions_limits_to_ten():
+def test_get_valid_actions_returns_all_actions():
     env = GameEnvironment()
     with patch.object(env, 'send_command', return_value={'validActions': list(range(15))}):
         actions = env.get_valid_actions(0)
-    assert actions == list(range(10))
+    assert actions == list(range(15))
 
 
 def test_get_valid_actions_returns_empty_on_error():
@@ -28,6 +28,22 @@ def test_get_valid_actions_returns_empty_on_error():
     with patch.object(env, 'send_command', return_value={'error': 'fail'}):
         actions = env.get_valid_actions(0)
     assert actions == []
+
+
+def test_get_valid_actions_returns_discard_on_error_with_state():
+    env = GameEnvironment()
+    env.game_state = {'players': [{'cards': [{}]}]}
+    with patch.object(env, 'send_command', return_value={'error': 'fail'}):
+        actions = env.get_valid_actions(0)
+    assert actions == [70]
+
+
+def test_get_valid_actions_preserves_discard_when_filtered():
+    env = GameEnvironment()
+    with patch.object(env, 'send_command', return_value={'validActions': [70, 71]}):
+        with patch.object(env, 'is_action_valid', return_value=False):
+            actions = env.get_valid_actions(0)
+    assert actions == [70]
 
 
 def test_step_updates_game_state_and_returns_rewards():
@@ -95,8 +111,6 @@ def _run_get_valid_actions_mock(has_move: bool):
         "const filename = path.join('game-ai-training','game','game_wrapper.js');",
         "let code = fs.readFileSync(filename, 'utf8');",
         "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
-        "code = code.replace('return validActions.length > 0 ? validActions.slice(0, 10) : [];', 'return validActions;');",
-        "code = code.replace('return validActions.slice(0, 10);', 'return validActions;');",
         "const m = new Module(filename);",
         "m.filename = filename;",
         "m.paths = Module._nodeModulePaths(path.dirname(filename));",
@@ -637,6 +651,48 @@ def test_is_action_valid_discard():
     assert _run_is_action_valid_discard(5, 75) is False
 
 
+def _run_is_action_valid_joker_no_targets():
+    """Run GameWrapper.isActionValid when Joker has no valid targets."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  players: [{ cards: [{ value: 'JOKER' }] }],",
+        "  pieces: [{ id: 'p0_1', completed: false, inPenaltyZone: false }],",
+        "  cloneForSimulation: function() { return {",
+        "    players: this.players,",
+        "    pieces: this.pieces,",
+        "    makeMove: () => ({ action: 'choosePosition', validPositions: [] }),",
+        "    moveToSelectedPosition: function() {}",
+        "  }; }",
+        "};",
+        "process.stdout.write(JSON.stringify(wrapper.isActionValid(0, 1)));"
+    ]
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.strip()]
+    return json.loads(lines[-1]) if lines else None
+
+
+def test_is_action_valid_joker_no_targets():
+    assert _run_is_action_valid_joker_no_targets() is False
+
+
 def _run_get_special_actions_mock():
     """Run GameWrapper.getValidActions with a 7 card to ensure special actions are generated."""
     lines = [
@@ -646,7 +702,6 @@ def _run_get_special_actions_mock():
         "const filename = path.join('game-ai-training','game','game_wrapper.js');",
         "let code = fs.readFileSync(filename, 'utf8');",
         "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
-        "code = code.replace('return validActions.length > 0 ? validActions.slice(0, 10) : [];', 'return validActions;');",
         "const m = new Module(filename);",
         "m.filename = filename;",
         "m.paths = Module._nodeModulePaths(path.dirname(filename));",
@@ -673,6 +728,41 @@ def _run_get_special_actions_mock():
         output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
     lines = [line for line in output.splitlines() if line.startswith('[')]
     return json.loads(lines[-1]) if lines else []
+
+
+def _run_single_piece_seven_mock():
+    """Return special actions when only one piece can move with a seven."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  players: [{ cards: [{ value: '7' }] }],",
+        "  pieces: [{ id: 'p0_1', completed: false, inPenaltyZone: false }],",
+        "  cloneForSimulation: function() { return { makeMove: () => {}, makeSpecialMove: () => {} }; },",
+        "  hasAnyValidMove: () => true",
+        "};",
+        "const actions = wrapper.getValidActions(0);",
+        "process.stdout.write(JSON.stringify({ specials: wrapper.specialActions, actions }));"
+    ];
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.startswith('{')]
+    return json.loads(lines[-1]) if lines else {}
 
 
 def _run_wrapper_special_move_mock():
@@ -721,6 +811,11 @@ def _run_wrapper_special_move_mock():
 def test_special_actions_returned_for_card_seven():
     actions = _run_get_special_actions_mock()
     assert any(a >= 60 for a in actions)
+
+
+def test_single_piece_seven_action_generated():
+    result = _run_single_piece_seven_mock()
+    assert any(len(m) == 1 and m[0]['steps'] == 7 for m in result['specials'].values())
 
 
 def test_wrapper_make_special_move_calls_game():

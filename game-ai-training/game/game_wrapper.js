@@ -200,6 +200,21 @@ class GameWrapper {
                     }
                 }
 
+                // Single-piece seven moves
+                for (const pid of movable) {
+                    const moves = [{ pieceId: pid, steps: 7 }];
+                    const clone = this.game.cloneForSimulation();
+                    try {
+                        clone.makeSpecialMove(moves);
+                        specialActionsList.push(specialId);
+                        this.specialActions[specialId] = moves;
+                        specialId++;
+                    } catch (e) {
+                        // invalid move, ignore
+                    }
+                }
+
+                // Split moves across two pieces
                 for (let i = 0; i < movable.length; i++) {
                     for (let j = i + 1; j < movable.length; j++) {
                         for (let steps = 1; steps <= 6; steps++) {
@@ -251,7 +266,9 @@ class GameWrapper {
                 }
             }
 
-            return validActions.slice(0, 10);
+            // Return the complete list of valid actions without truncation so
+            // the training environment can consider every possible move.
+            return validActions;
         } catch (error) {
             return [];
         }
@@ -380,9 +397,27 @@ class GameWrapper {
                 return false;
             }
 
+            if (res && res.action === 'choosePosition') {
+                const piece = clone.pieces.find(p => p.id === pid);
+                for (const target of res.validPositions || []) {
+                    try {
+                        clone.moveToSelectedPosition(piece, target.id);
+                        return true;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                return false;
+            }
+
+            if (res && res.action === 'homeEntryChoice') {
+                return true;
+            }
+
             if (res && res.success === false) {
                 return false;
             }
+
             return true;
         } catch (e) {
             return false;
