@@ -30,6 +30,14 @@ def test_get_valid_actions_returns_empty_on_error():
     assert actions == []
 
 
+def test_get_valid_actions_returns_discard_on_error_with_state():
+    env = GameEnvironment()
+    env.game_state = {'players': [{'cards': [{}]}]}
+    with patch.object(env, 'send_command', return_value={'error': 'fail'}):
+        actions = env.get_valid_actions(0)
+    assert actions == [70]
+
+
 def test_get_valid_actions_preserves_discard_when_filtered():
     env = GameEnvironment()
     with patch.object(env, 'send_command', return_value={'validActions': [70, 71]}):
