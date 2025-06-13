@@ -651,6 +651,48 @@ def test_is_action_valid_discard():
     assert _run_is_action_valid_discard(5, 75) is False
 
 
+def _run_is_action_valid_joker_no_targets():
+    """Run GameWrapper.isActionValid when Joker has no valid targets."""
+    lines = [
+        "const fs = require('fs');",
+        "const Module = require('module');",
+        "const path = require('path');",
+        "const filename = path.join('game-ai-training','game','game_wrapper.js');",
+        "let code = fs.readFileSync(filename, 'utf8');",
+        "code = code.replace(/new GameWrapper\\(\\);\\s*$/, 'module.exports = GameWrapper;');",
+        "const m = new Module(filename);",
+        "m.filename = filename;",
+        "m.paths = Module._nodeModulePaths(path.dirname(filename));",
+        "m._compile(code, filename);",
+        "const GameWrapper = m.exports;",
+        "const wrapper = new GameWrapper();",
+        "wrapper.game = {",
+        "  players: [{ cards: [{ value: 'JOKER' }] }],",
+        "  pieces: [{ id: 'p0_1', completed: false, inPenaltyZone: false }],",
+        "  cloneForSimulation: function() { return {",
+        "    players: this.players,",
+        "    pieces: this.pieces,",
+        "    makeMove: () => ({ action: 'choosePosition', validPositions: [] }),",
+        "    moveToSelectedPosition: function() {}",
+        "  }; }",
+        "};",
+        "process.stdout.write(JSON.stringify(wrapper.isActionValid(0, 1)));"
+    ]
+    script = "\n".join(lines)
+
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.NamedTemporaryFile('w+', suffix='.js', delete=False) as tmp:
+        tmp.write(script)
+        tmp.flush()
+        output = subprocess.check_output(['node', tmp.name], cwd=root, text=True)
+    lines = [line for line in output.splitlines() if line.strip()]
+    return json.loads(lines[-1]) if lines else None
+
+
+def test_is_action_valid_joker_no_targets():
+    assert _run_is_action_valid_joker_no_targets() is False
+
+
 def _run_get_special_actions_mock():
     """Run GameWrapper.getValidActions with a 7 card to ensure special actions are generated."""
     lines = [

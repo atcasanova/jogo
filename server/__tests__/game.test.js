@@ -508,6 +508,28 @@ describe('Game class', () => {
     expect(() => game.moveToSelectedPosition(mover, target.id)).toThrow();
   });
 
+  test('moveToOccupiedSpace excludes own pieces from targets', () => {
+    const game = new Game('jokerTargets');
+    const mover = game.pieces.find(p => p.id === 'p0_1');
+    const friendly = game.pieces.find(p => p.id === 'p0_2');
+    const opponent = game.pieces.find(p => p.id === 'p1_1');
+
+    mover.inPenaltyZone = false;
+    mover.position = { row: 0, col: 8 };
+
+    friendly.inPenaltyZone = false;
+    friendly.position = { row: 0, col: 9 };
+
+    opponent.inPenaltyZone = false;
+    opponent.position = { row: 1, col: 8 };
+
+    const result = game.moveToOccupiedSpace(mover);
+    const ids = result.validPositions.map(v => v.id);
+
+    expect(ids).toContain(opponent.id);
+    expect(ids).not.toContain(friendly.id);
+  });
+
   test('executeMove cannot use Joker to leave home stretch', () => {
     const game = new Game('jokerHome');
     const mover = game.pieces.find(p => p.id === 'p0_1');
