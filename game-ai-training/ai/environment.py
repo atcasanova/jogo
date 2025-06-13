@@ -219,6 +219,15 @@ class GameEnvironment:
             warning("Error encoding state", exception=str(e))
         
         return state
+
+    def _default_discards(self, player_id: int) -> List[int]:
+        """Generate discard actions from the cached game state."""
+        players = self.game_state.get('players', []) if self.game_state else []
+        if 0 <= player_id < len(players):
+            cards = players[player_id].get('cards', [])
+            max_discards = min(len(cards), 10)
+            return [70 + i for i in range(max_discards)]
+        return []
     
     def get_valid_actions(self, player_id: int) -> List[int]:
         """Get valid actions for current player"""
@@ -228,7 +237,8 @@ class GameEnvironment:
         })
         
         if 'error' in response:
-            return []
+            fallback = self._default_discards(player_id)
+            return [fallback[0]] if fallback else []
 
         actions = response.get("validActions", [])
         # Ensure actions are within the defined action space and remain valid
@@ -245,7 +255,8 @@ class GameEnvironment:
             discard_actions = [a for a in actions if a >= 70]
             if discard_actions:
                 return [discard_actions[0]]
-            return []
+            fallback = self._default_discards(player_id)
+            return [fallback[0]] if fallback else []
 
         # Return the complete set of valid actions so the agent can evaluate
         # every option provided by the game wrapper.
