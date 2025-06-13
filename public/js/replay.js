@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const nextBtn = document.getElementById('next-move');
   const fileList = document.getElementById('replay-files');
   const cardsContainer = document.getElementById('cards-container');
+  const playerHand = document.querySelector('.player-hand');
 
   const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
   let replayData = [];
@@ -136,6 +137,9 @@ document.addEventListener('DOMContentLoaded', () => {
         state.players[state.currentPlayerIndex].cards) ||
       [];
     updateCards(currentCards);
+    if (playerHand) {
+      playerHand.style.backgroundColor = playerColors[state.currentPlayerIndex];
+    }
   }
 
   function updateInfo(state) {
