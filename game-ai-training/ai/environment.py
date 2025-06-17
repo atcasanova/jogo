@@ -364,13 +364,13 @@ class GameEnvironment:
 
         # Additional incentives for specific actions
         if response.get('success'):
-            # Reward captures. Partner captures are slightly more valuable than
+            # Reward captures. Partner captures are more valuable than
             # opponent captures so that bots still prioritise victory.
             for cap in response.get('captures', []):
                 if cap.get('action') == 'partnerCapture':
-                    reward += 0.3
+                    reward += 0.5
                 else:
-                    reward += 0.2
+                    reward += 0.4
 
         prev_pieces = {}
         if self.game_state and 'pieces' in self.game_state:
@@ -378,7 +378,9 @@ class GameEnvironment:
                 prev_pieces[p.get('id')] = {
                     'in_home': p.get('inHomeStretch'),
                     'completed': p.get('completed'),
-                    'pos': p.get('position')
+                    'pos': p.get('position'),
+                    'in_penalty': p.get('inPenaltyZone'),
+                    'player_id': p.get('playerId')
                 }
 
         # Update game state whenever provided
@@ -413,17 +415,22 @@ class GameEnvironment:
                     continue
                 now_home = p.get('inHomeStretch')
                 now_completed = p.get('completed')
+                now_penalty = p.get('inPenaltyZone')
+
+                if not prev['in_penalty'] and now_penalty and prev['player_id'] == player_id:
+                    reward -= 0.4
+
                 if not prev['in_home'] and now_home:
                     if now_completed and not prev['completed']:
-                        reward += 1.5
+                        reward += 3.0
                     else:
-                        reward += 0.8
+                        reward += 1.6
                 elif prev['in_home'] and now_home:
                     moved = prev['pos'] != p.get('position')
                     if not prev['completed'] and now_completed:
-                        reward += 1.5
+                        reward += 3.0
                     elif moved:
-                        reward += 0.4
+                        reward += 0.8
 
         # Bonus for winning the game
         if done and response.get('winningTeam'):
