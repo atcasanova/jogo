@@ -491,6 +491,7 @@ class GameEnvironment:
                     elif moved:
                         reward += 0.8
 
+
             current_pieces = {}
             for p in self.game_state.get('pieces', []):
                 if p.get('id'):
@@ -504,6 +505,7 @@ class GameEnvironment:
             new_near_home = self._count_opponent_near_home(current_pieces, player_id)
             if new_near_home < prev_near_home:
                 reward += 0.5 * (prev_near_home - new_near_home)
+
 
         # Bonus for winning the game
         if done and response.get('winningTeam'):
