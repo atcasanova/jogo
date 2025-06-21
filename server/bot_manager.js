@@ -2,6 +2,33 @@ const { spawn } = require('child_process');
 const path = require('path');
 const BotWrapper = require('./bot_wrapper');
 
+function logTurnState(game) {
+  const player = game.getCurrentPlayer();
+  if (!player) return;
+
+  const formatPiece = p => {
+    const state = p.inPenaltyZone ? 'P' : p.inHomeStretch ? 'H' : 'B';
+    return `${p.id}@(${p.position.row},${p.position.col})${state}`;
+  };
+
+  const ownPieces = game.pieces
+    .filter(p => p.playerId === player.position)
+    .map(formatPiece)
+    .join(' | ');
+
+  const others = game.pieces
+    .filter(p => p.playerId !== player.position)
+    .map(formatPiece)
+    .join(' | ');
+
+  const hand = player.cards.map(c => c.value).join(' ');
+
+  console.log(`=== Turno de ${player.name} ===`);
+  console.log(`Mão: ${hand}`);
+  console.log(`Suas peças: ${ownPieces}`);
+  console.log(`Outros: ${others}`);
+}
+
 class BotManager {
   constructor(game, io) {
     this.game = game;
@@ -48,6 +75,7 @@ class BotManager {
     while (this.game.isActive) {
       const current = this.game.getCurrentPlayer();
       if (!current || !current.isBot) break;
+      logTurnState(this.game);
       const res = await this.requestAction(current.position);
       const actionId = res && res.actionId !== undefined ? res.actionId : 70;
       const result = this.wrapper.makeMove(current.position, actionId);
@@ -68,6 +96,8 @@ class BotManager {
 
       const nextPlayer = this.game.getCurrentPlayer();
       if (!nextPlayer) break;
+
+      logTurnState(this.game);
 
       if (!nextPlayer.isBot) {
         this.io.to(nextPlayer.id).emit('yourTurn', {
