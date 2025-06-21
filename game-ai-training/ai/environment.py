@@ -26,6 +26,63 @@ class GameEnvironment:
 
         # background thread to drain Node.js stderr
         self.stderr_thread = None
+
+        # Precompute track coordinates and entrance squares for distance checks
+        self._track: List[Dict[str, int]] = self._generate_track()
+        self._entrances = [
+            {'row': 0, 'col': 4},
+            {'row': 4, 'col': 18},
+            {'row': 18, 'col': 14},
+            {'row': 14, 'col': 0}
+        ]
+
+    def _generate_track(self) -> List[Dict[str, int]]:
+        """Replicate the board track coordinates from the Node game."""
+        track: List[Dict[str, int]] = []
+        for col in range(19):
+            track.append({'row': 0, 'col': col})
+        for row in range(1, 19):
+            track.append({'row': row, 'col': 18})
+        for col in range(17, -1, -1):
+            track.append({'row': 18, 'col': col})
+        for row in range(17, 0, -1):
+            track.append({'row': row, 'col': 0})
+        return track
+
+    def _steps_to_entrance(self, pos: Dict[str, int], player_id: int) -> int:
+        """Calculate steps from ``pos`` to the player's home stretch entrance."""
+        entrance = self._entrances[player_id]
+        try:
+            start_idx = next(i for i, p in enumerate(self._track)
+                             if p['row'] == pos['row'] and p['col'] == pos['col'])
+            ent_idx = next(i for i, p in enumerate(self._track)
+                           if p['row'] == entrance['row'] and p['col'] == entrance['col'])
+        except StopIteration:
+            return -1
+        return (ent_idx - start_idx + len(self._track)) % len(self._track)
+
+    def _count_opponent_near_home(self, pieces: Dict[str, Dict[str, Any]], player_id: int, threshold: int = 10) -> int:
+        """Count opponent pieces close to their home stretch entrance."""
+        teams = self.game_state.get('teams', []) if self.game_state else []
+        my_team: List[int] = []
+        for team in teams:
+            if any(pl.get('position') == player_id for pl in team):
+                my_team = [pl.get('position') for pl in team]
+                break
+        opponents = {pl for pl in range(4) if pl not in my_team}
+        count = 0
+        for pinfo in pieces.values():
+            if pinfo.get('player_id') not in opponents:
+                continue
+            if pinfo.get('in_penalty') or pinfo.get('in_home') or pinfo.get('completed'):
+                continue
+            pos = pinfo.get('pos')
+            if not isinstance(pos, dict):
+                continue
+            steps = self._steps_to_entrance(pos, pinfo.get('player_id', 0))
+            if 0 <= steps <= threshold:
+                count += 1
+        return count
         
     def start_node_game(self):
         """Start the Node.js game process"""
@@ -364,13 +421,13 @@ class GameEnvironment:
 
         # Additional incentives for specific actions
         if response.get('success'):
-            # Reward captures. Partner captures are slightly more valuable than
+            # Reward captures. Partner captures are more valuable than
             # opponent captures so that bots still prioritise victory.
             for cap in response.get('captures', []):
                 if cap.get('action') == 'partnerCapture':
-                    reward += 0.3
+                    reward += 0.5
                 else:
-                    reward += 0.2
+                    reward += 0.4
 
         prev_pieces = {}
         if self.game_state and 'pieces' in self.game_state:
@@ -378,8 +435,12 @@ class GameEnvironment:
                 prev_pieces[p.get('id')] = {
                     'in_home': p.get('inHomeStretch'),
                     'completed': p.get('completed'),
-                    'pos': p.get('position')
+                    'pos': p.get('position'),
+                    'in_penalty': p.get('inPenaltyZone'),
+                    'player_id': p.get('playerId')
                 }
+
+        prev_near_home = self._count_opponent_near_home(prev_pieces, player_id)
 
         # Update game state whenever provided
         if 'gameState' in response:
@@ -413,17 +474,38 @@ class GameEnvironment:
                     continue
                 now_home = p.get('inHomeStretch')
                 now_completed = p.get('completed')
+                now_penalty = p.get('inPenaltyZone')
+
+                if not prev['in_penalty'] and now_penalty and prev['player_id'] == player_id:
+                    reward -= 0.4
+
                 if not prev['in_home'] and now_home:
                     if now_completed and not prev['completed']:
-                        reward += 1.5
+                        reward += 3.0
                     else:
-                        reward += 0.8
+                        reward += 1.6
                 elif prev['in_home'] and now_home:
                     moved = prev['pos'] != p.get('position')
                     if not prev['completed'] and now_completed:
-                        reward += 1.5
+                        reward += 3.0
                     elif moved:
-                        reward += 0.4
+                        reward += 0.8
+
+
+            current_pieces = {}
+            for p in self.game_state.get('pieces', []):
+                if p.get('id'):
+                    current_pieces[p.get('id')] = {
+                        'in_home': p.get('inHomeStretch'),
+                        'completed': p.get('completed'),
+                        'pos': p.get('position'),
+                        'in_penalty': p.get('inPenaltyZone'),
+                        'player_id': p.get('playerId')
+                    }
+            new_near_home = self._count_opponent_near_home(current_pieces, player_id)
+            if new_near_home < prev_near_home:
+                reward += 0.5 * (prev_near_home - new_near_home)
+
 
         # Bonus for winning the game
         if done and response.get('winningTeam'):
