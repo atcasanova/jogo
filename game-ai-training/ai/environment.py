@@ -315,9 +315,18 @@ class GameEnvironment:
             fallback = self._default_discards(player_id)
             return [fallback[0]] if fallback else []
 
+        # Deduplicate while preserving order so the bot only evaluates unique
+        # options.
+        unique_actions: List[int] = []
+        seen = set()
+        for act in filtered:
+            if act not in seen:
+                seen.add(act)
+                unique_actions.append(act)
+
         # Return the complete set of valid actions so the agent can evaluate
         # every option provided by the game wrapper.
-        return filtered
+        return unique_actions
 
     def is_action_valid(self, player_id: int, action: int) -> bool:
         """Ask the Node wrapper if a specific action is valid"""
@@ -414,20 +423,10 @@ class GameEnvironment:
 
             action = alt_actions[0]
 
-        # Calculate reward based on the final response
-        reward = 0.1 if response.get('success') else -0.1
-        reward -= 0.1 * invalid_attempts
+        # Base reward only penalizes invalid attempts. Specific board progress
+        # is handled below.
+        reward = -0.1 * invalid_attempts
         done = response.get('gameEnded', False)
-
-        # Additional incentives for specific actions
-        if response.get('success'):
-            # Reward captures. Partner captures are more valuable than
-            # opponent captures so that bots still prioritise victory.
-            for cap in response.get('captures', []):
-                if cap.get('action') == 'partnerCapture':
-                    reward += 0.5
-                else:
-                    reward += 0.4
 
         prev_pieces = {}
         if self.game_state and 'pieces' in self.game_state:
@@ -440,12 +439,27 @@ class GameEnvironment:
                     'player_id': p.get('playerId')
                 }
 
-        prev_near_home = self._count_opponent_near_home(prev_pieces, player_id)
+        teams = self.game_state.get('teams', []) if self.game_state else []
+        my_team: List[int] = []
+        for team in teams:
+            if any(pl.get('position') == player_id for pl in team):
+                my_team = [pl.get('position') for pl in team]
+                break
+        opponents = {pl for pl in range(4) if pl not in my_team}
+
+        # Record previous near-home status for all pieces
+        prev_near_home: Dict[str, bool] = {}
+        for pid, info in prev_pieces.items():
+            pos = info.get('pos')
+            near = False
+            if pos and not info.get('in_penalty') and not info.get('in_home') and not info.get('completed'):
+                steps = self._steps_to_entrance(pos, info.get('player_id', 0))
+                near = 0 <= steps <= 10
+            prev_near_home[pid] = near
 
         # Update game state whenever provided
         if 'gameState' in response:
             self.game_state = response['gameState']
-            # Preserve win information returned by the Node process
             self.game_state['gameEnded'] = done
             self.game_state['winningTeam'] = response.get('winningTeam')
             if 'stats' in response:
@@ -454,57 +468,39 @@ class GameEnvironment:
 
             last_move = self.game_state.get('lastMove')
             if last_move is not None:
-                # store both the move description and a snapshot of the state
                 try:
                     state_copy = json.loads(json.dumps(self.game_state))
                 except Exception:
                     state_copy = self.game_state
-                self.move_history.append({
-                    'move': str(last_move),
-                    'state': state_copy
-                })
+                self.move_history.append({'move': str(last_move), 'state': state_copy})
 
-            # Compare piece progress before and after the move
             for p in self.game_state.get('pieces', []):
                 pid = p.get('id')
                 if not pid:
                     continue
-                prev = prev_pieces.get(pid)
-                if not prev:
-                    continue
+                owner = p.get('playerId')
                 now_home = p.get('inHomeStretch')
                 now_completed = p.get('completed')
                 now_penalty = p.get('inPenaltyZone')
+                pos = p.get('position')
+                near = False
+                if pos and not now_penalty and not now_home and not now_completed:
+                    steps = self._steps_to_entrance(pos, owner)
+                    near = 0 <= steps <= 10
 
-                if not prev['in_penalty'] and now_penalty and prev['player_id'] == player_id:
-                    reward -= 0.4
+                prev_info = prev_pieces.get(pid)
+                was_near = prev_near_home.get(pid, False)
 
-                if not prev['in_home'] and now_home:
-                    if now_completed and not prev['completed']:
-                        reward += 3.0
-                    else:
-                        reward += 1.6
-                elif prev['in_home'] and now_home:
-                    moved = prev['pos'] != p.get('position')
-                    if not prev['completed'] and now_completed:
-                        reward += 3.0
-                    elif moved:
-                        reward += 0.8
-
-
-            current_pieces = {}
-            for p in self.game_state.get('pieces', []):
-                if p.get('id'):
-                    current_pieces[p.get('id')] = {
-                        'in_home': p.get('inHomeStretch'),
-                        'completed': p.get('completed'),
-                        'pos': p.get('position'),
-                        'in_penalty': p.get('inPenaltyZone'),
-                        'player_id': p.get('playerId')
-                    }
-            new_near_home = self._count_opponent_near_home(current_pieces, player_id)
-            if new_near_home < prev_near_home:
-                reward += 0.5 * (prev_near_home - new_near_home)
+                if owner in my_team:
+                    if prev_info and not prev_info['in_home'] and now_home:
+                        reward += 1.0
+                    if not was_near and near:
+                        reward += 0.5
+                else:
+                    if prev_info and not prev_info['in_home'] and now_home:
+                        reward -= 1.0
+                    if was_near and not near:
+                        reward += 0.5
 
 
         # Bonus for winning the game

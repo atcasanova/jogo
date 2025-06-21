@@ -24,7 +24,16 @@ class BotWrapper {
       const player = this.game.players[playerId];
       this.specialActions = {};
       let specialId = 60;
-      const maxMoveCards = Math.min(player.cards.length, 6);
+
+      const uniqueIndices = {};
+      for (let idx = 0; idx < player.cards.length; idx++) {
+        const val = player.cards[idx].value;
+        if (!(val in uniqueIndices)) {
+          uniqueIndices[val] = idx;
+        }
+      }
+      const cardIndices = Object.values(uniqueIndices).sort((a, b) => a - b);
+      const maxMoveCards = Math.min(cardIndices.length, 6);
 
       const pieceInfos = [];
       for (let n = 1; n <= 5; n++) {
@@ -40,8 +49,10 @@ class BotWrapper {
         }
       }
 
-      for (let cardIdx = 0; cardIdx < Math.min(player.cards.length, 4); cardIdx++) {
-        if (player.cards[cardIdx].value !== '7') continue;
+      const sevenIndices = cardIndices
+        .filter(i => player.cards[i].value === '7')
+        .slice(0, 4);
+      for (const cardIdx of sevenIndices) {
 
         const movable = [];
         for (const info of pieceInfos) {
@@ -85,7 +96,8 @@ class BotWrapper {
         }
       }
 
-      for (let cardIdx = 0; cardIdx < maxMoveCards; cardIdx++) {
+      for (let idx = 0; idx < maxMoveCards; idx++) {
+        const cardIdx = cardIndices[idx];
         for (const info of pieceInfos) {
           const piece = this.game.pieces.find(p => p.id === info.id);
           if (!piece || piece.completed) {
@@ -104,8 +116,9 @@ class BotWrapper {
       const validActions = [...specialActionsList, ...moveActions];
 
       if (validActions.length === 0) {
-        const maxDiscardCards = Math.min(player.cards.length, 10);
-        for (let cardIdx = 0; cardIdx < maxDiscardCards; cardIdx++) {
+        const maxDiscardCards = Math.min(cardIndices.length, 10);
+        for (let i = 0; i < maxDiscardCards; i++) {
+          const cardIdx = cardIndices[i];
           validActions.push(70 + cardIdx);
         }
       }
