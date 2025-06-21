@@ -65,6 +65,20 @@ class BotManager {
         this.game.endGame();
         break;
       }
+
+      const nextPlayer = this.game.getCurrentPlayer();
+      if (!nextPlayer) break;
+
+      if (!nextPlayer.isBot) {
+        this.io.to(nextPlayer.id).emit('yourTurn', {
+          cards: nextPlayer.cards,
+          canMove: this.game.hasAnyValidMove(nextPlayer.position)
+        });
+        break;
+      }
+
+      const delay = 4000 + Math.random() * 4000;
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
     this.running = false;
   }
