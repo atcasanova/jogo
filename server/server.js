@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const path = require('path');
 const { nanoid } = require('nanoid/non-secure');
 const { Game } = require('./game');
+const BotManager = require('./bot_manager');
 const fs = require('fs');
 
 const REPLAY_DIR = path.join(__dirname, '../replays');
@@ -185,10 +186,22 @@ function announceHomeStretch(game, roomId) {
   }
 }
 
+function handleBotTurn(game) {
+  if (game.botManager) {
+    game.botManager.playBots();
+  }
+}
+
 function launchGame(game) {
   const roomId = game.roomId;
 
   game.startGame();
+
+  if (game.players.some(p => p.isBot)) {
+    game.botManager = new BotManager(game, io);
+  } else {
+    game.botManager = null;
+  }
 
   const gameState = game.getGameState();
   io.to(roomId).emit('gameStarted', gameState);
@@ -202,6 +215,7 @@ function launchGame(game) {
       cards: currentPlayer.cards,
       canMove: game.hasAnyValidMove(currentPlayer.position)
     });
+    handleBotTurn(game);
   }
 }
 
@@ -288,6 +302,7 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
             cards: game.players[position].cards,
             canMove: game.hasAnyValidMove(position)
           });
+          handleBotTurn(game);
         }
         
         console.log(`Jogador ${playerName} reconectado com sucesso na posição ${position}`);
@@ -337,6 +352,7 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
         cards: game.players[existingPlayerIndex].cards,
         canMove: game.hasAnyValidMove(existingPlayerIndex)
       });
+      handleBotTurn(game);
     }
     
     console.log(`Jogador ${playerName} reconectado com sucesso`);
@@ -482,6 +498,7 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
       cards: nextPlayer.cards,
       canMove: game.hasAnyValidMove(nextPlayer.position)
     });
+    handleBotTurn(game);
   } catch (error) {
     console.error(`Erro ao descartar carta:`, error);
     socket.emit('error', error.message);
@@ -551,6 +568,7 @@ socket.on('requestGameState', ({ roomId, playerName }) => {
         cards: game.players[playerIndex].cards,
         canMove: game.hasAnyValidMove(playerIndex)
       });
+      handleBotTurn(game);
     }
   } else {
     console.log(`ERRO: Jogador ${playerName} não encontrado na sala ${roomId}`);
@@ -640,6 +658,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
         }
       });
       game.endGame();
+      if (game.botManager) game.botManager.stop();
       return;
     }
 
@@ -650,6 +669,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       cards: nextPlayer.cards,
       canMove: game.hasAnyValidMove(nextPlayer.position)
     });
+    handleBotTurn(game);
   } catch (error) {
     console.error(`Erro ao processar movimento Joker:`, error);
     socket.emit('error', error.message);
@@ -689,6 +709,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       return;
     }
 
+    if (game.botManager) game.botManager.stop();
     launchGame(game);
   });
 
@@ -700,6 +721,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       return;
     }
 
+    if (game.botManager) game.botManager.stop();
     game.resetForNewGame();
     launchGame(game);
   });
@@ -787,6 +809,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
         }
       });
       game.endGame();
+      if (game.botManager) game.botManager.stop();
       return;
     }
 
@@ -801,6 +824,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
       cards: nextPlayer.cards,
       canMove: game.hasAnyValidMove(nextPlayer.position)
     });
+    handleBotTurn(game);
 
   } catch (error) {
     console.error(`Erro ao processar movimento:`, error);
@@ -850,6 +874,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         }
       });
       game.endGame();
+      if (game.botManager) game.botManager.stop();
       return;
     }
 
@@ -861,6 +886,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       cards: nextPlayer.cards,
       canMove: game.hasAnyValidMove(nextPlayer.position)
     });
+    handleBotTurn(game);
    } catch (error) {
      console.error('Erro ao confirmar entrada na vitória:', error);
      socket.emit('error', error.message);
@@ -934,6 +960,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
           }
         });
         game.endGame();
+        if (game.botManager) game.botManager.stop();
         return;
       }
       
@@ -948,7 +975,8 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         cards: nextPlayer.cards,
         canMove: game.hasAnyValidMove(nextPlayer.position)
       });
-      
+      handleBotTurn(game);
+
     } catch (error) {
       socket.emit('error', error.message);
     }
@@ -1016,6 +1044,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
           }
         });
         game.endGame();
+        if (game.botManager) game.botManager.stop();
         return;
       }
 
@@ -1026,6 +1055,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         cards: nextPlayer.cards,
         canMove: game.hasAnyValidMove(nextPlayer.position)
       });
+      handleBotTurn(game);
     } catch (error) {
       console.error('Erro ao confirmar entrada na vitória especial:', error);
       socket.emit('error', error.message);
@@ -1057,6 +1087,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
             // Definir um timer para remover a sala após 5 minutos se ninguém reconectar
             game.cleanupTimer = setTimeout(() => {
               console.log(`Todos os jogadores desconectados da sala ${roomId}. Removendo sala.`);
+              if (game.botManager) game.botManager.stop();
               rooms.delete(roomId);
             }, 300000); // 5 minutos
           }
@@ -1070,6 +1101,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
           
           // Se não sobrou ninguém, remover a sala
           if (game.players.length === 0) {
+            if (game.botManager) game.botManager.stop();
             rooms.delete(roomId);
           }
         }
