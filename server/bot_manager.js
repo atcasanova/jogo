@@ -7,6 +7,7 @@ class BotManager {
     this.game = game;
     this.io = io;
     this.wrapper = new BotWrapper(game);
+    this.running = false;
     this.proc = spawn('python3', [path.join(__dirname, '../game-ai-training/bot_service.py')]);
     this.buffer = '';
     this.queue = [];
@@ -42,6 +43,8 @@ class BotManager {
   }
 
   async playBots() {
+    if (this.running) return;
+    this.running = true;
     while (this.game.isActive) {
       const current = this.game.getCurrentPlayer();
       if (!current || !current.isBot) break;
@@ -63,6 +66,7 @@ class BotManager {
         break;
       }
     }
+    this.running = false;
   }
 
   stop() {
