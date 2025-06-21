@@ -488,6 +488,25 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
   }
 });
 
+  socket.on('fillBots', ({ roomId }) => {
+    const game = rooms.get(roomId);
+    if (!game) return;
+
+    while (game.players.length < 4) {
+      const idx = game.players.length;
+      const botId = `bot_${idx}`;
+      const botName = `Bot ${idx + 1}`;
+      game.addPlayer(botId, botName, true);
+    }
+
+    io.to(roomId).emit('updatePlayers', game.getPlayersInfo());
+
+    if (game.players.length === 4) {
+      const creatorId = game.players[0].id;
+      io.to(creatorId).emit('teamsReady');
+    }
+  });
+
 
   // Solicitar estado do jogo (para reconexão)
 // No evento 'requestGameState' no server.js

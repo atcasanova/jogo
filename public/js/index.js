@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const team2List = document.getElementById('team2-list');
     const waitingMessage = document.getElementById('waiting-message');
     const copyLinkBtn = document.getElementById('copy-link-btn');
+    const fillBotsBtn = document.getElementById('fill-bots-btn');
     
     // Botões
     const createRoomBtn = document.getElementById('create-room-btn');
@@ -245,6 +246,11 @@ function handleError(message) {
             }
             playersList.appendChild(li);
         });
+        if (players.length < 4) {
+            fillBotsBtn.classList.remove('hidden');
+        } else {
+            fillBotsBtn.classList.add('hidden');
+        }
     }
     
     function populateTeamLists() {
@@ -343,6 +349,12 @@ function handleError(message) {
         navigator.clipboard.writeText(shareLink).then(() => {
             alert('Link copiado para a área de transferência');
         });
+    });
+
+    fillBotsBtn.addEventListener('click', () => {
+        if (socket && roomId) {
+            socket.emit('fillBots', { roomId });
+        }
     });
     
     confirmTeamsBtn.addEventListener('click', () => {
