@@ -167,11 +167,22 @@ class GameWrapper {
             // range 60-69 reserved for special moves
             let specialId = 60;
 
-            // Limit to the first 6 cards so that move IDs remain below the
-            // special action range starting at 60. Each card index contributes
-            // at most five piece moves (cardIdx * 10 + pieceNum) and
+            // Use only the first occurrence of each card value so duplicate
+            // cards do not inflate the action space.
+            const uniqueIndices = {};
+            for (let idx = 0; idx < player.cards.length; idx++) {
+                const val = player.cards[idx].value;
+                if (!(val in uniqueIndices)) {
+                    uniqueIndices[val] = idx;
+                }
+            }
+            const cardIndices = Object.values(uniqueIndices).sort((a, b) => a - b);
+
+            // Limit to the first 6 unique cards so that move IDs remain below
+            // the special action range starting at 60. Each card index
+            // contributes at most five piece moves (cardIdx * 10 + pieceNum) and
             // cardIdx >= 6 would yield IDs >= 60.
-            const maxMoveCards = Math.min(player.cards.length, 6);
+            const maxMoveCards = Math.min(cardIndices.length, 6);
 
             const pieceInfos = [];
             for (let n = 1; n <= 5; n++) {
@@ -189,8 +200,10 @@ class GameWrapper {
 
             // Generate special move actions for card 7 first so they are not
             // truncated when many normal moves exist.
-            for (let cardIdx = 0; cardIdx < Math.min(player.cards.length, 4); cardIdx++) {
-                if (player.cards[cardIdx].value !== '7') continue;
+            const sevenIndices = cardIndices
+                .filter(i => player.cards[i].value === '7')
+                .slice(0, 4);
+            for (const cardIdx of sevenIndices) {
 
                 const movable = [];
                 for (const info of pieceInfos) {
@@ -236,7 +249,8 @@ class GameWrapper {
                 }
             }
 
-            for (let cardIdx = 0; cardIdx < maxMoveCards; cardIdx++) {
+            for (let idx = 0; idx < maxMoveCards; idx++) {
+                const cardIdx = cardIndices[idx];
                 for (const info of pieceInfos) {
                     const piece = this.game.pieces.find(p => p.id === info.id);
                     if (!piece || piece.completed) {
@@ -260,8 +274,9 @@ class GameWrapper {
                 // ensures the Python trainer always receives at least one
                 // action even when a playable card lies outside the scanned
                 // range.
-                const maxDiscardCards = Math.min(player.cards.length, 10);
-                for (let cardIdx = 0; cardIdx < maxDiscardCards; cardIdx++) {
+                const maxDiscardCards = Math.min(cardIndices.length, 10);
+                for (let i = 0; i < maxDiscardCards; i++) {
+                    const cardIdx = cardIndices[i];
                     validActions.push(70 + cardIdx);
                 }
             }
