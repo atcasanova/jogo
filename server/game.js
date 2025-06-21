@@ -58,7 +58,7 @@ class Game {
     return pieces;
   }
 
-  addPlayer(id, name) {
+  addPlayer(id, name, isBot = false) {
     if (process.env.DEBUG === 'true') {
       console.log(`Tentando adicionar jogador ${name} (${id}) à sala ${this.roomId}`);
     }
@@ -83,7 +83,8 @@ class Game {
       id,
       name,
       cards: [],
-      position: this.players.length // 0, 1, 2 ou 3
+      position: this.players.length, // 0, 1, 2 ou 3
+      isBot
     });
     
     if (process.env.DEBUG === 'true') {

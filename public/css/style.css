@@ -98,6 +98,10 @@ input[type="text"] {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
+#fill-bots-btn {
+    margin-top: 1rem;
+}
+
 .players-list ul {
     list-style: none;
 }
