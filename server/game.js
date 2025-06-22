@@ -1391,6 +1391,7 @@ discardCard(cardIndex) {
     const stuck = pick(stat.roundsWithoutPlay);
     const jok = pick(stat.jokersPlayed);
     const mostCap = pick(stat.timesCaptured);
+    const winners = this.getWinningTeam() || [];
 
     return {
       mostCaptures: {
@@ -1408,7 +1409,9 @@ discardCard(cardIndex) {
       mostCaptured: {
         name: this.players[mostCap.idx]?.name,
         count: mostCap.max
-      }
+      },
+      movesPlayed: this.history.length,
+      winners: winners.map(p => p.name)
     };
   }
 

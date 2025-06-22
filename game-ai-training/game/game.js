@@ -1395,6 +1395,8 @@ class Game {
     const jok = pick(stat.jokersPlayed);
     const mostCap = pick(stat.timesCaptured);
 
+    const winners = this.getWinningTeam() || [];
+
     return {
       mostCaptures: {
         name: this.players[capt.idx]?.name,
@@ -1411,7 +1413,9 @@ class Game {
       mostCaptured: {
         name: this.players[mostCap.idx]?.name,
         count: mostCap.max
-      }
+      },
+      movesPlayed: this.history.length,
+      winners: winners.map(p => p.name)
     };
   }
 
