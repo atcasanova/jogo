@@ -198,7 +198,7 @@ function launchGame(game) {
   game.startGame();
 
   if (game.players.some(p => p.isBot)) {
-    game.botManager = new BotManager(game, io);
+    game.botManager = new BotManager(game, io, saveReplay);
   } else {
     game.botManager = null;
   }
