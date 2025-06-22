@@ -24,10 +24,11 @@ function logTurnState(game) {
   console.log(`Suas peças: ${ownPieces}`);
   console.log(`Outros: ${others}`);
 
-  const snap = game.getGameStateWithCards();
-  delete snap.lastMove;
-  snap.currentPlayerCards = player.cards.map(c => ({ ...c }));
-  game.history.push({ move: `Turno de ${player.name}`, state: snap });
+  const snapState = game.getGameStateWithCards();
+  delete snapState.lastMove;
+  snapState.currentPlayerCards = player.cards.map(c => ({ ...c }));
+  const snapshot = JSON.parse(JSON.stringify(snapState));
+  game.history.push({ move: `Turno de ${player.name}`, state: snapshot });
 }
 
 function logMoveDetails(player, pieceId, oldPos, result, game, card) {
