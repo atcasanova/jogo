@@ -200,15 +200,22 @@ class GameWrapper {
 
             // Generate special move actions for card 7 first so they are not
             // truncated when many normal moves exist.
-            const sevenIndices = cardIndices
-                .filter(i => player.cards[i].value === '7')
-                .slice(0, 4);
+            // Look through the entire hand for sevens so they are always
+            // considered, even when more than six unique card values are
+            // present. Limit to the first four sevens to keep the action
+            // space bounded.
+            const sevenIndices = [];
+            for (let i = 0; i < player.cards.length && sevenIndices.length < 4; i++) {
+                if (player.cards[i].value === '7') {
+                    sevenIndices.push(i);
+                }
+            }
             for (const cardIdx of sevenIndices) {
 
                 const movable = [];
                 for (const info of pieceInfos) {
                     const p = this.game.pieces.find(pp => pp.id === info.id);
-                    if (p && !p.completed && !p.inPenaltyZone) {
+                    if (p && !p.completed && !p.inPenaltyZone && !p.inHomeStretch) {
                         movable.push(info.id);
                     }
                 }

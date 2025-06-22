@@ -49,15 +49,21 @@ class BotWrapper {
         }
       }
 
-      const sevenIndices = cardIndices
-        .filter(i => player.cards[i].value === '7')
-        .slice(0, 4);
+      // Search the entire hand for sevens so bots consider them even when
+      // more than six unique values appear. Limit to the first four sevens
+      // to mirror the training wrapper logic.
+      const sevenIndices = [];
+      for (let i = 0; i < player.cards.length && sevenIndices.length < 4; i++) {
+        if (player.cards[i].value === '7') {
+          sevenIndices.push(i);
+        }
+      }
       for (const cardIdx of sevenIndices) {
 
         const movable = [];
         for (const info of pieceInfos) {
           const p = this.game.pieces.find(pp => pp.id === info.id);
-          if (p && !p.completed && !p.inPenaltyZone) {
+          if (p && !p.completed && !p.inPenaltyZone && !p.inHomeStretch) {
             movable.push(info.id);
           }
         }
