@@ -1,34 +1,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const BotWrapper = require('./bot_wrapper');
-
-function logTurnState(game) {
-  const player = game.getCurrentPlayer();
-  if (!player) return;
-
-  const formatPiece = p => {
-    const state = p.inPenaltyZone ? 'P' : p.inHomeStretch ? 'H' : 'B';
-    return `${p.id}@(${p.position.row},${p.position.col})${state}`;
-  };
-
-  const ownPieces = game.pieces
-    .filter(p => p.playerId === player.position)
-    .map(formatPiece)
-    .join(' | ');
-
-  const others = game.pieces
-    .filter(p => p.playerId !== player.position)
-    .map(formatPiece)
-    .join(' | ');
-
-  const hand = player.cards.map(c => c.value).join(' ');
-
-  console.log(`=== Turno de ${player.name} ===`);
-  console.log(`Mão: ${hand}`);
-  console.log(`Suas peças: ${ownPieces}`);
-  console.log(`Outros: ${others}`);
-}
-
+const { logTurnState, logMoveDetails } = require('./log_utils');
 class BotManager {
   constructor(game, io, onGameOver = null) {
     this.game = game;
@@ -79,12 +52,69 @@ class BotManager {
       logTurnState(this.game);
       const res = await this.requestAction(current.position);
       const actionId = res && res.actionId !== undefined ? res.actionId : 70;
+
+      let pieceId = null;
+      let oldPos = null;
+      let playedCard = null;
+
+      if (actionId >= 70) {
+        const cardIndex = actionId - 70;
+        playedCard = this.game.players[current.position].cards[cardIndex];
+        const pieces = this.game.pieces.filter(p => p.playerId === current.position);
+        const allPenalty = pieces.every(p => p.inPenaltyZone);
+        if (allPenalty && ['A', 'K', 'Q', 'J'].includes(playedCard.value)) {
+          const first = pieces.find(p => p.inPenaltyZone);
+          if (first) {
+            pieceId = first.id;
+            oldPos = { ...first.position };
+          }
+        }
+      } else {
+        let pieceNumber = actionId % 10;
+        let cardIndex;
+        if (pieceNumber === 0) {
+          pieceNumber = 10;
+          cardIndex = (actionId - pieceNumber) / 10;
+        } else {
+          cardIndex = Math.floor(actionId / 10);
+        }
+        let ownerId = current.position;
+        if (pieceNumber > 5) {
+          const partner = this.game.partnerIdFor && this.game.partnerIdFor(current.position);
+          if (partner !== null && partner !== undefined) {
+            ownerId = partner;
+            pieceNumber -= 5;
+          }
+        }
+        pieceId = `p${ownerId}_${pieceNumber}`;
+        const piece = this.game.pieces.find(p => p.id === pieceId);
+        if (piece) {
+          oldPos = { ...piece.position };
+        }
+        playedCard = this.game.players[current.position].cards[cardIndex];
+      }
+
       const result = this.wrapper.makeMove(current.position, actionId);
       const roomId = this.game.roomId;
       this.io.to(roomId).emit('gameStateUpdate', result.gameState);
-      const last = this.game.history[this.game.history.length - 1];
-      if (last && last.move) {
-        this.io.to(roomId).emit('lastMove', { message: last.move });
+
+      if (pieceId) {
+        const msg = logMoveDetails(current, pieceId, oldPos, result, this.game, playedCard);
+        if (msg) {
+          this.io.to(roomId).emit('lastMove', { message: msg });
+        }
+      } else if (result.action === 'discard' && playedCard) {
+        const discardMsg = `${current.name} descartou um ${playedCard.value === 'JOKER' ? 'C' : playedCard.value}`;
+        const snapState = this.game.getGameState();
+        delete snapState.lastMove;
+        const snap = JSON.parse(JSON.stringify(snapState));
+        this.game.history.push({ move: discardMsg, state: snap });
+        this.io.to(roomId).emit('lastMove', { message: discardMsg });
+      } else {
+        const last = this.game.history[this.game.history.length - 1];
+        if (last && last.move) {
+          this.io.to(roomId).emit('lastMove', { message: last.move });
+        }
       }
       if (result.gameEnded) {
         this.io.to(roomId).emit('gameOver', {
