@@ -1224,7 +1224,7 @@ function makeMove() {
         const movable = gameState.pieces.filter(p => {
             if (!canControlPiece(playerPosition, p.playerId)) return false;
             if (p.inPenaltyZone || p.completed) return false;
-            if (p.inHomeStretch) return canMoveInHomeStretch(p);
+            if (p.inHomeStretch) return false;
             return true;
         });
 
