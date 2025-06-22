@@ -30,9 +30,10 @@ function logTurnState(game) {
 }
 
 class BotManager {
-  constructor(game, io) {
+  constructor(game, io, onGameOver = null) {
     this.game = game;
     this.io = io;
+    this.onGameOver = typeof onGameOver === 'function' ? onGameOver : null;
     this.wrapper = new BotWrapper(game);
     this.running = false;
     this.proc = spawn('python3', [path.join(__dirname, '../game-ai-training/bot_service.py')]);
@@ -90,6 +91,13 @@ class BotManager {
           winners: result.winningTeam,
           stats: result.stats
         });
+        if (this.onGameOver) {
+          try {
+            this.onGameOver(this.game);
+          } catch (e) {
+            console.error('onGameOver callback failed:', e);
+          }
+        }
         this.game.endGame();
         break;
       }
