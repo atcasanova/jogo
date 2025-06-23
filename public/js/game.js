@@ -1251,7 +1251,9 @@ function makeMove() {
         const movable = gameState.pieces.filter(p => {
             if (!canControlPiece(playerPosition, p.playerId)) return false;
             if (p.inPenaltyZone || p.completed) return false;
-            if (p.inHomeStretch) return false;
+            // Allow pieces already in the home stretch to be considered for
+            // splitting the movement. The server will validate whether the
+            // desired move is legal.
             return true;
         });
 
