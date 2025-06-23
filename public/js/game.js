@@ -1257,7 +1257,9 @@ function makeMove() {
             return true;
         });
 
-        if (movable.length <= 1) {
+        const movableTrack = movable.filter(p => !p.inHomeStretch);
+
+        if (movableTrack.length <= 1) {
             socket.emit('makeSpecialMove', {
                 roomId,
                 moves: [{ pieceId: selectedPieceId, steps: 7 }],
