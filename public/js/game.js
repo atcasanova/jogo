@@ -278,7 +278,7 @@ function handleRoomJoined(data) {
 
 function handleGameStarted(state) {
   console.log('Novo jogo iniciado:', state);
-  const old = prevPieces;
+  const old = prevPieces || [];
   gameState = state;
   updateBoard(old);
   updateTeams();
@@ -321,7 +321,7 @@ function handlePlayerInfo(data) {
     // Manipuladores de eventos do socket
     function handleGameStateUpdate(state) {
         console.log('Estado do jogo recebido:', state);
-        const old = prevPieces;
+        const old = prevPieces || [];
         gameState = state;
 
         clearJokerMode();
@@ -560,6 +560,7 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
     
    // Modifique a função updateBoard para incluir o indicador de peças
 function updateBoard(oldPieces = []) {
+  if (!oldPieces) oldPieces = [];
   if (!gameState) return;
 
   clearJokerMode();
