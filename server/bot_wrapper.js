@@ -164,6 +164,15 @@ class BotWrapper {
         } catch (e) {
           throw e;
         }
+      } else if (actionId >= 60) {
+        const moves = this.specialActions[actionId];
+        if (!moves) {
+          throw new Error('Invalid special action');
+        }
+        result = this.game.makeSpecialMove(moves);
+        if (result && result.action === 'homeEntryChoice') {
+          result = this.game.resumeSpecialMove(true);
+        }
       } else {
         let pieceNumber = actionId % 10;
         let cardIndex;

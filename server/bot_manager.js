@@ -69,6 +69,8 @@ class BotManager {
             oldPos = { ...first.position };
           }
         }
+      } else if (actionId >= 60) {
+        playedCard = { value: '7' };
       } else {
         let pieceNumber = actionId % 10;
         let cardIndex;
@@ -98,7 +100,25 @@ class BotManager {
       const roomId = this.game.roomId;
       this.io.to(roomId).emit('gameStateUpdate', result.gameState);
 
-      if (pieceId) {
+      if (actionId >= 60 && actionId < 70 && result.moves) {
+        const msgs = [];
+        result.moves.forEach(m => {
+          const mMsg = logMoveDetails(
+            current,
+            m.pieceId,
+            m.oldPosition,
+            m.result,
+            this.game,
+            playedCard
+          );
+          if (mMsg) {
+            msgs.push(mMsg);
+          }
+        });
+        if (msgs.length > 0) {
+          this.io.to(roomId).emit('lastMove', { message: msgs.join(' | ') });
+        }
+      } else if (pieceId) {
         const msg = logMoveDetails(current, pieceId, oldPos, result, this.game, playedCard);
         if (msg) {
           this.io.to(roomId).emit('lastMove', { message: msg });
