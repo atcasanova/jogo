@@ -588,13 +588,16 @@ function updateBoard(oldPieces = []) {
   // Posicionar peças
   positionPieces(oldPieces);
 
-  // Reaplicar rotação para ajustar a orientação das peças
-  rotateBoard();
+
+  // As peças já são orientadas corretamente em `positionPieces`,
+  // portanto, não chame `rotateBoard` aqui para evitar que a
+  // transição de movimentação seja interrompida.
 
   updatePlayerLabels();
 
-  // Rotacionar novamente para ajustar os rótulos recém-criados
-  rotateBoard();
+
+  // A rotação do tabuleiro já está correta; evitar nova chamada aqui
+  // para manter as transições em andamento.
 
   console.log('Tabuleiro atualizado');
   prevPieces = gameState.pieces.map(p => ({ id: p.id, position: { ...p.position } }));
