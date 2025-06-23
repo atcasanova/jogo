@@ -63,7 +63,9 @@ class BotWrapper {
         const movable = [];
         for (const info of pieceInfos) {
           const p = this.game.pieces.find(pp => pp.id === info.id);
-          if (p && !p.completed && !p.inPenaltyZone && !p.inHomeStretch) {
+          if (p && !p.completed && !p.inPenaltyZone) {
+            // Include pieces already in the home stretch. The game engine will
+            // validate whether the resulting split move is legal.
             movable.push(info.id);
           }
         }

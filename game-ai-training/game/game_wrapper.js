@@ -215,7 +215,10 @@ class GameWrapper {
                 const movable = [];
                 for (const info of pieceInfos) {
                     const p = this.game.pieces.find(pp => pp.id === info.id);
-                    if (p && !p.completed && !p.inPenaltyZone && !p.inHomeStretch) {
+                    if (p && !p.completed && !p.inPenaltyZone) {
+                        // Allow pieces already in the home stretch to be
+                        // considered for splitting the movement. The game will
+                        // reject illegal moves.
                         movable.push(info.id);
                     }
                 }
