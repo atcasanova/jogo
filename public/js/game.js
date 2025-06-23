@@ -88,7 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     const pieceElements = {};
-    let prevPieces = null;
 
     function getDisplayValue(card) {
       return card.value === 'JOKER' ? 'C' : card.value;
@@ -278,9 +277,8 @@ function handleRoomJoined(data) {
 
 function handleGameStarted(state) {
   console.log('Novo jogo iniciado:', state);
-  const old = prevPieces || [];
   gameState = state;
-  updateBoard(old);
+  updateBoard();
   updateTeams();
   updateTurnInfo();
   updateDeckInfo();
@@ -289,7 +287,6 @@ function handleGameStarted(state) {
     showLastMove(state.lastMove);
   }
   gameOverDialog.classList.add('hidden');
-  prevPieces = gameState.pieces.map(p => ({ id: p.id, position: { ...p.position } }));
 }
 
 // Adicione esta função
@@ -321,7 +318,6 @@ function handlePlayerInfo(data) {
     // Manipuladores de eventos do socket
     function handleGameStateUpdate(state) {
         console.log('Estado do jogo recebido:', state);
-        const old = prevPieces || [];
         gameState = state;
 
         clearJokerMode();
@@ -333,7 +329,7 @@ function handlePlayerInfo(data) {
         console.log('Posição do jogador:', playerPosition);
         }
 
-        updateBoard(old);
+        updateBoard();
         updateTeams();
         updateTurnInfo();
         updateDeckInfo();
@@ -341,7 +337,6 @@ function handlePlayerInfo(data) {
         if (state.lastMove) {
             showLastMove(state.lastMove);
         }
-        prevPieces = gameState.pieces.map(p => ({ id: p.id, position: { ...p.position } }));
     }
     
 function handleUpdateCards(data) {
@@ -559,8 +554,7 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
     }
     
    // Modifique a função updateBoard para incluir o indicador de peças
-function updateBoard(oldPieces = []) {
-  if (!oldPieces) oldPieces = [];
+function updateBoard() {
   if (!gameState) return;
 
   clearJokerMode();
@@ -586,21 +580,17 @@ function updateBoard(oldPieces = []) {
   markSpecialCells();
 
   // Posicionar peças
-  positionPieces(oldPieces);
+  positionPieces();
 
-
-  // As peças já são orientadas corretamente em `positionPieces`,
-  // portanto, não chame `rotateBoard` aqui para evitar que a
-  // transição de movimentação seja interrompida.
+  // Reaplicar rotação para ajustar a orientação das peças
+  rotateBoard();
 
   updatePlayerLabels();
 
-
-  // A rotação do tabuleiro já está correta; evitar nova chamada aqui
-  // para manter as transições em andamento.
+  // Rotacionar novamente para ajustar os rótulos recém-criados
+  rotateBoard();
 
   console.log('Tabuleiro atualizado');
-  prevPieces = gameState.pieces.map(p => ({ id: p.id, position: { ...p.position } }));
 }
 
 
@@ -816,7 +806,7 @@ function updatePlayerLabels() {
     
    // Modifique a função positionPieces
 
-        function positionPieces(oldPieces = []) {
+        function positionPieces() {
   if (!gameState || !gameState.pieces) {
     console.log('Sem peças para posicionar');
     return;
@@ -836,27 +826,6 @@ function updatePlayerLabels() {
       partnerId = partner ? partner.position : null;
     }
   }
-
-  const prevMap = {};
-  oldPieces.forEach(p => {
-    prevMap[p.id] = { ...p.position };
-  });
-
-  const delayMap = {};
-  gameState.pieces.forEach(piece => {
-    const oldPos = prevMap[piece.id];
-    if (oldPos && (oldPos.row !== piece.position.row || oldPos.col !== piece.position.col)) {
-      for (const other of oldPieces) {
-        if (
-          other.id !== piece.id &&
-          other.position.row === piece.position.row &&
-          other.position.col === piece.position.col
-        ) {
-          delayMap[other.id] = 300;
-        }
-      }
-    }
-  });
 
   gameState.pieces.forEach(piece => {
     const cell = getCell(piece.position.row, piece.position.col);
@@ -898,21 +867,10 @@ function updatePlayerLabels() {
     const deltaY = first.top - last.top;
     pieceElement.style.transition = 'none';
     pieceElement.style.transform = `translate(${deltaX}px, ${deltaY}px) rotate(${-rotation}deg)`;
-    pieceElement.classList.add('moving');
-    const delay = delayMap[piece.id] || 0;
     requestAnimationFrame(() => {
       pieceElement.style.transition = 'transform 0.3s';
-      pieceElement.style.transitionDelay = `${delay}ms`;
       pieceElement.style.transform = `rotate(${-rotation}deg)`;
     });
-    pieceElement.addEventListener(
-      'transitionend',
-      () => {
-        pieceElement.classList.remove('moving');
-        pieceElement.style.transitionDelay = '';
-      },
-      { once: true }
-    );
   });
 }
 
