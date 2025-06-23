@@ -173,6 +173,11 @@
     background: radial-gradient(circle at 30% 30%, var(--piece-highlight, #fff) 0%, var(--piece-color, #000) 70%, var(--piece-shadow, #000) 100%);
 }
 
+.piece.moving {
+    z-index: 50;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
 .piece.player0 {
     --piece-color: #3498db;
     --piece-highlight: #85c1e9;
