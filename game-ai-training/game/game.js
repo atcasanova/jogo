@@ -1503,6 +1503,24 @@ class Game {
     return false;
   }
 
+  getValidSplits(pieceAId, pieceBId) {
+    const valid = [];
+    for (let s = 1; s <= 6; s++) {
+      const moves = [
+        { pieceId: pieceAId, steps: s },
+        { pieceId: pieceBId, steps: 7 - s }
+      ];
+      const clone = this.cloneForSimulation();
+      try {
+        clone.makeSpecialMove(moves);
+        valid.push(s);
+      } catch (e) {
+        continue;
+      }
+    }
+    return valid;
+  }
+
   getPlayersInfo() {
     return this.players.map(p => ({
       id: p.id,
