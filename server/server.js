@@ -574,6 +574,15 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       canMove: game.hasAnyValidMove(nextPlayer.position)
     });
     handleBotTurn(game);
+
+    // Atualizar o estado salvo no histórico para refletir o jogo após todas as
+    // alterações do movimento Joker
+    const snapState = game.getGameStateWithCards();
+    delete snapState.lastMove;
+    const snap = JSON.parse(JSON.stringify(snapState));
+    if (game.history.length > 0) {
+      game.history[game.history.length - 1].state = snap;
+    }
   } catch (error) {
     console.error(`Erro ao processar movimento Joker:`, error);
     socket.emit('error', error.message);
