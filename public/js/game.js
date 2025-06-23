@@ -53,6 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let playerCards = [];
     let secondPieceId = null;
     let awaitingSecondPiece = false;
+    let validSplits = [];
+    let pendingSpecialMove = null;
     const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
     const homeStretches = [
       [
@@ -223,6 +225,7 @@ function initSocketWithPlayerData(playerData) {
   socket.on('homeEntryChoice', handleHomeEntryChoice);
   socket.on('homeEntryChoiceSpecial', handleHomeEntryChoiceSpecial);
   socket.on('lastMove', handleLastMove);
+  socket.on('validSplits', handleValidSplits);
   socket.on('error', handleError);
 }
 
@@ -499,12 +502,35 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
     
     function handleError(message) {
         showStatusMessage(`Erro: ${message}`, 'error');
+        if (pendingSpecialMove && pendingSpecialMove.pieceAId !== pendingSpecialMove.pieceBId) {
+            socket.emit('getValidSplits', {
+                roomId,
+                pieceAId: pendingSpecialMove.pieceAId,
+                pieceBId: pendingSpecialMove.pieceBId
+            });
+        }
     }
 
     function handleLastMove(data) {
         if (data && data.message) {
             showLastMove(data.message);
         }
+    }
+
+    function handleValidSplits(data) {
+        validSplits = data.splits || [];
+        if (validSplits.length === 0) {
+            showStatusMessage('Nenhuma divisão válida disponível', 'error');
+            return;
+        }
+        splitSlider.min = Math.min(...validSplits);
+        splitSlider.max = Math.max(...validSplits);
+        const mid = validSplits[Math.floor(validSplits.length / 2)];
+        splitSlider.value = mid;
+        updateSliderValues();
+        specialMoveChoice.classList.add('hidden');
+        specialMoveSlider.classList.remove('hidden');
+        specialMoveDialog.classList.remove('hidden');
     }
     
     // Funções de atualização da interface
@@ -1213,6 +1239,7 @@ function makeMove() {
         awaitingSecondPiece = false;
         secondPieceId = null;
         specialMoveCard = null;
+        pendingSpecialMove = null;
         selectedPieceId = null;
         selectedCardIndex = null;
         updateSelectedPiece();
@@ -1248,11 +1275,11 @@ function makeMove() {
         const p2 = gameState.pieces.find(p => p.id === secondPieceId);
         pieceLeft.textContent = `Peça ${p1.pieceId}`;
         pieceRight.textContent = `Peça ${p2.pieceId}`;
-        splitSlider.value = 3;
-        updateSliderValues();
-        specialMoveChoice.classList.add('hidden');
-        specialMoveSlider.classList.remove('hidden');
-        specialMoveDialog.classList.remove('hidden');
+        socket.emit('getValidSplits', {
+            roomId,
+            pieceAId: selectedPieceId,
+            pieceBId: secondPieceId
+        });
     }
     
     
@@ -1355,6 +1382,7 @@ function makeMove() {
     
     function setupEventListeners() {
         samePieceBtn.addEventListener('click', () => {
+            pendingSpecialMove = { pieceAId: selectedPieceId, pieceBId: selectedPieceId };
             socket.emit('makeSpecialMove', {
                 roomId,
                 moves: [{ pieceId: selectedPieceId, steps: 7 }],
@@ -1373,6 +1401,11 @@ function makeMove() {
 
         confirmSplitBtn.addEventListener('click', () => {
             const val = parseInt(splitSlider.value, 10);
+            if (validSplits.length > 0 && !validSplits.includes(val)) {
+                showStatusMessage('Divisão inválida', 'error');
+                return;
+            }
+            pendingSpecialMove = { pieceAId: selectedPieceId, pieceBId: secondPieceId };
             socket.emit('makeSpecialMove', {
                 roomId,
                 moves: [
@@ -1402,7 +1435,12 @@ function makeMove() {
     }
 
     function updateSliderValues() {
-        const val = parseInt(splitSlider.value, 10);
+        let val = parseInt(splitSlider.value, 10);
+        if (validSplits.length > 0 && !validSplits.includes(val)) {
+            const nearest = validSplits.reduce((a, b) => Math.abs(b - val) < Math.abs(a - val) ? b : a);
+            splitSlider.value = nearest;
+            val = nearest;
+        }
         sliderValues.textContent = `${val}-${7 - val}`;
     }
     

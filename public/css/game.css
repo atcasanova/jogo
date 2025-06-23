@@ -319,6 +319,11 @@
     width: 500px;
 }
 
+#special-move-dialog button {
+  font-size: 1.2rem;
+  padding: 1rem 1.5rem;
+}
+
 .dialog h3 {
     margin-bottom: 1.5rem;
     text-align: center;

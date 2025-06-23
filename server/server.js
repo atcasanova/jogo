@@ -886,6 +886,27 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     }
   });
 
+  socket.on('getValidSplits', ({ roomId, pieceAId, pieceBId }) => {
+    const game = rooms.get(roomId);
+
+    if (!game || !game.isActive) {
+      socket.emit('error', 'Jogo não está ativo');
+      return;
+    }
+
+    if (game.getCurrentPlayer().id !== socket.id) {
+      socket.emit('error', 'Não é sua vez');
+      return;
+    }
+
+    try {
+      const splits = game.getValidSplits(pieceAId, pieceBId);
+      socket.emit('validSplits', { splits });
+    } catch (error) {
+      socket.emit('error', error.message);
+    }
+  });
+
   socket.on('confirmSpecialHomeEntry', ({ roomId, enterHome }) => {
     const game = rooms.get(roomId);
 
