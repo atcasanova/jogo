@@ -61,6 +61,13 @@ class GameEnvironment:
             return -1
         return (ent_idx - start_idx + len(self._track)) % len(self._track)
 
+    def _track_index(self, pos: Dict[str, int]) -> int:
+        """Return the index of ``pos`` along the outer track or ``-1``."""
+        for i, square in enumerate(self._track):
+            if square['row'] == pos.get('row') and square['col'] == pos.get('col'):
+                return i
+        return -1
+
     def _count_opponent_near_home(self, pieces: Dict[str, Dict[str, Any]], player_id: int, threshold: int = 10) -> int:
         """Count opponent pieces close to their home stretch entrance."""
         teams = self.game_state.get('teams', []) if self.game_state else []
@@ -423,9 +430,10 @@ class GameEnvironment:
 
             action = alt_actions[0]
 
-        # Base reward only penalizes invalid attempts. Specific board progress
-        # is handled below.
+        # Reward shaping
         reward = -0.1 * invalid_attempts
+        if response.get('success'):
+            reward += 0.05  # basic incentive for a valid move
         done = response.get('gameEnded', False)
 
         prev_pieces = {}
@@ -479,28 +487,40 @@ class GameEnvironment:
                 if not pid:
                     continue
                 owner = p.get('playerId')
-                now_home = p.get('inHomeStretch')
-                now_completed = p.get('completed')
                 now_penalty = p.get('inPenaltyZone')
                 pos = p.get('position')
                 near = False
-                if pos and not now_penalty and not now_home and not now_completed:
+                if pos and not now_penalty and not p.get('inHomeStretch') and not p.get('completed'):
                     steps = self._steps_to_entrance(pos, owner)
                     near = 0 <= steps <= 10
 
                 prev_info = prev_pieces.get(pid)
                 was_near = prev_near_home.get(pid, False)
+                if prev_info and pos and prev_info.get('pos') and not now_penalty and not p.get('completed'):
+                    prev_idx = self._track_index(prev_info['pos'])
+                    new_idx = self._track_index(pos)
+                    if prev_idx != -1 and new_idx != -1:
+                        diff = (prev_idx - new_idx) % len(self._track)
+                        if diff > 0:
+                            reward += 0.1 * diff
 
                 if owner in my_team:
-                    if prev_info and not prev_info['in_home'] and now_home:
-                        reward += 1.0
-                    if not was_near and near:
-                        reward += 0.5
+                    if prev_info and not prev_info['in_penalty'] and now_penalty:
+                        reward -= 0.5
+
+                prev_near_home[pid] = was_near
+
+            for cap in response.get('captures', []):
+                cid = cap.get('pieceId')
+                info = prev_pieces.get(cid)
+                if not info:
+                    continue
+                owner = info.get('player_id')
+                near = prev_near_home.get(cid, False)
+                if owner in my_team:
+                    reward -= 0.5
                 else:
-                    if prev_info and not prev_info['in_home'] and now_home:
-                        reward -= 1.0
-                    if was_near and not near:
-                        reward += 0.5
+                    reward += 0.5 if near else 0.2
 
 
         # Bonus for winning the game
