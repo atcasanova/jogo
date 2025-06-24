@@ -246,14 +246,16 @@ class TrainingManager:
     def print_statistics(self, episode):
         info("Episode statistics", episode=episode)
         
-        for i, bot in enumerate(self.bots):
+        sorted_bots = sorted(self.bots, key=lambda b: getattr(b, 'bot_id', 0))
+
+        for bot in sorted_bots:
             win_rate = (bot.wins / bot.games_played * 100) if bot.games_played > 0 else 0
             avg_reward = bot.total_reward / bot.games_played if bot.games_played > 0 else 0
             avg_loss = np.mean(bot.losses[-100:]) if bot.losses else 0
-            
+
             info(
                 "Bot stats",
-                bot=i,
+                bot=bot.bot_id,
                 win_rate=f"{win_rate:.1f}",
                 avg_reward=f"{avg_reward:.2f}",
                 avg_loss=f"{avg_loss:.4f}"
@@ -270,24 +272,31 @@ class TrainingManager:
             axes[0, 0].set_ylabel('Total Reward')
         
         # Win rates
+        sorted_bots = sorted(self.bots, key=lambda b: getattr(b, 'bot_id', 0))
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
         win_rates = []
-        for bot in self.bots:
+        for bot in sorted_bots:
             win_rate = (bot.wins / bot.games_played * 100) if bot.games_played > 0 else 0
             win_rates.append(win_rate)
-        
-        axes[0, 1].bar(range(len(win_rates)), win_rates)
+
+        bar_colors = [colors[bot.bot_id % len(colors)] for bot in sorted_bots]
+        axes[0, 1].bar(range(len(sorted_bots)), win_rates, color=bar_colors)
         axes[0, 1].set_title('Win Rates by Bot')
         axes[0, 1].set_xlabel('Bot ID')
+        axes[0, 1].set_xticks(range(len(sorted_bots)))
+        axes[0, 1].set_xticklabels([bot.bot_id for bot in sorted_bots])
         axes[0, 1].set_ylabel('Win Rate (%)')
         
         # Average losses
         has_loss_plots = False
-        for i, bot in enumerate(self.bots):
+        for bot in sorted_bots:
             if bot.losses:
                 window_size = min(100, len(bot.losses))
                 if window_size > 0:
                     moving_avg = np.convolve(bot.losses, np.ones(window_size)/window_size, mode='valid')
-                    axes[1, 0].plot(moving_avg, label=f'Bot {i}')
+                    color = colors[bot.bot_id % len(colors)]
+                    axes[1, 0].plot(moving_avg, label=f'Bot {bot.bot_id}', color=color)
                     has_loss_plots = True
 
         axes[1, 0].set_title('Training Loss (Moving Average)')
@@ -311,8 +320,10 @@ class TrainingManager:
     def save_models(self, base_path):
         os.makedirs(base_path, exist_ok=True)
         
-        for i, bot in enumerate(self.bots):
-            bot.save_model(f"{base_path}/bot_{i}.pth")
+        sorted_bots = sorted(self.bots, key=lambda b: getattr(b, 'bot_id', 0))
+
+        for bot in sorted_bots:
+            bot.save_model(f"{base_path}/bot_{bot.bot_id}.pth")
         
         # Save training statistics
         with open(f"{base_path}/training_stats.json", 'w') as f:
@@ -321,9 +332,11 @@ class TrainingManager:
         info("Models saved", path=base_path)
     
     def load_models(self, base_path):
-        for i, bot in enumerate(self.bots):
-            model_path = f"{base_path}/bot_{i}.pth"
+        sorted_bots = sorted(self.bots, key=lambda b: getattr(b, 'bot_id', 0))
+
+        for bot in sorted_bots:
+            model_path = f"{base_path}/bot_{bot.bot_id}.pth"
             if os.path.exists(model_path):
                 bot.load_model(model_path)
-                info("Loaded model", bot=i)
+                info("Loaded model", bot=bot.bot_id)
 
