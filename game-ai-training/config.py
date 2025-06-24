@@ -10,7 +10,12 @@ TRAINING_CONFIG = {
     'hidden_size': 512,
     'train_freq': 4,
     'ppo_clip': 0.2,
-    'entropy_weight': 0.01
+    'entropy_weight': 0.01,
+    # How often the bot's target network should be updated.
+    # Used by TrainingManager to call GameBot.update_target_network().
+    # Defaulting to a relatively high value keeps updates infrequent
+    # but allows quick overrides in custom configs.
+    'update_target_freq': 1000
 }
 
 # Paths
