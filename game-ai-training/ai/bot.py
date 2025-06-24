@@ -87,7 +87,7 @@ class GameBot:
 
     def replay(self):
         if len(self.memory) < self.batch_size:
-            return
+            return None
 
         states, actions, rewards, dones, log_probs, values = zip(*self.memory)
         self.memory = []
@@ -119,6 +119,7 @@ class GameBot:
         dist = torch.distributions.Categorical(probs)
         new_log_probs = dist.log_prob(actions_t)
         entropy = dist.entropy().mean()
+        approx_kl = (old_log_probs_t.detach() - new_log_probs).mean().item()
 
         ratio = (new_log_probs - old_log_probs_t.detach()).exp()
         surr1 = ratio * advantages
@@ -132,6 +133,8 @@ class GameBot:
         self.optimizer.step()
 
         self.losses.append(float(loss.item()))
+
+        return approx_kl
 
     def update_target_network(self):
         pass

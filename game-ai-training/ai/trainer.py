@@ -20,6 +20,7 @@ class TrainingManager:
             'episode_rewards': [],
             'win_rates': [],
             'average_losses': [],
+            'kl_divergences': [],
             'games_played': 0
         }
         
@@ -119,7 +120,9 @@ class TrainingManager:
             # Train bot
             current_bot.step_count += 1
             if current_bot.step_count % current_bot.train_freq == 0:
-                current_bot.replay()
+                kl = current_bot.replay()
+                if kl is not None:
+                    self.training_stats['kl_divergences'].append(kl)
             
             if current_bot.step_count % current_bot.update_target_freq == 0:
                 current_bot.update_target_network()
@@ -238,7 +241,6 @@ class TrainingManager:
                 bot=i,
                 win_rate=f"{win_rate:.1f}",
                 avg_reward=f"{avg_reward:.2f}",
-                epsilon=f"{bot.epsilon:.3f}",
                 avg_loss=f"{avg_loss:.4f}"
             )
     
@@ -279,12 +281,12 @@ class TrainingManager:
         if has_loss_plots:
             axes[1, 0].legend()
         
-        # Epsilon decay
-        epsilons = [bot.epsilon for bot in self.bots]
-        axes[1, 1].bar(range(len(epsilons)), epsilons)
-        axes[1, 1].set_title('Current Epsilon Values')
-        axes[1, 1].set_xlabel('Bot ID')
-        axes[1, 1].set_ylabel('Epsilon')
+        # KL divergence
+        if self.training_stats['kl_divergences']:
+            axes[1, 1].plot(self.training_stats['kl_divergences'])
+        axes[1, 1].set_title('Approximate KL Divergence')
+        axes[1, 1].set_xlabel('Training Step')
+        axes[1, 1].set_ylabel('KL Divergence')
         
         plt.tight_layout()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
