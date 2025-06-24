@@ -47,6 +47,9 @@ class GameBot:
         self.entropy_weight = TRAINING_CONFIG.get('entropy_weight', 0.01)
         self.batch_size = TRAINING_CONFIG['batch_size']
         self.train_freq = TRAINING_CONFIG['train_freq']
+        # Number of steps between calls to update_target_network().
+        # Some configs (e.g. quick_start.sh) override this value.
+        self.update_target_freq = TRAINING_CONFIG.get('update_target_freq', 1000)
         self.step_count = 0
 
         self.epsilon = 0.0
