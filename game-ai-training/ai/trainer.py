@@ -9,6 +9,7 @@ from ai.environment import GameEnvironment
 from ai.bot import GameBot
 from config import TRAINING_CONFIG, MODEL_DIR, PLOT_DIR, LOG_DIR
 from json_logger import info, warning
+import random
 
 class TrainingManager:
     def __init__(self, num_envs: int = 1):
@@ -66,10 +67,19 @@ class TrainingManager:
             self.bots.append(bot)
 
         info("Created bots for training", count=num_bots, gpus=num_gpus)
+
+    def _shuffle_bots(self) -> None:
+        """Randomize bot seating positions for the next episode."""
+        random.shuffle(self.bots)
+        for idx, bot in enumerate(self.bots):
+            bot.player_id = idx
     
     def train_episode(self, env=None):
         """Run a single training episode using the provided environment."""
         env = env or self.env
+
+        # Randomize bot seating for this episode
+        self._shuffle_bots()
 
         # Reset environment
         initial_state = env.reset()

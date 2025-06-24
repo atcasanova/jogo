@@ -77,9 +77,10 @@ def test_train_episode_increments_wins():
         manager.env = MockGameEnvironment()
         manager.create_bots(num_bots=4)
 
-        initial_wins = manager.bots[0].wins
-        manager.train_episode()
-        assert manager.bots[0].wins == initial_wins + 1
+        with patch.object(manager, '_shuffle_bots', lambda: None):
+            initial_wins = manager.bots[0].wins
+            manager.train_episode()
+            assert manager.bots[0].wins == initial_wins + 1
 
 
 def test_train_episode_breaks_on_no_actions():
@@ -98,5 +99,6 @@ def test_train_episode_breaks_on_no_actions():
         manager.env = env
         manager.create_bots(num_bots=4)
 
-        manager.train_episode()
-        env.step.assert_not_called()
+        with patch.object(manager, '_shuffle_bots', lambda: None):
+            manager.train_episode()
+            env.step.assert_not_called()
