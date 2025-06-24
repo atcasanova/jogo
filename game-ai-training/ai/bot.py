@@ -2,158 +2,150 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-import random
-from collections import deque
+from typing import List, Tuple
 import threading
 
 from config import TRAINING_CONFIG
 from json_logger import info
 
-class DQN(nn.Module):
-    def __init__(self, state_size, action_size, hidden_size=512):
-        super(DQN, self).__init__()
-        self.network = nn.Sequential(
+
+class ActorCritic(nn.Module):
+    """Simple actor-critic network used by PPO."""
+
+    def __init__(self, state_size: int, action_size: int, hidden_size: int = 512):
+        super().__init__()
+        self.shared = nn.Sequential(
             nn.Linear(state_size, hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.3),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(hidden_size, hidden_size // 2),
-            nn.ReLU(),
-            nn.Linear(hidden_size // 2, action_size)
         )
-    
-    def forward(self, x):
-        return self.network(x)
+        self.policy_head = nn.Linear(hidden_size, action_size)
+        self.value_head = nn.Linear(hidden_size, 1)
+
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        features = self.shared(x)
+        return self.policy_head(features), self.value_head(features)
+
 
 class GameBot:
-    def __init__(self, player_id, state_size, action_size, device=None):
-        """Initialize a bot and move models to the selected device."""
+    """PPO-based game bot."""
 
-        # Set device. Allow explicit device to be passed so bots can be
-        # distributed across multiple GPUs when available.
-        if device is None:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        else:
-            self.device = torch.device(device)
-
+    def __init__(self, player_id: int, state_size: int, action_size: int, device: str = None):
+        self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         info("Bot using device", bot=player_id, device=str(self.device))
-       
+
         self.player_id = player_id
         self.state_size = state_size
         self.action_size = action_size
-        
-        # Neural networks - move to GPU
-        self.q_network = DQN(state_size, action_size, TRAINING_CONFIG['hidden_size']).to(self.device)
-        self.target_network = DQN(state_size, action_size, TRAINING_CONFIG['hidden_size']).to(self.device)
-        self.optimizer = optim.Adam(self.q_network.parameters(), lr=TRAINING_CONFIG['learning_rate'])
-        
-        # Experience replay
-        self.memory = deque(maxlen=TRAINING_CONFIG['memory_size'])
-        self.batch_size = TRAINING_CONFIG['batch_size']
-        
-        # Exploration parameters
-        self.epsilon = TRAINING_CONFIG['epsilon_start']
-        self.epsilon_min = TRAINING_CONFIG['epsilon_min']
-        self.epsilon_decay = TRAINING_CONFIG['epsilon_decay']
-        
-        # Training parameters
+
+        self.model = ActorCritic(state_size, action_size, TRAINING_CONFIG['hidden_size']).to(self.device)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=TRAINING_CONFIG['learning_rate'])
+
         self.gamma = TRAINING_CONFIG['gamma']
-        self.update_target_freq = TRAINING_CONFIG['update_target_freq']
+        self.clip_eps = TRAINING_CONFIG.get('ppo_clip', 0.2)
+        self.entropy_weight = TRAINING_CONFIG.get('entropy_weight', 0.01)
+        self.batch_size = TRAINING_CONFIG['batch_size']
         self.train_freq = TRAINING_CONFIG['train_freq']
         self.step_count = 0
-        
-        # Statistics
+
+        self.epsilon = 0.0
+
+        self.memory: List[Tuple] = []
+        self.lock = threading.Lock()
+
         self.wins = 0
         self.games_played = 0
-        self.total_reward = 0
-        self.losses = []
+        self.total_reward = 0.0
+        self.losses: List[float] = []
 
-        # Synchronization lock for multi-threaded training
-        self.lock = threading.Lock()
-    
+        self.last_log_prob = None
+        self.last_value = None
+
+    def act(self, state: np.ndarray, valid_actions: List[int]) -> int:
+        state_t = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        logits, value = self.model(state_t)
+
+        mask = torch.full_like(logits, float('-inf'))
+        for a in valid_actions:
+            if a < self.action_size:
+                mask[0, a] = 0.0
+        logits = logits + mask
+        probs = torch.softmax(logits, dim=-1)
+        dist = torch.distributions.Categorical(probs)
+        action = dist.sample()
+
+        self.last_log_prob = dist.log_prob(action)
+        self.last_value = value.squeeze(0)
+        return int(action.item())
+
     def remember(self, state, action, reward, next_state, done):
-        """Store experience in replay buffer"""
-        self.memory.append((state, action, reward, next_state, done))
-    
-    def act(self, state, valid_actions):
-        """Choose action using epsilon-greedy policy"""
-        if np.random.random() <= self.epsilon:
-            return random.choice(valid_actions)
-        
-        # Move state to GPU and run network in evaluation mode without grad
-        state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-        self.q_network.eval()
-        with torch.no_grad():
-            q_values = self.q_network(state_tensor)
-        self.q_network.train()
-        
-        # Mask invalid actions
-        masked_q_values = q_values.clone()
-        mask = torch.full_like(masked_q_values, float('-inf'))
-        for action in valid_actions:
-            if action < self.action_size:
-                mask[0][action] = 0
-        masked_q_values += mask
-        
-        return masked_q_values.argmax().item()
-    
+        self.memory.append((state, action, reward, done, self.last_log_prob, self.last_value))
+
     def replay(self):
-        """Train the model on a batch of experiences"""
         if len(self.memory) < self.batch_size:
             return
 
-        batch = random.sample(self.memory, self.batch_size)
+        states, actions, rewards, dones, log_probs, values = zip(*self.memory)
+        self.memory = []
 
-        # Move tensors to GPU
-        states = torch.FloatTensor(np.array([e[0] for e in batch])).to(self.device)
-        actions = torch.LongTensor(np.array([e[1] for e in batch])).to(self.device)
-        rewards = torch.FloatTensor(np.array([e[2] for e in batch])).to(self.device)
-        next_states = torch.FloatTensor(np.array([e[3] for e in batch])).to(self.device)
-        dones = torch.BoolTensor(np.array([e[4] for e in batch])).to(self.device)
+        states_t = torch.FloatTensor(np.array(states)).to(self.device)
+        actions_t = torch.LongTensor(actions).to(self.device)
+        rewards_t = torch.FloatTensor(rewards).to(self.device)
+        dones_t = torch.FloatTensor(dones).to(self.device)
+        old_log_probs_t = torch.stack(log_probs).to(self.device)
+        values_t = torch.stack(values).to(self.device)
 
-        with self.lock:
-            current_q_values = self.q_network(states).gather(1, actions.unsqueeze(1))
-            next_q_values = self.target_network(next_states).max(1)[0].detach()
-            target_q_values = rewards + (self.gamma * next_q_values * ~dones)
+        returns = []
+        R = 0.0
+        for r, d in zip(reversed(rewards_t.tolist()), reversed(dones_t.tolist())):
+            if d:
+                R = 0.0
+            R = r + self.gamma * R
+            returns.insert(0, R)
+        returns_t = torch.FloatTensor(returns).to(self.device)
+        advantages = returns_t - values_t.detach()
 
-            loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
-            
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-        
-        self.losses.append(loss.item())
-        
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
-    
+        logits, new_values = self.model(states_t)
+        logit_mask = torch.full_like(logits, float('-inf'))
+        for idx, acts in enumerate([list(range(self.action_size))] * len(states_t)):
+            for a in acts:
+                logit_mask[idx, a] = 0.0
+        logits = logits + logit_mask
+        probs = torch.softmax(logits, dim=-1)
+        dist = torch.distributions.Categorical(probs)
+        new_log_probs = dist.log_prob(actions_t)
+        entropy = dist.entropy().mean()
+
+        ratio = (new_log_probs - old_log_probs_t.detach()).exp()
+        surr1 = ratio * advantages
+        surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * advantages
+        actor_loss = -torch.min(surr1, surr2).mean()
+        critic_loss = nn.functional.mse_loss(new_values.squeeze(-1), returns_t)
+        loss = actor_loss + 0.5 * critic_loss - self.entropy_weight * entropy
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        self.losses.append(float(loss.item()))
+
     def update_target_network(self):
-        """Copy weights from main network to target network"""
-        with self.lock:
-            self.target_network.load_state_dict(self.q_network.state_dict())
-    
-    def save_model(self, filepath):
-        """Save the trained model"""
+        pass
+
+    def save_model(self, filepath: str) -> None:
         torch.save({
-            'q_network_state_dict': self.q_network.state_dict(),
-            'target_network_state_dict': self.target_network.state_dict(),
+            'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'epsilon': self.epsilon,
             'wins': self.wins,
             'games_played': self.games_played,
-            'total_reward': self.total_reward
+            'total_reward': self.total_reward,
         }, filepath)
-    
-    def load_model(self, filepath):
-        """Load a trained model"""
-        checkpoint = torch.load(filepath, map_location=self.device)
-        self.q_network.load_state_dict(checkpoint['q_network_state_dict'])
-        self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.epsilon = checkpoint['epsilon']
-        self.wins = checkpoint['wins']
-        self.games_played = checkpoint['games_played']
-        self.total_reward = checkpoint['total_reward']
 
+    def load_model(self, filepath: str) -> None:
+        checkpoint = torch.load(filepath, map_location=self.device)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.wins = checkpoint.get('wins', 0)
+        self.games_played = checkpoint.get('games_played', 0)
+        self.total_reward = checkpoint.get('total_reward', 0.0)

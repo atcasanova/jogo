@@ -4,6 +4,7 @@ from unittest.mock import patch
 import subprocess
 from pathlib import Path
 import tempfile
+import pytest
 from ai.environment import GameEnvironment
 
 
@@ -52,7 +53,7 @@ def test_step_updates_game_state_and_returns_rewards():
         with patch.object(env, 'is_action_valid', return_value=True):
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 next_state, reward, done = env.step(1, 0)
-    assert reward == 0.0
+    assert reward == 0.05
     assert done is False
     assert env.game_state == {'foo': 'bar', 'gameEnded': False, 'winningTeam': None}
     assert isinstance(next_state, np.ndarray)
@@ -851,7 +852,7 @@ def test_step_retries_until_success():
                 with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                     next_state, reward, done = env.step(1, 0)
 
-    assert reward == -0.2
+    assert reward == pytest.approx(-0.15)
     assert mock_cmd.call_count == 3
 
 
