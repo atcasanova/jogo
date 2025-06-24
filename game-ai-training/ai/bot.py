@@ -31,11 +31,12 @@ class ActorCritic(nn.Module):
 class GameBot:
     """PPO-based game bot."""
 
-    def __init__(self, player_id: int, state_size: int, action_size: int, device: str = None):
+    def __init__(self, player_id: int, state_size: int, action_size: int, device: str = None, bot_id: int = None):
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
-        info("Bot using device", bot=player_id, device=str(self.device))
+        info("Bot using device", bot=bot_id if bot_id is not None else player_id, device=str(self.device))
 
         self.player_id = player_id
+        self.bot_id = bot_id if bot_id is not None else player_id
         self.state_size = state_size
         self.action_size = action_size
 

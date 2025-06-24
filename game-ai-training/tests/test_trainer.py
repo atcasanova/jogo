@@ -12,7 +12,7 @@ class MockGameEnvironment:
         self.env_id = 0
         self.saved_file = None
 
-    def reset(self):
+    def reset(self, bot_names=None):
         self.game_state = {'currentPlayerIndex': 0, 'gameEnded': False, 'winningTeam': None}
         return np.zeros(self.state_size)
 
@@ -38,8 +38,9 @@ class MockGameEnvironment:
 
 
 class DummyGameBot:
-    def __init__(self, player_id, state_size, action_size):
+    def __init__(self, player_id, state_size, action_size, device=None, bot_id=None):
         self.player_id = player_id
+        self.bot_id = bot_id if bot_id is not None else player_id
         self.state_size = state_size
         self.action_space_size = action_size
         self.wins = 0

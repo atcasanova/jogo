@@ -54,7 +54,8 @@ class TrainingManager:
                     player_id=i,
                     state_size=self.env.state_size,
                     action_size=self.env.action_space_size,
-                    device=device
+                    device=device,
+                    bot_id=i
                 )
             except TypeError:
                 # For backward compatibility or when GameBot is mocked without
@@ -62,7 +63,8 @@ class TrainingManager:
                 bot = GameBot(
                     player_id=i,
                     state_size=self.env.state_size,
-                    action_size=self.env.action_space_size
+                    action_size=self.env.action_space_size,
+                    bot_id=i
                 )
             self.bots.append(bot)
 
@@ -81,8 +83,11 @@ class TrainingManager:
         # Randomize bot seating for this episode
         self._shuffle_bots()
 
-        # Reset environment
-        initial_state = env.reset()
+        # Names for logging the actual bot identities in the Node game
+        bot_names = [f"Bot_{bot.bot_id}" if hasattr(bot, 'bot_id') else f"Bot_{i}" for i, bot in enumerate(self.bots)]
+
+        # Reset environment with the ordered bot names
+        initial_state = env.reset(bot_names=bot_names)
         
         episode_rewards = [0] * 4
         states = [None] * 4

@@ -45,13 +45,14 @@ class GameWrapper {
         process.stdout.write(JSON.stringify(response) + '\n');
     }
     
-    setupGame() {
+    setupGame(botNames) {
         try {
             this.game = new Game("training_room");
 
             // Add 4 bot players
             for (let i = 0; i < 4; i++) {
-                this.game.addPlayer(`bot_${i}`, `Bot_${i}`);
+                const name = Array.isArray(botNames) && botNames[i] ? botNames[i] : `Bot_${i}`;
+                this.game.addPlayer(`bot_${i}`, name);
             }
 
             this.game.startGame();
@@ -93,7 +94,7 @@ class GameWrapper {
         try {
             switch (command.action) {
                 case 'reset':
-                    if (this.setupGame()) {
+                    if (this.setupGame(command.botNames)) {
                         return {
                             success: true,
                             gameState: this.getGameState()
