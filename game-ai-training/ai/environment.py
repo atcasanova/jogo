@@ -208,13 +208,23 @@ class GameEnvironment:
         except Exception as e:
             return {"error": f"Communication error: {e}"}
     
-    def reset(self) -> np.ndarray:
-        """Reset game and return initial state"""
+    def reset(self, bot_names=None) -> np.ndarray:
+        """Reset game and return initial state.
+
+        Parameters
+        ----------
+        bot_names : Optional[List[str]]
+            Names to assign to seats 0-3 so logs reflect the actual bots.
+        """
         if not self.node_process or self.node_process.poll() is not None:
             if not self.start_node_game():
                 return np.zeros(self.state_size)
-        
-        response = self.send_command({"action": "reset"})
+
+        command = {"action": "reset"}
+        if bot_names:
+            command["botNames"] = bot_names
+
+        response = self.send_command(command)
         if response.get('success'):
             self.game_state = response.get("gameState", {})
             # Ensure win information fields exist for trainer
