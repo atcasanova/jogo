@@ -521,10 +521,6 @@ class GameEnvironment:
                     prev_idx = self._track_index(prev_info['pos'])
                     new_idx = self._track_index(pos)
                     if prev_idx != -1 and new_idx != -1:
-                        diff = (prev_idx - new_idx) % len(self._track)
-                        if diff > 0:
-                            reward += 0.1 * diff
-
                         # Penalize skipping the home entrance when it was
                         # possible to enter.
                         forward = (new_idx - prev_idx) % len(self._track)
