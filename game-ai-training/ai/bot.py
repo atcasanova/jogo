@@ -149,10 +149,16 @@ class GameBot:
             'total_reward': self.total_reward,
         }, filepath)
 
-    def load_model(self, filepath: str) -> None:
+    def load_model(self, filepath: str, reset_stats: bool = False) -> None:
+        """Load model weights and optionally ignore stored statistics."""
         checkpoint = torch.load(filepath, map_location=self.device)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.wins = checkpoint.get('wins', 0)
-        self.games_played = checkpoint.get('games_played', 0)
-        self.total_reward = checkpoint.get('total_reward', 0.0)
+        if reset_stats:
+            self.wins = 0
+            self.games_played = 0
+            self.total_reward = 0.0
+        else:
+            self.wins = checkpoint.get('wins', 0)
+            self.games_played = checkpoint.get('games_played', 0)
+            self.total_reward = checkpoint.get('total_reward', 0.0)
