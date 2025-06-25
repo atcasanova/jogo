@@ -74,3 +74,20 @@ When a seven card can be split across multiple pieces, `getValidActions` may
 include special actions with IDs of 60 or higher to represent the available
 split moves. If a bot attempts an unsupported action, no valid moves remain and
 the episode may finish very quickly as the agent runs out of legal actions.
+
+## Running Tournaments
+
+The script `tournament.py` allows you to pit saved bots against each other
+without further training. It scans the `models/` directory for available
+episodes and lets you assign a model folder to each of the four seats. This
+makes it easy to, for example, play bots from episode 2500 against bots from
+episode 10000.
+
+Run it from the repository root:
+
+```bash
+python3 game-ai-training/tournament.py
+```
+
+Select the model directory for each seat when prompted. The script will play 200
+games and print the win counts for every bot once finished.
