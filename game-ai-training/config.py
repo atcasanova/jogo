@@ -10,7 +10,10 @@ TRAINING_CONFIG = {
     'hidden_size': 512,
     'train_freq': 4,
     'ppo_clip': 0.2,
-    'entropy_weight': 0.01,
+    # Encourage exploration slightly more by increasing the entropy term.
+    'entropy_weight': 0.02,
+    # Target KL divergence used for monitoring training stability.
+    'kl_target': 0.02,
     # How often the bot's target network should be updated.
     # Used by TrainingManager to call GameBot.update_target_network().
     # Defaulting to a relatively high value keeps updates infrequent

@@ -28,6 +28,13 @@ python3 game-ai-training/main.py --continue
 
 The trainer will load the models from `models/final` if they exist.
 
+## Training Configuration
+
+`config.py` defines hyperparameters for PPO training. A new `kl_target` value
+specifies the desired KL divergence between policy updates. The trainer logs a
+warning if the measured KL divergence stays below half of this value for more
+than 100 update steps.
+
 ## Match Logging
 
 Passing the `--save-match-log` flag to `main.py` writes the move history of

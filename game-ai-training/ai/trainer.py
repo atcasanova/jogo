@@ -24,7 +24,13 @@ class TrainingManager:
             'kl_divergences': [],
             'games_played': 0
         }
-        
+
+        self.kl_target = TRAINING_CONFIG.get('kl_target', 0.02)
+        self.kl_threshold = self.kl_target / 2
+        self.low_kl_count = 0
+        self.kl_warning_steps = 100
+        self.loss_window = 100
+
         # Create directories
         for directory in [MODEL_DIR, PLOT_DIR, LOG_DIR]:
             os.makedirs(directory, exist_ok=True)
@@ -75,6 +81,37 @@ class TrainingManager:
         random.shuffle(self.bots)
         for idx, bot in enumerate(self.bots):
             bot.player_id = idx
+
+    def _check_kl_warning(self, kl_value: float) -> None:
+        """Warn if KL divergence remains below the threshold for many updates."""
+        if kl_value < self.kl_threshold:
+            self.low_kl_count += 1
+        else:
+            self.low_kl_count = 0
+
+        if self.low_kl_count >= self.kl_warning_steps:
+            warning(
+                "KL divergence consistently low",
+                kl=f"{kl_value:.4f}",
+                steps=self.low_kl_count,
+                threshold=f"{self.kl_threshold:.4f}"
+            )
+
+    def _check_loss_stagnation(self) -> None:
+        """Warn when average loss shows little change across bots."""
+        stagnant = True
+        for bot in self.bots:
+            if len(bot.losses) < self.loss_window * 2:
+                stagnant = False
+                break
+            recent_avg = np.mean(bot.losses[-self.loss_window:])
+            prev_avg = np.mean(bot.losses[-2 * self.loss_window:-self.loss_window])
+            if abs(prev_avg - recent_avg) > 1e-4:
+                stagnant = False
+                break
+
+        if stagnant:
+            warning("Loss appears stagnant across bots", window=self.loss_window)
     
     def train_episode(self, env=None):
         """Run a single training episode using the provided environment."""
@@ -138,6 +175,7 @@ class TrainingManager:
                 kl = current_bot.replay()
                 if kl is not None:
                     self.training_stats['kl_divergences'].append(kl)
+                    self._check_kl_warning(kl)
             
             if current_bot.step_count % current_bot.update_target_freq == 0:
                 current_bot.update_target_network()
@@ -260,6 +298,8 @@ class TrainingManager:
                 avg_reward=f"{avg_reward:.2f}",
                 avg_loss=f"{avg_loss:.4f}"
             )
+
+        self._check_loss_stagnation()
     
     def plot_training_progress(self):
         fig, axes = plt.subplots(2, 2, figsize=(15, 10))
