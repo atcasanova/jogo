@@ -445,6 +445,7 @@ discardCard(cardIndex) {
       // Reverter para o estado salvo
       this.pieces = snapshot.pieces;
       this.players = snapshot.players;
+      this.relinkTeams();
       this.discardPile = snapshot.discardPile;
       this.stats = snapshot.stats;
       this.pendingSpecialMove = snapshot.pendingSpecialMove;
@@ -517,6 +518,7 @@ discardCard(cardIndex) {
     } catch (err) {
       this.pieces = snapshot.pieces;
       this.players = snapshot.players;
+      this.relinkTeams();
       this.discardPile = snapshot.discardPile;
       this.stats = snapshot.stats;
       this.pendingSpecialMove = snapshot.pendingSpecialMove;
@@ -1324,6 +1326,14 @@ discardCard(cardIndex) {
     if (!team) return null;
     const partner = team.find(p => p.position !== playerId);
     return partner ? partner.position : null;
+  }
+
+  relinkTeams() {
+    this.teams = this.teams.map(team =>
+      team.map(player =>
+        this.players.find(p => p.position === player.position)
+      )
+    );
   }
 
   canControlPiece(controllerId, pieceOwnerId) {
