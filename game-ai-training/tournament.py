@@ -59,8 +59,14 @@ def load_bots(env: GameEnvironment, dirs: List[str]) -> List[GameBot]:
         bots.append(bot)
     return bots
 
-def play_game(env: GameEnvironment, bots: List[GameBot]) -> None:
-    """Run a single game without training."""
+def play_game(env: GameEnvironment, bots: List[GameBot]) -> List[int]:
+    """Run a single game without training.
+
+    Returns
+    -------
+    List[int]
+        The positions of any winning players, or an empty list if no winner.
+    """
     bot_names = [f"Bot_{b.bot_id}" for b in bots]
     env.reset(bot_names=bot_names)
     step = 0
@@ -76,13 +82,17 @@ def play_game(env: GameEnvironment, bots: List[GameBot]) -> None:
         _, _, done = env.step(action, current_player)
         step += 1
 
+    winners: List[int] = []
     if env.game_state.get("winningTeam"):
         for pl in env.game_state["winningTeam"]:
             pos = pl.get("position")
             if pos is not None and 0 <= pos < len(bots):
                 bots[pos].wins += 1
+                winners.append(pos)
     for b in bots:
         b.games_played += 1
+
+    return winners
 
 
 def main() -> None:
@@ -91,10 +101,9 @@ def main() -> None:
         print("No model directories found in 'models/'")
         return
 
-    seats = []
-    for i in range(4):
-        seat_dir = choose_dir(f"seat {i}", options)
-        seats.append(seat_dir)
+    team0 = choose_dir("Team 0 (seats 0 & 2)", options)
+    team1 = choose_dir("Team 1 (seats 1 & 3)", options)
+    seats = [team0, team1, team0, team1]
 
     env = GameEnvironment()
     if not env.start_node_game():
@@ -106,10 +115,21 @@ def main() -> None:
     num_games = 200
     print(f"Running {num_games} games...\n")
     for i in range(num_games):
-        play_game(env, bots)
+        winners = play_game(env, bots)
         env.reset()
-        if (i + 1) % 50 == 0:
+        if winners:
+            print(f"Game {i + 1}: winners {', '.join(str(w) for w in winners)}")
+        else:
+            print(f"Game {i + 1}: no winner")
+
+        if (i + 1) % 10 == 0:
             print(f"Completed {i + 1} games")
+            for idx, b in enumerate(bots):
+                win_rate = b.wins / b.games_played if b.games_played else 0
+                print(
+                    f"Bot {idx} from '{seats[idx]}' - wins: {b.wins}/{b.games_played} "
+                    f"({win_rate:.2%})"
+                )
 
     env.close()
 

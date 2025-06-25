@@ -79,9 +79,9 @@ the episode may finish very quickly as the agent runs out of legal actions.
 
 The script `tournament.py` allows you to pit saved bots against each other
 without further training. It scans the `models/` directory for available
-episodes and lets you assign a model folder to each of the four seats. This
-makes it easy to, for example, play bots from episode 2500 against bots from
-episode 10000.
+episodes and lets you assign one model for seats 0 and 2 and another model for
+seats 1 and 3. This simulates two fixed teams, making it easy to, for example,
+play bots from episode 2500 against bots from episode 10000.
 
 Run it from the repository root:
 
@@ -89,5 +89,6 @@ Run it from the repository root:
 python3 game-ai-training/tournament.py
 ```
 
-Select the model directory for each seat when prompted. The script will play 200
-games and print the win counts for every bot once finished.
+Select the model directory for each team when prompted. The script plays 200
+games, prints the winner of each game, and updates win statistics every ten
+games.
