@@ -1,7 +1,9 @@
 """Run tournaments between saved bot models in text mode."""
 
 import os
-from typing import List
+import random
+from collections import defaultdict
+from typing import Dict, List
 
 from ai.environment import GameEnvironment
 from ai.bot import GameBot
@@ -9,6 +11,33 @@ from config import MODEL_DIR
 
 
 MAX_STEPS = 1000
+
+def shuffle_bots(bots: List[GameBot]) -> None:
+    """Randomize bot seating order for the next match."""
+    random.shuffle(bots)
+    for idx, bot in enumerate(bots):
+        bot.player_id = idx
+
+
+def update_partner_stats(
+    stats: Dict[int, Dict[int, Dict[str, int]]], bots: List[GameBot], winners: List[int]
+) -> None:
+    """Record outcome for each bot pair."""
+    winning_team = None
+    if winners:
+        winning_team = 0 if winners[0] in {0, 2} else 1
+
+    teams = [(0, 2), (1, 3)]
+    for idx, (a, b) in enumerate(teams):
+        bot_a = bots[a]
+        bot_b = bots[b]
+        entry_a = stats[bot_a.bot_id][bot_b.bot_id]
+        entry_b = stats[bot_b.bot_id][bot_a.bot_id]
+        entry_a["games"] += 1
+        entry_b["games"] += 1
+        if idx == winning_team:
+            entry_a["wins"] += 1
+            entry_b["wins"] += 1
 
 def list_model_dirs() -> List[str]:
     """Return available subdirectories in ``models/`` containing bot files."""
@@ -113,10 +142,16 @@ def main() -> None:
 
     bots = load_bots(env, seats)
 
+    partner_stats: Dict[int, Dict[int, Dict[str, int]]] = defaultdict(
+        lambda: defaultdict(lambda: {"wins": 0, "games": 0})
+    )
+
     num_games = 200
     print(f"Running {num_games} games...\n")
     for i in range(num_games):
+        shuffle_bots(bots)
         winners = play_game(env, bots)
+        update_partner_stats(partner_stats, bots, winners)
         env.reset()
         if winners:
             print(f"Game {i + 1}: winners {', '.join(str(w) for w in winners)}")
@@ -125,21 +160,33 @@ def main() -> None:
 
         if (i + 1) % 10 == 0:
             print(f"Completed {i + 1} games")
-            for idx, b in enumerate(bots):
+            for b in sorted(bots, key=lambda bot: bot.bot_id):
                 win_rate = b.wins / b.games_played if b.games_played else 0
                 print(
-                    f"Bot {idx} from '{seats[idx]}' - wins: {b.wins}/{b.games_played} "
+                    f"Bot {b.bot_id} - wins: {b.wins}/{b.games_played} "
                     f"({win_rate:.2%})"
                 )
+                for pid, stat in partner_stats[b.bot_id].items():
+                    rate = stat["wins"] / stat["games"] if stat["games"] else 0
+                    print(
+                        f"  With Bot {pid}: {stat['wins']}/{stat['games']} "
+                        f"({rate:.2%})"
+                    )
 
     env.close()
 
-    for idx, b in enumerate(bots):
+    for b in sorted(bots, key=lambda bot: bot.bot_id):
         win_rate = b.wins / b.games_played if b.games_played else 0
         print(
-            f"Bot {idx} from '{seats[idx]}' - wins: {b.wins}/{b.games_played} "
+            f"Bot {b.bot_id} - wins: {b.wins}/{b.games_played} "
             f"({win_rate:.2%})"
         )
+        for pid, stat in partner_stats[b.bot_id].items():
+            rate = stat["wins"] / stat["games"] if stat["games"] else 0
+            print(
+                f"  With Bot {pid}: {stat['wins']}/{stat['games']} "
+                f"({rate:.2%})"
+            )
 
 
 if __name__ == "__main__":
