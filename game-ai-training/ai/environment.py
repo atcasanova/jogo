@@ -10,6 +10,9 @@ from typing import List, Tuple, Dict, Any
 
 from json_logger import info, error, warning
 
+# Extra incentive for high value plays
+HEAVY_REWARD = 2.0
+
 class GameEnvironment:
     def __init__(self, env_id: int = 0):
         self.node_process = None
@@ -34,6 +37,14 @@ class GameEnvironment:
             {'row': 4, 'col': 18},
             {'row': 18, 'col': 14},
             {'row': 14, 'col': 0}
+        ]
+
+        # Starting squares when leaving the penalty zone
+        self._starts = [
+            {'row': 0, 'col': 8},
+            {'row': 8, 'col': 18},
+            {'row': 18, 'col': 10},
+            {'row': 10, 'col': 0}
         ]
 
     def _generate_track(self) -> List[Dict[str, int]]:
@@ -532,6 +543,24 @@ class GameEnvironment:
                     if prev_info and not prev_info['in_penalty'] and now_penalty:
                         reward -= 0.5
 
+                if prev_info:
+                    # Reward entering the home stretch
+                    if (
+                        not prev_info['in_home']
+                        and p.get('inHomeStretch')
+                        and owner in my_team
+                    ):
+                        reward += HEAVY_REWARD
+
+                    # Reward leaving the penalty zone with a capture
+                    if (
+                        prev_info['in_penalty']
+                        and not now_penalty
+                        and pos == self._starts[owner]
+                        and response.get('captures')
+                    ):
+                        reward += HEAVY_REWARD
+
                 prev_near_home[pid] = was_near
 
             for cap in response.get('captures', []):
@@ -543,8 +572,29 @@ class GameEnvironment:
                 near = prev_near_home.get(cid, False)
                 if owner in my_team:
                     reward -= 0.5
+                    if info.get('pos') == self._starts[owner]:
+                        reward += HEAVY_REWARD + 0.5
                 else:
                     reward += 0.5 if near else 0.2
+
+            if action >= 60:
+                moved_home = 0
+                for p in self.game_state.get('pieces', []):
+                    pid = p.get('id')
+                    if not pid:
+                        continue
+                    prev_info = prev_pieces.get(pid)
+                    if (
+                        prev_info
+                        and prev_info['in_home']
+                        and p.get('inHomeStretch')
+                        and not p.get('completed')
+                        and p.get('position') != prev_info.get('pos')
+                        and p.get('playerId') in my_team
+                    ):
+                        moved_home += 1
+                if moved_home >= 2:
+                    reward += HEAVY_REWARD
 
 
         # Bonus for winning the game
