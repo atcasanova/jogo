@@ -876,3 +876,55 @@ def test_step_discards_when_all_actions_fail():
 
     assert mock_cmd.call_count == 3
     assert mock_cmd.call_args[0][0]['actionId'] >= 70
+
+
+def test_penalty_for_skipping_home_entry():
+    env = GameEnvironment()
+
+    env.game_state = {
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'position': {'row': 0, 'col': 2},
+                'inPenaltyZone': False,
+                'inHomeStretch': False,
+                'completed': False
+            }
+        ],
+        'teams': [[{'position': 0}], [{'position': 1}], [{'position': 2}], [{'position': 3}]]
+    }
+
+    new_state = {
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'position': {'row': 0, 'col': 8},
+                'inPenaltyZone': False,
+                'inHomeStretch': False,
+                'completed': False
+            }
+        ],
+        'teams': env.game_state['teams']
+    }
+
+    response = {
+        'success': True,
+        'gameState': new_state,
+        'gameEnded': False,
+        'winningTeam': None
+    }
+
+    idx_map = {(0, 2): 10, (0, 8): 20}
+    step_map = {(0, 2): 2, (0, 8): 70}
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                with patch.object(env, '_track_index', side_effect=lambda pos: idx_map.get((pos['row'], pos['col']), -1)):
+                    with patch.object(env, '_steps_to_entrance', side_effect=lambda pos, pid: step_map.get((pos['row'], pos['col']), -1)):
+                        _, reward, _ = env.step(1, 0)
+
+    assert reward == pytest.approx(5.95)
+

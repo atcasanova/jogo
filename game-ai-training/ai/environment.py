@@ -514,6 +514,20 @@ class GameEnvironment:
                         if diff > 0:
                             reward += 0.1 * diff
 
+                        # Penalize skipping the home entrance when it was
+                        # possible to enter.
+                        forward = (new_idx - prev_idx) % len(self._track)
+                        backward = (prev_idx - new_idx) % len(self._track)
+                        moved_forward = forward <= backward
+                        prev_steps = self._steps_to_entrance(prev_info['pos'], owner)
+                        if (
+                            moved_forward
+                            and 0 < prev_steps <= 6
+                            and forward > prev_steps
+                            and not p.get('inHomeStretch')
+                        ):
+                            reward -= 0.3
+
                 if owner in my_team:
                     if prev_info and not prev_info['in_penalty'] and now_penalty:
                         reward -= 0.5
