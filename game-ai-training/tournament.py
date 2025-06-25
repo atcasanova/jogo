@@ -1,0 +1,125 @@
+"""Run tournaments between saved bot models in text mode."""
+
+import os
+from typing import List
+
+from ai.environment import GameEnvironment
+from ai.bot import GameBot
+from config import MODEL_DIR
+
+
+MAX_STEPS = 1000
+
+def list_model_dirs() -> List[str]:
+    """Return available subdirectories in ``models/`` containing bot files."""
+    dirs = []
+    if not os.path.exists(MODEL_DIR):
+        return dirs
+
+    for entry in sorted(os.listdir(MODEL_DIR)):
+        path = os.path.join(MODEL_DIR, entry)
+        if not os.path.isdir(path):
+            continue
+        if any(f.startswith("bot_") and f.endswith(".pth") for f in os.listdir(path)):
+            dirs.append(entry)
+    return dirs
+
+def choose_dir(name: str, options: List[str]) -> str:
+    """Prompt the user to select a model directory."""
+    print(f"Select model directory for {name}:")
+    for idx, option in enumerate(options):
+        print(f"  {idx}: {option}")
+
+    while True:
+        choice = input("Enter number: ")
+        try:
+            idx = int(choice)
+            if 0 <= idx < len(options):
+                return options[idx]
+        except ValueError:
+            pass
+        print("Invalid selection, try again.")
+
+
+def load_bots(env: GameEnvironment, dirs: List[str]) -> List[GameBot]:
+    """Create bots for the environment and load their models."""
+    bots = []
+    for seat, dname in enumerate(dirs):
+        bot = GameBot(
+            player_id=seat,
+            state_size=env.state_size,
+            action_size=env.action_space_size,
+            bot_id=seat,
+        )
+        model_path = os.path.join(MODEL_DIR, dname, f"bot_{seat}.pth")
+        if os.path.exists(model_path):
+            bot.load_model(model_path)
+        else:
+            print(f"Warning: {model_path} not found; using untrained bot")
+        bots.append(bot)
+    return bots
+
+def play_game(env: GameEnvironment, bots: List[GameBot]) -> None:
+    """Run a single game without training."""
+    bot_names = [f"Bot_{b.bot_id}" for b in bots]
+    env.reset(bot_names=bot_names)
+    step = 0
+    done = False
+    while not done and step < MAX_STEPS:
+        current_player = env.game_state.get("currentPlayerIndex", 0)
+        bot = bots[current_player]
+        state = env.get_state(current_player)
+        actions = env.get_valid_actions(current_player)
+        if not actions:
+            break
+        action = bot.act(state, actions)
+        _, _, done = env.step(action, current_player)
+        step += 1
+
+    if env.game_state.get("winningTeam"):
+        for pl in env.game_state["winningTeam"]:
+            pos = pl.get("position")
+            if pos is not None and 0 <= pos < len(bots):
+                bots[pos].wins += 1
+    for b in bots:
+        b.games_played += 1
+
+
+def main() -> None:
+    options = list_model_dirs()
+    if len(options) < 1:
+        print("No model directories found in 'models/'")
+        return
+
+    seats = []
+    for i in range(4):
+        seat_dir = choose_dir(f"seat {i}", options)
+        seats.append(seat_dir)
+
+    env = GameEnvironment()
+    if not env.start_node_game():
+        print("Failed to start game process")
+        return
+
+    bots = load_bots(env, seats)
+
+    num_games = 200
+    print(f"Running {num_games} games...\n")
+    for i in range(num_games):
+        play_game(env, bots)
+        env.reset()
+        if (i + 1) % 50 == 0:
+            print(f"Completed {i + 1} games")
+
+    env.close()
+
+    for idx, b in enumerate(bots):
+        win_rate = b.wins / b.games_played if b.games_played else 0
+        print(
+            f"Bot {idx} from '{seats[idx]}' - wins: {b.wins}/{b.games_played} "
+            f"({win_rate:.2%})"
+        )
+
+
+if __name__ == "__main__":
+    main()
