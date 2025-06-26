@@ -6,15 +6,19 @@ from collections import defaultdict
 from typing import Dict, List
 
 from ai.environment import GameEnvironment
-from ai.bot import GameBot
+from ai.bot import GameBot, DQNBot
 from config import MODEL_DIR
 
 
 MAX_STEPS = 1000
 
 def shuffle_bots(bots: List[GameBot]) -> None:
-    """Randomize bot seating order for the next match."""
-    random.shuffle(bots)
+    """Randomize seating while keeping fixed teams."""
+    team0 = [b for b in bots if getattr(b, "team", 0) == 0]
+    team1 = [b for b in bots if getattr(b, "team", 0) == 1]
+    random.shuffle(team0)
+    random.shuffle(team1)
+    bots[:] = [team0[0], team1[0], team0[1], team1[1]]
     for idx, bot in enumerate(bots):
         bot.player_id = idx
 
@@ -74,22 +78,35 @@ def load_bots(env: GameEnvironment, dirs: List[str]) -> List[GameBot]:
     """Create bots for the environment and load their models."""
     bots = []
     for seat, dname in enumerate(dirs):
+        model_path = os.path.join(MODEL_DIR, dname, f"bot_{seat}.pth")
+        bot: GameBot
         bot = GameBot(
             player_id=seat,
             state_size=env.state_size,
             action_size=env.action_space_size,
             bot_id=seat,
         )
-        model_path = os.path.join(MODEL_DIR, dname, f"bot_{seat}.pth")
         if os.path.exists(model_path):
-            # Ignore saved win/loss statistics so each run starts fresh
             try:
                 bot.load_model(model_path, reset_stats=True)
             except (KeyError, ValueError) as e:
-                print(f"Failed to load {model_path}: {e}")
-                print("Using untrained bot instead")
+                print(f"Failed to load {model_path} as PPO: {e}")
+                print("Trying DQN format...")
+                bot = DQNBot(
+                    player_id=seat,
+                    state_size=env.state_size,
+                    action_size=env.action_space_size,
+                    bot_id=seat,
+                )
+                try:
+                    bot.load_model(model_path, reset_stats=True)
+                except (KeyError, ValueError) as e2:
+                    print(f"Failed to load {model_path} as DQN: {e2}")
+                    print("Using untrained bot instead")
         else:
             print(f"Warning: {model_path} not found; using untrained bot")
+        bot.model_dir = dname
+        bot.team = 0 if seat in (0, 2) else 1
         bots.append(bot)
     return bots
 
@@ -158,7 +175,9 @@ def main() -> None:
         update_partner_stats(partner_stats, bots, winners)
         env.reset()
         if winners:
-            print(f"Game {i + 1}: winners {', '.join(str(w) for w in winners)}")
+            print(
+                f"Game {i + 1}: winners {', '.join(str(w) for w in winners)}"
+            )
         else:
             print(f"Game {i + 1}: no winner")
 
@@ -167,8 +186,8 @@ def main() -> None:
             for b in sorted(bots, key=lambda bot: bot.bot_id):
                 win_rate = b.wins / b.games_played if b.games_played else 0
                 print(
-                    f"Bot {b.bot_id} - wins: {b.wins}/{b.games_played} "
-                    f"({win_rate:.2%})"
+                    f"Bot {b.bot_id} ({b.algorithm}) from {b.model_dir} - "
+                    f"wins: {b.wins}/{b.games_played} ({win_rate:.2%})"
                 )
                 for pid, stat in partner_stats[b.bot_id].items():
                     rate = stat["wins"] / stat["games"] if stat["games"] else 0
@@ -182,8 +201,8 @@ def main() -> None:
     for b in sorted(bots, key=lambda bot: bot.bot_id):
         win_rate = b.wins / b.games_played if b.games_played else 0
         print(
-            f"Bot {b.bot_id} - wins: {b.wins}/{b.games_played} "
-            f"({win_rate:.2%})"
+            f"Bot {b.bot_id} ({b.algorithm}) from {b.model_dir} - "
+            f"wins: {b.wins}/{b.games_played} ({win_rate:.2%})"
         )
         for pid, stat in partner_stats[b.bot_id].items():
             rate = stat["wins"] / stat["games"] if stat["games"] else 0
