@@ -37,6 +37,7 @@ class GameBot:
 
         self.player_id = player_id
         self.bot_id = bot_id if bot_id is not None else player_id
+        self.algorithm = 'PPO'
         self.state_size = state_size
         self.action_size = action_size
 
@@ -170,6 +171,96 @@ class GameBot:
             )
         else:
             raise KeyError('model_state_dict')
+
+        if reset_stats:
+            self.wins = 0
+            self.games_played = 0
+            self.total_reward = 0.0
+        else:
+            self.wins = checkpoint.get('wins', 0)
+            self.games_played = checkpoint.get('games_played', 0)
+            self.total_reward = checkpoint.get('total_reward', 0.0)
+
+
+class DQNNet(nn.Module):
+    """Simple feed-forward network for DQN models."""
+
+    def __init__(self, state_size: int, action_size: int, hidden_size: int = 512):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(state_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, action_size),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.layers(x)
+
+
+class DQNBot:
+    """Legacy DQN-based bot used for backwards compatibility."""
+
+    def __init__(self, player_id: int, state_size: int, action_size: int, device: str = None, bot_id: int = None):
+        self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        info("Bot using device", bot=bot_id if bot_id is not None else player_id, device=str(self.device))
+
+        self.player_id = player_id
+        self.bot_id = bot_id if bot_id is not None else player_id
+        self.algorithm = 'DQN'
+        self.state_size = state_size
+        self.action_size = action_size
+
+        self.model = DQNNet(state_size, action_size, TRAINING_CONFIG['hidden_size']).to(self.device)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=TRAINING_CONFIG['learning_rate'])
+
+        self.epsilon = 0.0
+        self.wins = 0
+        self.games_played = 0
+        self.total_reward = 0.0
+
+    def act(self, state: np.ndarray, valid_actions: List[int]) -> int:
+        state_t = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        q_values = self.model(state_t)
+
+        mask = torch.full_like(q_values, float('-inf'))
+        for a in valid_actions:
+            if a < self.action_size:
+                mask[0, a] = 0.0
+        q_values = q_values + mask
+
+        return int(torch.argmax(q_values, dim=-1).item())
+
+    def remember(self, *args, **kwargs):
+        pass
+
+    def replay(self):
+        pass
+
+    def update_target_network(self):
+        pass
+
+    def save_model(self, filepath: str) -> None:
+        torch.save({
+            'q_network_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'wins': self.wins,
+            'games_played': self.games_played,
+            'total_reward': self.total_reward,
+        }, filepath)
+
+    def load_model(self, filepath: str, reset_stats: bool = False) -> None:
+        checkpoint = torch.load(filepath, map_location=self.device)
+
+        if 'q_network_state_dict' in checkpoint:
+            self.model.load_state_dict(checkpoint['q_network_state_dict'])
+            if 'optimizer_state_dict' in checkpoint:
+                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        elif 'model_state_dict' in checkpoint:
+            raise ValueError('PPO checkpoint detected; use GameBot to load')
+        else:
+            raise KeyError('q_network_state_dict')
 
         if reset_stats:
             self.wins = 0
