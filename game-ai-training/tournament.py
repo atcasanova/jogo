@@ -83,7 +83,11 @@ def load_bots(env: GameEnvironment, dirs: List[str]) -> List[GameBot]:
         model_path = os.path.join(MODEL_DIR, dname, f"bot_{seat}.pth")
         if os.path.exists(model_path):
             # Ignore saved win/loss statistics so each run starts fresh
-            bot.load_model(model_path, reset_stats=True)
+            try:
+                bot.load_model(model_path, reset_stats=True)
+            except (KeyError, ValueError) as e:
+                print(f"Failed to load {model_path}: {e}")
+                print("Using untrained bot instead")
         else:
             print(f"Warning: {model_path} not found; using untrained bot")
         bots.append(bot)
