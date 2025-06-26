@@ -11,6 +11,12 @@ class MockGameEnvironment:
         # provide env_id attribute expected by TrainingManager
         self.env_id = 0
         self.saved_file = None
+        self.reward_event_counts = {
+            'home_entry': 0,
+            'penalty_exit': 0,
+            'capture': 0,
+            'game_win': 0
+        }
 
     def reset(self, bot_names=None):
         self.game_state = {'currentPlayerIndex': 0, 'gameEnded': False, 'winningTeam': None}
@@ -35,6 +41,12 @@ class MockGameEnvironment:
 
     def save_history(self, filepath):
         self.saved_file = filepath
+
+    def reset_reward_events(self):
+        pass
+
+    def set_heavy_reward(self, value):
+        self.heavy_reward = value
 
 
 class DummyGameBot:
@@ -103,3 +115,23 @@ def test_train_episode_breaks_on_no_actions():
         with patch.object(manager, '_shuffle_bots', lambda: None):
             manager.train_episode()
             env.step.assert_not_called()
+
+
+def test_reward_entropy_computation():
+    from ai.trainer import TrainingManager
+    manager = TrainingManager()
+    counts = {'home_entry': 2, 'penalty_exit': 1, 'capture': 1, 'game_win': 0}
+    entropy = manager._reward_entropy(counts)
+    assert entropy > 0
+
+
+def test_apply_reward_schedule_sets_weight():
+    from ai.trainer import TrainingManager
+    from ai.environment import GameEnvironment
+    from config import HEAVY_REWARD_BASE
+
+    manager = TrainingManager()
+    env = GameEnvironment()
+    env.set_heavy_reward(0.5)
+    manager._apply_reward_schedule(0, env)
+    assert env.heavy_reward == HEAVY_REWARD_BASE

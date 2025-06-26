@@ -35,6 +35,19 @@ specifies the desired KL divergence between policy updates. The trainer logs a
 warning if the measured KL divergence stays below half of this value for more
 than 100 update steps.
 
+### Reward Monitoring
+
+Training logs now include counts for several reward sources after each episode:
+
+- Home stretch entries
+- Penalty exits that capture an opponent
+- Captures
+- Game wins
+
+The entropy of this distribution is plotted to help detect reward starvation.
+You can adjust the extra incentive for these events over time using the
+`REWARD_SCHEDULE` variable in `config.py`.
+
 ## Match Logging
 
 Passing the `--save-match-log` flag to `main.py` writes the move history of

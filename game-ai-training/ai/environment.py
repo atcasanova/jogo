@@ -9,9 +9,8 @@ import threading
 from typing import List, Tuple, Dict, Any
 
 from json_logger import info, error, warning
+from config import HEAVY_REWARD_BASE
 
-# Extra incentive for high value plays
-HEAVY_REWARD = 2.0
 
 class GameEnvironment:
     def __init__(self, env_id: int = 0):
@@ -46,6 +45,17 @@ class GameEnvironment:
             {'row': 18, 'col': 10},
             {'row': 10, 'col': 0}
         ]
+
+        # Adjustable reward weight for important plays
+        self.heavy_reward = HEAVY_REWARD_BASE
+
+        # Track how often each reward type occurs for analysis
+        self.reward_event_counts = {
+            'home_entry': 0,
+            'penalty_exit': 0,
+            'capture': 0,
+            'game_win': 0,
+        }
 
     def _generate_track(self) -> List[Dict[str, int]]:
         """Replicate the board track coordinates from the Node game."""
@@ -244,6 +254,7 @@ class GameEnvironment:
             info("Game reset successful")
             # clear previous move history
             self.move_history = []
+            self.reset_reward_events()
         else:
             error("Game reset failed", response=response)
         
@@ -546,7 +557,8 @@ class GameEnvironment:
                         and p.get('inHomeStretch')
                         and owner in my_team
                     ):
-                        reward += HEAVY_REWARD
+                        reward += self.heavy_reward
+                        self.reward_event_counts['home_entry'] += 1
 
                     # Reward leaving the penalty zone with a capture
                     if (
@@ -555,7 +567,8 @@ class GameEnvironment:
                         and pos == self._starts[owner]
                         and response.get('captures')
                     ):
-                        reward += HEAVY_REWARD
+                        reward += self.heavy_reward
+                        self.reward_event_counts['penalty_exit'] += 1
 
                 prev_near_home[pid] = was_near
 
@@ -569,9 +582,10 @@ class GameEnvironment:
                 if owner in my_team:
                     reward -= 0.5
                     if info.get('pos') == self._starts[owner]:
-                        reward += HEAVY_REWARD + 0.5
+                        reward += self.heavy_reward + 0.5
                 else:
                     reward += 0.5 if near else 0.2
+                self.reward_event_counts['capture'] += 1
 
             if action >= 60:
                 moved_home = 0
@@ -590,7 +604,7 @@ class GameEnvironment:
                     ):
                         moved_home += 1
                 if moved_home >= 2:
-                    reward += HEAVY_REWARD
+                    reward += self.heavy_reward
 
 
         # Bonus for winning the game
@@ -598,6 +612,7 @@ class GameEnvironment:
             for pl in response['winningTeam']:
                 if pl.get('position') == player_id:
                     reward += 2.0
+                    self.reward_event_counts['game_win'] += 1
                     break
 
         # Log failures for easier debugging
@@ -635,4 +650,13 @@ class GameEnvironment:
             info("Saved move history", env=self.env_id, file=filepath)
         except Exception as e:
             warning("Failed to save move history", env=self.env_id, file=filepath, error=str(e))
+
+    def reset_reward_events(self) -> None:
+        """Clear tracked reward event counts."""
+        for key in self.reward_event_counts:
+            self.reward_event_counts[key] = 0
+
+    def set_heavy_reward(self, value: float) -> None:
+        """Update the weight applied to major reward events."""
+        self.heavy_reward = float(value)
 

@@ -7,7 +7,7 @@ import torch
 from concurrent.futures import ThreadPoolExecutor
 from ai.environment import GameEnvironment
 from ai.bot import GameBot
-from config import TRAINING_CONFIG, MODEL_DIR, PLOT_DIR, LOG_DIR
+from config import TRAINING_CONFIG, MODEL_DIR, PLOT_DIR, LOG_DIR, REWARD_SCHEDULE
 from json_logger import info, warning
 import random
 
@@ -22,7 +22,8 @@ class TrainingManager:
             'win_rates': [],
             'average_losses': [],
             'kl_divergences': [],
-            'games_played': 0
+            'games_played': 0,
+            'reward_entropies': []
         }
 
         self.kl_target = TRAINING_CONFIG.get('kl_target', 0.02)
@@ -112,6 +113,22 @@ class TrainingManager:
 
         if stagnant:
             warning("Loss appears stagnant across bots", window=self.loss_window)
+
+    def _reward_entropy(self, counts: dict) -> float:
+        """Compute Shannon entropy of reward source distribution."""
+        total = sum(counts.values())
+        if total == 0:
+            return 0.0
+        probs = np.array([c / total for c in counts.values() if c > 0])
+        return float(-(probs * np.log2(probs)).sum())
+
+    def _apply_reward_schedule(self, episode: int, env: GameEnvironment) -> None:
+        """Update environment reward weight according to the configured schedule."""
+        weight = env.heavy_reward
+        for start, value in REWARD_SCHEDULE:
+            if episode >= start:
+                weight = value
+        env.set_heavy_reward(weight)
     
     def train_episode(self, env=None):
         """Run a single training episode using the provided environment."""
@@ -125,6 +142,7 @@ class TrainingManager:
 
         # Reset environment with the ordered bot names
         initial_state = env.reset(bot_names=bot_names)
+        env.reset_reward_events()
         
         episode_rewards = [0] * 4
         states = [None] * 4
@@ -204,6 +222,16 @@ class TrainingManager:
 
         self.training_stats['games_played'] += 1
         self.training_stats['episode_rewards'].append(sum(episode_rewards))
+        entropy = self._reward_entropy(env.reward_event_counts)
+        self.training_stats['reward_entropies'].append(entropy)
+        info(
+            "Reward events",
+            home_entries=env.reward_event_counts['home_entry'],
+            penalty_exits=env.reward_event_counts['penalty_exit'],
+            captures=env.reward_event_counts['capture'],
+            wins=env.reward_event_counts['game_win'],
+            entropy=f"{entropy:.3f}"
+        )
 
         return episode_rewards
     
@@ -223,6 +251,7 @@ class TrainingManager:
 
             try:
                 for episode in range(num_episodes):
+                    self._apply_reward_schedule(episode, self.env)
                     self.train_episode(self.env)
 
                     if (episode + 1) % stats_freq == 0:
@@ -254,6 +283,8 @@ class TrainingManager:
 
             try:
                 for episode in range(num_episodes):
+                    for env in self.envs:
+                        self._apply_reward_schedule(episode, env)
                     with ThreadPoolExecutor(max_workers=num_envs) as executor:
                         list(executor.map(self.train_episode, self.envs))
 
@@ -302,14 +333,15 @@ class TrainingManager:
         self._check_loss_stagnation()
     
     def plot_training_progress(self):
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+        fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+        axes = axes.flatten()
         
         # Episode rewards
         if self.training_stats['episode_rewards']:
-            axes[0, 0].plot(self.training_stats['episode_rewards'])
-            axes[0, 0].set_title('Episode Rewards')
-            axes[0, 0].set_xlabel('Episode')
-            axes[0, 0].set_ylabel('Total Reward')
+            axes[0].plot(self.training_stats['episode_rewards'])
+            axes[0].set_title('Episode Rewards')
+            axes[0].set_xlabel('Episode')
+            axes[0].set_ylabel('Total Reward')
         
         # Win rates
         sorted_bots = sorted(self.bots, key=lambda b: getattr(b, 'bot_id', 0))
@@ -321,12 +353,19 @@ class TrainingManager:
             win_rates.append(win_rate)
 
         bar_colors = [colors[bot.bot_id % len(colors)] for bot in sorted_bots]
-        axes[0, 1].bar(range(len(sorted_bots)), win_rates, color=bar_colors)
-        axes[0, 1].set_title('Win Rates by Bot')
-        axes[0, 1].set_xlabel('Bot ID')
-        axes[0, 1].set_xticks(range(len(sorted_bots)))
-        axes[0, 1].set_xticklabels([bot.bot_id for bot in sorted_bots])
-        axes[0, 1].set_ylabel('Win Rate (%)')
+        axes[1].bar(range(len(sorted_bots)), win_rates, color=bar_colors)
+        axes[1].set_title('Win Rates by Bot')
+        axes[1].set_xlabel('Bot ID')
+        axes[1].set_xticks(range(len(sorted_bots)))
+        axes[1].set_xticklabels([bot.bot_id for bot in sorted_bots])
+        axes[1].set_ylabel('Win Rate (%)')
+
+        # Reward entropy
+        if self.training_stats['reward_entropies']:
+            axes[2].plot(self.training_stats['reward_entropies'])
+        axes[2].set_title('Reward Source Entropy')
+        axes[2].set_xlabel('Episode')
+        axes[2].set_ylabel('Entropy')
         
         # Average losses
         has_loss_plots = False
@@ -336,21 +375,23 @@ class TrainingManager:
                 if window_size > 0:
                     moving_avg = np.convolve(bot.losses, np.ones(window_size)/window_size, mode='valid')
                     color = colors[bot.bot_id % len(colors)]
-                    axes[1, 0].plot(moving_avg, label=f'Bot {bot.bot_id}', color=color)
+                    axes[3].plot(moving_avg, label=f'Bot {bot.bot_id}', color=color)
                     has_loss_plots = True
-
-        axes[1, 0].set_title('Training Loss (Moving Average)')
-        axes[1, 0].set_xlabel('Training Step')
-        axes[1, 0].set_ylabel('Loss')
+        axes[3].set_title('Training Loss (Moving Average)')
+        axes[3].set_xlabel('Training Step')
+        axes[3].set_ylabel('Loss')
         if has_loss_plots:
-            axes[1, 0].legend()
+            axes[3].legend()
         
         # KL divergence
         if self.training_stats['kl_divergences']:
-            axes[1, 1].plot(self.training_stats['kl_divergences'])
-        axes[1, 1].set_title('Approximate KL Divergence')
-        axes[1, 1].set_xlabel('Training Step')
-        axes[1, 1].set_ylabel('KL Divergence')
+            axes[4].plot(self.training_stats['kl_divergences'])
+        axes[4].set_title('Approximate KL Divergence')
+        axes[4].set_xlabel('Training Step')
+        axes[4].set_ylabel('KL Divergence')
+
+        # Hide unused subplot
+        axes[5].axis('off')
         
         plt.tight_layout()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
