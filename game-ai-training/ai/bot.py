@@ -251,12 +251,36 @@ class DQNBot:
         }, filepath)
 
     def load_model(self, filepath: str, reset_stats: bool = False) -> None:
+        """Load weights from a legacy DQN checkpoint.
+
+        Parameters
+        ----------
+        filepath : str
+            Path to the saved model file.
+        reset_stats : bool, optional
+            If ``True`` ignore stored win statistics.
+        """
         checkpoint = torch.load(filepath, map_location=self.device)
 
         if 'q_network_state_dict' in checkpoint:
-            self.model.load_state_dict(checkpoint['q_network_state_dict'])
+            state_dict = checkpoint['q_network_state_dict']
+            try:
+                self.model.load_state_dict(state_dict)
+            except RuntimeError:
+                # Support older checkpoints that used the "network" prefix
+                remapped = {}
+                for key, value in state_dict.items():
+                    if key.startswith('network.'):
+                        remapped['layers.' + key[len('network.'):]] = value
+                    else:
+                        remapped[key] = value
+                self.model.load_state_dict(remapped, strict=False)
             if 'optimizer_state_dict' in checkpoint:
-                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                try:
+                    self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                except ValueError:
+                    # Optimizer state may not match when loading legacy models
+                    pass
         elif 'model_state_dict' in checkpoint:
             raise ValueError('PPO checkpoint detected; use GameBot to load')
         else:
