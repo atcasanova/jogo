@@ -572,6 +572,25 @@ class GameEnvironment:
 
                 prev_near_home[pid] = was_near
 
+            partner_id = None
+            if len(my_team) == 2:
+                partner_id = my_team[0] if my_team[1] == player_id else my_team[1]
+
+            moved_from_partner_home = False
+            if partner_id is not None:
+                for p in self.game_state.get('pieces', []):
+                    if p.get('playerId') != player_id:
+                        continue
+                    pid = p.get('id')
+                    prev_info = prev_pieces.get(pid)
+                    if (
+                        prev_info
+                        and prev_info.get('pos') == self._entrances[partner_id]
+                        and p.get('position') == self._entrances[player_id]
+                    ):
+                        moved_from_partner_home = True
+                        break
+
             for cap in response.get('captures', []):
                 cid = cap.get('pieceId')
                 info = prev_pieces.get(cid)
@@ -580,9 +599,15 @@ class GameEnvironment:
                 owner = info.get('player_id')
                 near = prev_near_home.get(cid, False)
                 if owner in my_team:
-                    reward -= 0.5
+                    reward += 0.5
                     if info.get('pos') == self._starts[owner]:
-                        reward += self.heavy_reward + 0.5
+                        reward += self.heavy_reward
+                    if (
+                        partner_id is not None
+                        and owner == partner_id
+                        and moved_from_partner_home
+                    ):
+                        reward += self.heavy_reward * 2
                 else:
                     reward += 0.5 if near else 0.2
                 self.reward_event_counts['capture'] += 1
