@@ -150,10 +150,27 @@ class GameBot:
         }, filepath)
 
     def load_model(self, filepath: str, reset_stats: bool = False) -> None:
-        """Load model weights and optionally ignore stored statistics."""
+        """Load model weights and optionally ignore stored statistics.
+
+        Raises
+        ------
+        ValueError
+            If the checkpoint uses an unsupported legacy format.
+        """
         checkpoint = torch.load(filepath, map_location=self.device)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        if 'model_state_dict' in checkpoint:
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            if 'optimizer_state_dict' in checkpoint:
+                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        elif 'q_network_state_dict' in checkpoint:
+            raise ValueError(
+                "Legacy DQN checkpoint detected; this version cannot load models "
+                "saved before the PPO migration."
+            )
+        else:
+            raise KeyError('model_state_dict')
+
         if reset_stats:
             self.wins = 0
             self.games_played = 0
