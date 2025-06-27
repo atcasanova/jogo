@@ -24,13 +24,15 @@ class TrainingManager:
             'kl_divergences': [],
             'games_played': 0,
             'reward_entropies': [],
-            'reward_breakdown_history': []
+            'reward_breakdown_history': [],
+            'heavy_reward_breakdown_history': []
         }
 
         # Optional external list storing per-episode reward contributions
         # This allows plotting detailed breakdowns without modifying the core
         # environment logic.
         self.reward_breakdown_history = self.training_stats['reward_breakdown_history']
+        self.heavy_reward_breakdown_history = self.training_stats['heavy_reward_breakdown_history']
 
         self.kl_target = TRAINING_CONFIG.get('kl_target', 0.02)
         self.kl_threshold = self.kl_target / 2
@@ -144,7 +146,10 @@ class TrainingManager:
         self._shuffle_bots()
 
         # Names for logging the actual bot identities in the Node game
-        bot_names = [f"Bot_{bot.bot_id}" if hasattr(bot, 'bot_id') else f"Bot_{i}" for i, bot in enumerate(self.bots)]
+        bot_names = [
+            f"Bot_{bot.bot_id}" if hasattr(bot, 'bot_id') else f"Bot_{i}"
+            for i, bot in enumerate(self.bots)
+        ]
 
         # Reset environment with the ordered bot names
         initial_state = env.reset(bot_names=bot_names)
@@ -241,10 +246,20 @@ class TrainingManager:
 
         # Store raw reward source counts to allow plotting breakdowns later
         self.reward_breakdown_history.append(dict(env.reward_event_counts))
+        self.heavy_reward_breakdown_history.append(
+            dict(env.heavy_reward_breakdown)
+        )
 
         return episode_rewards
     
-    def train(self, num_episodes=None, save_freq=None, stats_freq=None, num_envs: int = 1, save_match_log: bool = False):
+    def train(
+        self,
+        num_episodes=None,
+        save_freq=None,
+        stats_freq=None,
+        num_envs: int = 1,
+        save_match_log: bool = False,
+    ):
         """Train using one or more environments in parallel."""
         num_episodes = num_episodes or TRAINING_CONFIG['num_episodes']
         save_freq = save_freq or TRAINING_CONFIG['save_frequency']
@@ -398,7 +413,7 @@ class TrainingManager:
         axs[1, 1].set_xlabel('Training Step')
         axs[1, 1].set_ylabel('KL Divergence')
 
-        # Reward breakdown stacked area chart
+        # Reward breakdown stacked area chart with heavy reward overlays
         if self.reward_breakdown_history:
             episodes = list(range(len(self.reward_breakdown_history)))
             totals = {}
@@ -408,16 +423,23 @@ class TrainingManager:
             sorted_keys = sorted(totals, key=totals.get, reverse=True)
             main_keys = sorted_keys[:4]
             data = {k: [] for k in main_keys + ['other']}
-            for entry in self.reward_breakdown_history:
+            heavy_data = {k: [] for k in main_keys}
+            for idx, entry in enumerate(self.reward_breakdown_history):
                 other_total = 0.0
+                heavy_entry = {}
+                if idx < len(self.heavy_reward_breakdown_history):
+                    heavy_entry = self.heavy_reward_breakdown_history[idx]
                 for k in main_keys:
                     data[k].append(entry.get(k, 0.0))
+                    heavy_data[k].append(heavy_entry.get(k, 0.0))
                 for k, v in entry.items():
                     if k not in main_keys:
                         other_total += v
                 data['other'].append(other_total)
             stacks = [data[k] for k in main_keys + ['other']]
             axs[1, 2].stackplot(episodes, stacks, labels=main_keys + ['other'])
+            for k, values in heavy_data.items():
+                axs[1, 2].plot(episodes, values, linestyle='--', label=f'{k} heavy')
             axs[1, 2].set_title('Reward Breakdown by Type')
             axs[1, 2].set_xlabel('Episode')
             axs[1, 2].set_ylabel('Reward')

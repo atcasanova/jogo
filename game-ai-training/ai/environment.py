@@ -60,6 +60,14 @@ class GameEnvironment:
         # Count how many times the heavy reward bonus was applied in a game
         self.heavy_reward_events = 0
 
+        # Track heavy reward events by type for detailed analysis
+        self.heavy_reward_breakdown = {
+            'home_entry': 0,
+            'penalty_exit': 0,
+            'capture': 0,
+            'special': 0,
+        }
+
     def _generate_track(self) -> List[Dict[str, int]]:
         """Replicate the board track coordinates from the Node game."""
         track: List[Dict[str, int]] = []
@@ -578,6 +586,7 @@ class GameEnvironment:
                     ):
                         reward += self.heavy_reward
                         self.heavy_reward_events += 1
+                        self.heavy_reward_breakdown['home_entry'] += 1
                         self.reward_event_counts['home_entry'] += 1
 
                     # Reward leaving the penalty zone with a capture
@@ -589,6 +598,7 @@ class GameEnvironment:
                     ):
                         reward += self.heavy_reward
                         self.heavy_reward_events += 1
+                        self.heavy_reward_breakdown['penalty_exit'] += 1
                         self.reward_event_counts['penalty_exit'] += 1
 
                 prev_near_home[pid] = was_near
@@ -624,6 +634,7 @@ class GameEnvironment:
                     if info.get('pos') == self._starts[owner]:
                         reward += self.heavy_reward
                         self.heavy_reward_events += 1
+                        self.heavy_reward_breakdown['capture'] += 1
                     if (
                         partner_id is not None
                         and owner == partner_id
@@ -631,6 +642,7 @@ class GameEnvironment:
                     ):
                         reward += self.heavy_reward * 2
                         self.heavy_reward_events += 2
+                        self.heavy_reward_breakdown['capture'] += 2
                 else:
                     reward += 0.5 if near else 0.2
                 self.reward_event_counts['capture'] += 1
@@ -639,9 +651,11 @@ class GameEnvironment:
                 if len(changed_my) >= 2:
                     reward += self.heavy_reward
                     self.heavy_reward_events += 1
+                    self.heavy_reward_breakdown['special'] += 1
                     if home_split:
                         reward += self.heavy_reward * 2
                         self.heavy_reward_events += 2
+                        self.heavy_reward_breakdown['special'] += 2
 
                 moved_home = 0
                 for p in self.game_state.get('pieces', []):
@@ -661,6 +675,7 @@ class GameEnvironment:
                 if moved_home >= 2:
                     reward += self.heavy_reward
                     self.heavy_reward_events += 1
+                    self.heavy_reward_breakdown['special'] += 1
 
 
         # Bonus or penalty based on game outcome
@@ -713,6 +728,8 @@ class GameEnvironment:
         for key in self.reward_event_counts:
             self.reward_event_counts[key] = 0
         self.heavy_reward_events = 0
+        for key in self.heavy_reward_breakdown:
+            self.heavy_reward_breakdown[key] = 0
 
     def set_heavy_reward(self, value: float) -> None:
         """Update the weight applied to major reward events."""
