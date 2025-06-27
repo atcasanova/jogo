@@ -23,8 +23,14 @@ class TrainingManager:
             'average_losses': [],
             'kl_divergences': [],
             'games_played': 0,
-            'reward_entropies': []
+            'reward_entropies': [],
+            'reward_breakdown_history': []
         }
+
+        # Optional external list storing per-episode reward contributions
+        # This allows plotting detailed breakdowns without modifying the core
+        # environment logic.
+        self.reward_breakdown_history = self.training_stats['reward_breakdown_history']
 
         self.kl_target = TRAINING_CONFIG.get('kl_target', 0.02)
         self.kl_threshold = self.kl_target / 2
@@ -233,6 +239,9 @@ class TrainingManager:
             entropy=f"{entropy:.3f}"
         )
 
+        # Store raw reward source counts to allow plotting breakdowns later
+        self.reward_breakdown_history.append(dict(env.reward_event_counts))
+
         return episode_rewards
     
     def train(self, num_episodes=None, save_freq=None, stats_freq=None, num_envs: int = 1, save_match_log: bool = False):
@@ -333,15 +342,14 @@ class TrainingManager:
         self._check_loss_stagnation()
     
     def plot_training_progress(self):
-        fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-        axes = axes.flatten()
-        
+        fig, axs = plt.subplots(2, 3, figsize=(18, 10))
+
         # Episode rewards
         if self.training_stats['episode_rewards']:
-            axes[0].plot(self.training_stats['episode_rewards'])
-            axes[0].set_title('Episode Rewards')
-            axes[0].set_xlabel('Episode')
-            axes[0].set_ylabel('Total Reward')
+            axs[0, 0].plot(self.training_stats['episode_rewards'])
+            axs[0, 0].set_title('Episode Rewards')
+            axs[0, 0].set_xlabel('Episode')
+            axs[0, 0].set_ylabel('Total Reward')
         
         # Win rates
         sorted_bots = sorted(self.bots, key=lambda b: getattr(b, 'bot_id', 0))
@@ -353,19 +361,19 @@ class TrainingManager:
             win_rates.append(win_rate)
 
         bar_colors = [colors[bot.bot_id % len(colors)] for bot in sorted_bots]
-        axes[1].bar(range(len(sorted_bots)), win_rates, color=bar_colors)
-        axes[1].set_title('Win Rates by Bot')
-        axes[1].set_xlabel('Bot ID')
-        axes[1].set_xticks(range(len(sorted_bots)))
-        axes[1].set_xticklabels([bot.bot_id for bot in sorted_bots])
-        axes[1].set_ylabel('Win Rate (%)')
+        axs[0, 1].bar(range(len(sorted_bots)), win_rates, color=bar_colors)
+        axs[0, 1].set_title('Win Rates by Bot')
+        axs[0, 1].set_xlabel('Bot ID')
+        axs[0, 1].set_xticks(range(len(sorted_bots)))
+        axs[0, 1].set_xticklabels([bot.bot_id for bot in sorted_bots])
+        axs[0, 1].set_ylabel('Win Rate (%)')
 
         # Reward entropy
         if self.training_stats['reward_entropies']:
-            axes[2].plot(self.training_stats['reward_entropies'])
-        axes[2].set_title('Reward Source Entropy')
-        axes[2].set_xlabel('Episode')
-        axes[2].set_ylabel('Entropy')
+            axs[0, 2].plot(self.training_stats['reward_entropies'])
+        axs[0, 2].set_title('Reward Source Entropy')
+        axs[0, 2].set_xlabel('Episode')
+        axs[0, 2].set_ylabel('Entropy')
         
         # Average losses
         has_loss_plots = False
@@ -375,24 +383,48 @@ class TrainingManager:
                 if window_size > 0:
                     moving_avg = np.convolve(bot.losses, np.ones(window_size)/window_size, mode='valid')
                     color = colors[bot.bot_id % len(colors)]
-                    axes[3].plot(moving_avg, label=f'Bot {bot.bot_id}', color=color)
+                    axs[1, 0].plot(moving_avg, label=f'Bot {bot.bot_id}', color=color)
                     has_loss_plots = True
-        axes[3].set_title('Training Loss (Moving Average)')
-        axes[3].set_xlabel('Training Step')
-        axes[3].set_ylabel('Loss')
+        axs[1, 0].set_title('Training Loss (Moving Average)')
+        axs[1, 0].set_xlabel('Training Step')
+        axs[1, 0].set_ylabel('Loss')
         if has_loss_plots:
-            axes[3].legend()
+            axs[1, 0].legend()
         
         # KL divergence
         if self.training_stats['kl_divergences']:
-            axes[4].plot(self.training_stats['kl_divergences'])
-        axes[4].set_title('Approximate KL Divergence')
-        axes[4].set_xlabel('Training Step')
-        axes[4].set_ylabel('KL Divergence')
+            axs[1, 1].plot(self.training_stats['kl_divergences'])
+        axs[1, 1].set_title('Approximate KL Divergence')
+        axs[1, 1].set_xlabel('Training Step')
+        axs[1, 1].set_ylabel('KL Divergence')
 
-        # Hide unused subplot
-        axes[5].axis('off')
-        
+        # Reward breakdown stacked area chart
+        if self.reward_breakdown_history:
+            episodes = list(range(len(self.reward_breakdown_history)))
+            totals = {}
+            for entry in self.reward_breakdown_history:
+                for key, value in entry.items():
+                    totals[key] = totals.get(key, 0) + value
+            sorted_keys = sorted(totals, key=totals.get, reverse=True)
+            main_keys = sorted_keys[:4]
+            data = {k: [] for k in main_keys + ['other']}
+            for entry in self.reward_breakdown_history:
+                other_total = 0.0
+                for k in main_keys:
+                    data[k].append(entry.get(k, 0.0))
+                for k, v in entry.items():
+                    if k not in main_keys:
+                        other_total += v
+                data['other'].append(other_total)
+            stacks = [data[k] for k in main_keys + ['other']]
+            axs[1, 2].stackplot(episodes, stacks, labels=main_keys + ['other'])
+            axs[1, 2].set_title('Reward Breakdown by Type')
+            axs[1, 2].set_xlabel('Episode')
+            axs[1, 2].set_ylabel('Reward')
+            axs[1, 2].legend(loc='upper left')
+        else:
+            axs[1, 2].axis('off')
+
         plt.tight_layout()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         plt.savefig(f'{PLOT_DIR}/training_progress_{timestamp}.png')
