@@ -3,19 +3,35 @@ import os
 import sys
 
 from ai.environment import GameEnvironment
-from ai.bot import GameBot
+from ai.bot import GameBot, DQNBot
 from json_logger import info
+import torch
 
 
 def load_bots(model_dir: str):
     env = GameEnvironment()
     bots = []
     for i in range(4):
-        bot = GameBot(i, env.state_size, env.action_space_size, device="cpu")
         path = os.path.join(model_dir, f"bot_{i}.pth")
+
+        checkpoint = None
         if os.path.exists(path):
-            bot.load_model(path)
-            info("Loaded model", bot=i)
+            try:
+                checkpoint = torch.load(path, map_location="cpu")
+            except Exception:
+                checkpoint = None
+
+        if checkpoint and "q_network_state_dict" in checkpoint and "model_state_dict" not in checkpoint:
+            bot = DQNBot(i, env.state_size, env.action_space_size, device="cpu")
+        else:
+            bot = GameBot(i, env.state_size, env.action_space_size, device="cpu")
+
+        if os.path.exists(path):
+            try:
+                bot.load_model(path)
+                info("Loaded model", bot=i, algorithm=bot.algorithm)
+            except Exception as e:
+                info("Failed to load model", bot=i, error=str(e))
         bots.append(bot)
     return env, bots
 
