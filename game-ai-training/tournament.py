@@ -7,7 +7,7 @@ from typing import Dict, List
 
 from ai.environment import GameEnvironment
 from ai.bot import GameBot, DQNBot
-from config import MODEL_DIR
+from config import MODEL_DIR, LOG_DIR
 
 
 MAX_STEPS = 1000
@@ -161,25 +161,37 @@ def main() -> None:
         print("Failed to start game process")
         return
 
+    os.makedirs(LOG_DIR, exist_ok=True)
+
     bots = load_bots(env, seats)
 
     partner_stats: Dict[int, Dict[int, Dict[str, int]]] = defaultdict(
         lambda: defaultdict(lambda: {"wins": 0, "games": 0})
     )
 
-    num_games = 200
+    num_games = 100
     print(f"Running {num_games} games...\n")
     for i in range(num_games):
         shuffle_bots(bots)
         winners = play_game(env, bots)
         update_partner_stats(partner_stats, bots, winners)
-        env.reset()
         if winners:
+            team0_seats = sorted(b.player_id for b in bots if b.team == 0)
+            team1_seats = sorted(b.player_id for b in bots if b.team == 1)
+            team0_name = next(b.model_dir for b in bots if b.team == 0)
+            team1_name = next(b.model_dir for b in bots if b.team == 1)
+            fname = (
+                f"{team0_name}_p{team0_seats[0]}_p{team0_seats[1]}_vs_"
+                f"{team1_name}_p{team1_seats[0]}_p{team1_seats[1]}.json"
+            )
+            env.save_history(os.path.join(LOG_DIR, fname))
             print(
                 f"Game {i + 1}: winners {', '.join(str(w) for w in winners)}"
             )
         else:
             print(f"Game {i + 1}: no winner")
+
+        env.reset()
 
         if (i + 1) % 10 == 0:
             print(f"Completed {i + 1} games")

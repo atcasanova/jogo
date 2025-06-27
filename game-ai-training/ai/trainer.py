@@ -246,9 +246,12 @@ class TrainingManager:
 
         # Store raw reward source counts to allow plotting breakdowns later
         self.reward_breakdown_history.append(dict(env.reward_event_counts))
-        self.heavy_reward_breakdown_history.append(
-            dict(env.heavy_reward_breakdown)
-        )
+        if hasattr(env, 'heavy_reward_breakdown'):
+            self.heavy_reward_breakdown_history.append(
+                dict(env.heavy_reward_breakdown)
+            )
+        else:
+            self.heavy_reward_breakdown_history.append({})
 
         return episode_rewards
     
