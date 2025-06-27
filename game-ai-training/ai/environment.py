@@ -520,6 +520,9 @@ class GameEnvironment:
                     state_copy = self.game_state
                 self.move_history.append({'move': str(last_move), 'state': state_copy})
 
+            changed_my = set()
+            home_split = False
+
             for p in self.game_state.get('pieces', []):
                 pid = p.get('id')
                 if not pid:
@@ -534,6 +537,16 @@ class GameEnvironment:
 
                 prev_info = prev_pieces.get(pid)
                 was_near = prev_near_home.get(pid, False)
+                if prev_info and owner in my_team and prev_info.get('pos') != pos:
+                    changed_my.add(pid)
+                    if (
+                        (not prev_info['in_home'] and p.get('inHomeStretch')) or
+                        (
+                            prev_info['in_home'] and p.get('inHomeStretch') and
+                            p.get('position') != prev_info.get('pos')
+                        )
+                    ):
+                        home_split = True
                 if prev_info and pos and prev_info.get('pos') and not now_penalty and not p.get('completed'):
                     prev_idx = self._track_index(prev_info['pos'])
                     new_idx = self._track_index(pos)
@@ -550,7 +563,7 @@ class GameEnvironment:
                             and forward > prev_steps
                             and not p.get('inHomeStretch')
                         ):
-                            reward -= 0.3
+                            reward -= 0.6
 
                 if owner in my_team:
                     if prev_info and not prev_info['in_penalty'] and now_penalty:
@@ -623,6 +636,13 @@ class GameEnvironment:
                 self.reward_event_counts['capture'] += 1
 
             if action >= 60:
+                if len(changed_my) >= 2:
+                    reward += self.heavy_reward
+                    self.heavy_reward_events += 1
+                    if home_split:
+                        reward += self.heavy_reward * 2
+                        self.heavy_reward_events += 2
+
                 moved_home = 0
                 for p in self.game_state.get('pieces', []):
                     pid = p.get('id')
@@ -643,13 +663,14 @@ class GameEnvironment:
                     self.heavy_reward_events += 1
 
 
-        # Bonus for winning the game
-        if done and response.get('winningTeam'):
-            for pl in response['winningTeam']:
-                if pl.get('position') == player_id:
-                    reward += 2.0
-                    self.reward_event_counts['game_win'] += 1
-                    break
+        # Bonus or penalty based on game outcome
+        if done:
+            winners = response.get('winningTeam') or []
+            if any(pl.get('position') == player_id for pl in winners):
+                reward += 4.0
+                self.reward_event_counts['game_win'] += 1
+            else:
+                reward -= 4.0
 
         # Log failures for easier debugging
         if not response.get('success'):
