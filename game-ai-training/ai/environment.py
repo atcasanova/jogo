@@ -630,7 +630,7 @@ class GameEnvironment:
                 owner = info.get('player_id')
                 near = prev_near_home.get(cid, False)
                 if owner in my_team:
-                    reward += 0.5
+                    reward += 0.3
                     if info.get('pos') == self._starts[owner]:
                         reward += self.heavy_reward
                         self.heavy_reward_events += 1
@@ -644,7 +644,7 @@ class GameEnvironment:
                         self.heavy_reward_events += 2
                         self.heavy_reward_breakdown['capture'] += 2
                 else:
-                    reward += 0.5 if near else 0.2
+                    reward += 0.3 if near else 0.1
                 self.reward_event_counts['capture'] += 1
 
             if action >= 60:

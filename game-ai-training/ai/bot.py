@@ -8,12 +8,16 @@ import threading
 from config import TRAINING_CONFIG
 from json_logger import info
 
+# Fallback when torch.nn.Module is mocked during tests
+BASE_MODULE = nn.Module if isinstance(nn.Module, type) else object
 
-class ActorCritic(nn.Module):
+
+class ActorCritic(BASE_MODULE):
     """Simple actor-critic network used by PPO."""
 
     def __init__(self, state_size: int, action_size: int, hidden_size: int = 512):
-        super().__init__()
+        if hasattr(super(), '__init__'):
+            super().__init__()
         self.shared = nn.Sequential(
             nn.Linear(state_size, hidden_size),
             nn.ReLU(),
@@ -22,6 +26,21 @@ class ActorCritic(nn.Module):
         )
         self.policy_head = nn.Linear(hidden_size, action_size)
         self.value_head = nn.Linear(hidden_size, 1)
+
+    def to(self, device):
+        if hasattr(super(), 'to'):
+            return super().to(device)
+        return self
+
+    def parameters(self):
+        if hasattr(super(), 'parameters'):
+            return super().parameters()
+        return []
+
+    def load_state_dict(self, state_dict):
+        if hasattr(super(), 'load_state_dict'):
+            return super().load_state_dict(state_dict)
+        return None
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         features = self.shared(x)
@@ -182,11 +201,12 @@ class GameBot:
             self.total_reward = checkpoint.get('total_reward', 0.0)
 
 
-class DQNNet(nn.Module):
+class DQNNet(BASE_MODULE):
     """Simple feed-forward network for DQN models."""
 
     def __init__(self, state_size: int, action_size: int, hidden_size: int = 512):
-        super().__init__()
+        if hasattr(super(), '__init__'):
+            super().__init__()
         self.layers = nn.Sequential(
             nn.Linear(state_size, hidden_size),
             nn.ReLU(),
@@ -194,6 +214,21 @@ class DQNNet(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_size, action_size),
         )
+
+    def to(self, device):
+        if hasattr(super(), 'to'):
+            return super().to(device)
+        return self
+
+    def parameters(self):
+        if hasattr(super(), 'parameters'):
+            return super().parameters()
+        return []
+
+    def load_state_dict(self, state_dict):
+        if hasattr(super(), 'load_state_dict'):
+            return super().load_state_dict(state_dict)
+        return None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layers(x)
