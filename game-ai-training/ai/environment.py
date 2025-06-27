@@ -682,10 +682,10 @@ class GameEnvironment:
         if done:
             winners = response.get('winningTeam') or []
             if any(pl.get('position') == player_id for pl in winners):
-                reward += 4.0
+                reward += 100.0
                 self.reward_event_counts['game_win'] += 1
             else:
-                reward -= 4.0
+                reward -= 100.0
 
         # Log failures for easier debugging
         if not response.get('success'):
