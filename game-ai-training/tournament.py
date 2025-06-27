@@ -7,7 +7,7 @@ from typing import Dict, List
 
 from ai.environment import GameEnvironment
 from ai.bot import GameBot, DQNBot
-from config import MODEL_DIR
+from config import MODEL_DIR, LOG_DIR
 
 
 MAX_STEPS = 1000
@@ -167,19 +167,30 @@ def main() -> None:
         lambda: defaultdict(lambda: {"wins": 0, "games": 0})
     )
 
-    num_games = 200
+    num_games = 100
     print(f"Running {num_games} games...\n")
     for i in range(num_games):
         shuffle_bots(bots)
         winners = play_game(env, bots)
         update_partner_stats(partner_stats, bots, winners)
-        env.reset()
         if winners:
+            winning_team = 0 if winners[0] in {0, 2} else 1
+            win_model = team0 if winning_team == 0 else team1
+            lose_model = team1 if winning_team == 0 else team0
+            win_seats = "_".join(f"p{w}" for w in sorted(winners))
+            lose_seats = "_".join(
+                f"p{s}" for s in sorted({0, 1, 2, 3} - set(winners))
+            )
+            filename = f"{win_model}_{win_seats}_vs_{lose_model}_{lose_seats}.json"
+            os.makedirs(LOG_DIR, exist_ok=True)
+            log_path = os.path.join(LOG_DIR, filename)
+            env.save_history(log_path)
             print(
                 f"Game {i + 1}: winners {', '.join(str(w) for w in winners)}"
             )
         else:
             print(f"Game {i + 1}: no winner")
+        env.reset()
 
         if (i + 1) % 10 == 0:
             print(f"Completed {i + 1} games")

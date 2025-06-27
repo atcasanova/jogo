@@ -114,6 +114,7 @@ Run it from the repository root:
 python3 game-ai-training/tournament.py
 ```
 
-Select the model directory for each team when prompted. The script plays 200
-games, prints the winner of each game, and updates win statistics every ten
-games.
+Select the model directory for each team when prompted. The script now plays
+100 games, prints the winner of each game, and updates win statistics every ten
+games. When a game ends with a winner, the full move history is saved in the
+`logs/` directory using the same JSON format as the training match logs.
