@@ -48,6 +48,11 @@ The entropy of this distribution is plotted to help detect reward starvation.
 You can adjust the extra incentive for these events over time using the
 `REWARD_SCHEDULE` variable in `config.py`.
 
+Heavy reward events, such as entering the home stretch or capturing from the
+starting square, are tracked separately and overlaid on the reward breakdown
+plot. This helps confirm that bots are making the desired power moves during
+training.
+
 ## Match Logging
 
 Passing the `--save-match-log` flag to `main.py` writes the move history of
