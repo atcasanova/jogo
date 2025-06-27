@@ -37,9 +37,19 @@ class ActorCritic(BASE_MODULE):
             return super().parameters()
         return []
 
-    def load_state_dict(self, state_dict):
+    def load_state_dict(self, state_dict, strict: bool = True):
+        """Load weights into the network.
+
+        Parameters
+        ----------
+        state_dict : dict
+            Model weights to load.
+        strict : bool, optional
+            Whether to strictly enforce that the keys in ``state_dict`` match
+            the model's keys. Defaults to ``True``.
+        """
         if hasattr(super(), 'load_state_dict'):
-            return super().load_state_dict(state_dict)
+            return super().load_state_dict(state_dict, strict=strict)
         return None
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -225,9 +235,19 @@ class DQNNet(BASE_MODULE):
             return super().parameters()
         return []
 
-    def load_state_dict(self, state_dict):
+    def load_state_dict(self, state_dict, strict: bool = True):
+        """Load network weights from ``state_dict``.
+
+        Parameters
+        ----------
+        state_dict : dict
+            Weights to load into the model.
+        strict : bool, optional
+            Enforce that the keys in ``state_dict`` match the keys expected by
+            this module. Defaults to ``True``.
+        """
         if hasattr(super(), 'load_state_dict'):
-            return super().load_state_dict(state_dict)
+            return super().load_state_dict(state_dict, strict=strict)
         return None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
