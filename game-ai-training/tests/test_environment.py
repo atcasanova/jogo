@@ -102,6 +102,26 @@ def test_save_history_writes_json(tmp_path):
     assert all('move' in json.loads(line) for line in lines)
 
 
+def test_step_includes_heavy_reward_count_in_summary():
+    env = GameEnvironment()
+    env.game_state = {}
+    env.heavy_reward_events = 5
+    response = {
+        'success': True,
+        'gameState': {'pieces': [], 'teams': []},
+        'gameEnded': True,
+        'winningTeam': None,
+        'stats': {'summary': {}, 'full': {}}
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, done = env.step(0, 0)
+
+    assert env.game_state['statsSummary']['heavyRewards'] == 5
+
+
 def _run_get_valid_actions_mock(has_move: bool):
     """Helper to execute GameWrapper.getValidActions under Node with mocked
     hasAnyValidMove."""

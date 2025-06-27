@@ -57,6 +57,9 @@ class GameEnvironment:
             'game_win': 0,
         }
 
+        # Count how many times the heavy reward bonus was applied in a game
+        self.heavy_reward_events = 0
+
     def _generate_track(self) -> List[Dict[str, int]]:
         """Replicate the board track coordinates from the Node game."""
         track: List[Dict[str, int]] = []
@@ -504,7 +507,10 @@ class GameEnvironment:
             self.game_state['winningTeam'] = response.get('winningTeam')
             if 'stats' in response:
                 self.game_state['stats'] = response['stats'].get('full', {})
-                self.game_state['statsSummary'] = response['stats'].get('summary')
+                summary = response['stats'].get('summary')
+                if isinstance(summary, dict):
+                    summary['heavyRewards'] = self.heavy_reward_events
+                self.game_state['statsSummary'] = summary
 
             last_move = self.game_state.get('lastMove')
             if last_move is not None:
@@ -558,6 +564,7 @@ class GameEnvironment:
                         and owner in my_team
                     ):
                         reward += self.heavy_reward
+                        self.heavy_reward_events += 1
                         self.reward_event_counts['home_entry'] += 1
 
                     # Reward leaving the penalty zone with a capture
@@ -568,6 +575,7 @@ class GameEnvironment:
                         and response.get('captures')
                     ):
                         reward += self.heavy_reward
+                        self.heavy_reward_events += 1
                         self.reward_event_counts['penalty_exit'] += 1
 
                 prev_near_home[pid] = was_near
@@ -602,12 +610,14 @@ class GameEnvironment:
                     reward += 0.5
                     if info.get('pos') == self._starts[owner]:
                         reward += self.heavy_reward
+                        self.heavy_reward_events += 1
                     if (
                         partner_id is not None
                         and owner == partner_id
                         and moved_from_partner_home
                     ):
                         reward += self.heavy_reward * 2
+                        self.heavy_reward_events += 2
                 else:
                     reward += 0.5 if near else 0.2
                 self.reward_event_counts['capture'] += 1
@@ -630,6 +640,7 @@ class GameEnvironment:
                         moved_home += 1
                 if moved_home >= 2:
                     reward += self.heavy_reward
+                    self.heavy_reward_events += 1
 
 
         # Bonus for winning the game
@@ -680,6 +691,7 @@ class GameEnvironment:
         """Clear tracked reward event counts."""
         for key in self.reward_event_counts:
             self.reward_event_counts[key] = 0
+        self.heavy_reward_events = 0
 
     def set_heavy_reward(self, value: float) -> None:
         """Update the weight applied to major reward events."""
