@@ -571,23 +571,25 @@ class GameEnvironment:
                             and forward > prev_steps
                             and not p.get('inHomeStretch')
                         ):
-                            reward -= 0.6
+                            reward -= self.heavy_reward
 
                 if owner in my_team:
                     if prev_info and not prev_info['in_penalty'] and now_penalty:
                         reward -= 0.5
 
                 if prev_info:
-                    # Reward entering the home stretch
+                    # Reward or penalize home stretch entry
                     if (
                         not prev_info['in_home']
                         and p.get('inHomeStretch')
-                        and owner in my_team
                     ):
-                        reward += self.heavy_reward
-                        self.heavy_reward_events += 1
-                        self.heavy_reward_breakdown['home_entry'] += 1
-                        self.reward_event_counts['home_entry'] += 1
+                        if owner in my_team:
+                            reward += self.heavy_reward * 3
+                            self.heavy_reward_events += 3
+                            self.heavy_reward_breakdown['home_entry'] += 3
+                            self.reward_event_counts['home_entry'] += 1
+                        else:
+                            reward -= self.heavy_reward / 2
 
                     # Reward leaving the penalty zone with a capture
                     if (
@@ -630,7 +632,7 @@ class GameEnvironment:
                 owner = info.get('player_id')
                 near = prev_near_home.get(cid, False)
                 if owner in my_team:
-                    reward += 0.3
+                    reward += 0.1
                     if info.get('pos') == self._starts[owner]:
                         reward += self.heavy_reward
                         self.heavy_reward_events += 1
@@ -644,38 +646,33 @@ class GameEnvironment:
                         self.heavy_reward_events += 2
                         self.heavy_reward_breakdown['capture'] += 2
                 else:
-                    reward += 0.3 if near else 0.1
+                    reward += 0.2 if near else 0.005
                 self.reward_event_counts['capture'] += 1
 
             if action >= 60:
                 if len(changed_my) >= 2:
-                    reward += self.heavy_reward
-                    self.heavy_reward_events += 1
-                    self.heavy_reward_breakdown['special'] += 1
-                    if home_split:
-                        reward += self.heavy_reward * 2
-                        self.heavy_reward_events += 2
-                        self.heavy_reward_breakdown['special'] += 2
-
-                moved_home = 0
-                for p in self.game_state.get('pieces', []):
-                    pid = p.get('id')
-                    if not pid:
-                        continue
-                    prev_info = prev_pieces.get(pid)
-                    if (
-                        prev_info
-                        and prev_info['in_home']
-                        and p.get('inHomeStretch')
-                        and not p.get('completed')
-                        and p.get('position') != prev_info.get('pos')
-                        and p.get('playerId') in my_team
-                    ):
-                        moved_home += 1
-                if moved_home >= 2:
-                    reward += self.heavy_reward
-                    self.heavy_reward_events += 1
-                    self.heavy_reward_breakdown['special'] += 1
+                    reward += 0.5
+                    moved_home = 0
+                    for p in self.game_state.get('pieces', []):
+                        pid = p.get('id')
+                        if not pid:
+                            continue
+                        prev_info = prev_pieces.get(pid)
+                        if (
+                            prev_info
+                            and prev_info['in_home']
+                            and p.get('inHomeStretch')
+                            and not p.get('completed')
+                            and p.get('position') != prev_info.get('pos')
+                            and p.get('playerId') in my_team
+                        ):
+                            moved_home += 1
+                    if home_split or moved_home >= 1:
+                        reward += self.heavy_reward
+                        self.heavy_reward_events += 1
+                        self.heavy_reward_breakdown['special'] += 1
+                else:
+                    reward -= 0.005
 
 
         # Bonus or penalty based on game outcome

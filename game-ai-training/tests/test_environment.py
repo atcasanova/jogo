@@ -946,5 +946,5 @@ def test_penalty_for_skipping_home_entry():
                     with patch.object(env, '_steps_to_entrance', side_effect=lambda pos, pid: step_map.get((pos['row'], pos['col']), -1)):
                         _, reward, _ = env.step(1, 0)
 
-    assert reward == pytest.approx(-0.55)
+    assert reward == pytest.approx(-5.95)
 
