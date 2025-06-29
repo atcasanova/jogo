@@ -24,15 +24,13 @@ class TrainingManager:
             'kl_divergences': [],
             'games_played': 0,
             'reward_entropies': [],
-            'reward_breakdown_history': [],
-            'heavy_reward_breakdown_history': []
+            'reward_breakdown_history': []
         }
 
         # Optional external list storing per-episode reward contributions
         # This allows plotting detailed breakdowns without modifying the core
         # environment logic.
         self.reward_breakdown_history = self.training_stats['reward_breakdown_history']
-        self.heavy_reward_breakdown_history = self.training_stats['heavy_reward_breakdown_history']
 
         self.kl_target = TRAINING_CONFIG.get('kl_target', 0.02)
         self.kl_threshold = self.kl_target / 2
@@ -129,6 +127,16 @@ class TrainingManager:
             return 0.0
         probs = np.array([c / total for c in counts.values() if c > 0])
         return float(-(probs * np.log2(probs)).sum())
+
+    def _reward_contributions(self, counts: dict) -> dict:
+        """Return reward contribution for each tracked event."""
+        return {
+            'home_entry': 10.0 * counts.get('home_entry', 0),
+            'valid_move': -0.1 * counts.get('valid_move', 0),
+            'invalid_move': -0.2 * counts.get('invalid_move', 0),
+            'enemy_home_entry': -5.0 * counts.get('enemy_home_entry', 0),
+            'game_win': 3000.0 * counts.get('game_win', 0),
+        }
 
     def _apply_reward_schedule(self, episode: int, env: GameEnvironment) -> None:
         """Update environment reward weight according to the configured schedule."""
@@ -237,17 +245,17 @@ class TrainingManager:
         self.training_stats['reward_entropies'].append(entropy)
         info(
             "Reward events",
-            home_entries=env.reward_event_counts['home_entry'],
-            penalty_exits=env.reward_event_counts['penalty_exit'],
-            captures=env.reward_event_counts['capture'],
-            wins=env.reward_event_counts['game_win'],
+            home_entries=env.reward_event_counts.get('home_entry', 0),
+            invalid_moves=env.reward_event_counts.get('invalid_move', 0),
+            valid_moves=env.reward_event_counts.get('valid_move', 0),
+            enemy_home=env.reward_event_counts.get('enemy_home_entry', 0),
+            wins=env.reward_event_counts.get('game_win', 0),
             entropy=f"{entropy:.3f}"
         )
 
-        # Store raw reward source counts to allow plotting breakdowns later
-        self.reward_breakdown_history.append(dict(env.reward_event_counts))
-        self.heavy_reward_breakdown_history.append(
-            dict(getattr(env, 'heavy_reward_breakdown', {}))
+        # Store reward contributions for plotting
+        self.reward_breakdown_history.append(
+            self._reward_contributions(env.reward_event_counts)
         )
 
         return episode_rewards
@@ -413,28 +421,14 @@ class TrainingManager:
         axs[1, 1].set_xlabel('Training Step')
         axs[1, 1].set_ylabel('KL Divergence')
 
-        # Reward breakdown stacked area chart with heavy reward overlays
+        # Reward breakdown line plot showing per-episode contributions
         if self.reward_breakdown_history:
             episodes = list(range(len(self.reward_breakdown_history)))
-            totals = {}
-            for entry in self.reward_breakdown_history:
-                for key, value in entry.items():
-                    totals[key] = totals.get(key, 0) + value
-            sorted_keys = sorted(totals, key=totals.get, reverse=True)
-            main_keys = sorted_keys[:5]
-            data = {k: [] for k in main_keys}
-            heavy_data = {k: [] for k in main_keys}
-            for idx, entry in enumerate(self.reward_breakdown_history):
-                heavy_entry = {}
-                if idx < len(self.heavy_reward_breakdown_history):
-                    heavy_entry = self.heavy_reward_breakdown_history[idx]
-                for k in main_keys:
-                    data[k].append(entry.get(k, 0.0))
-                    heavy_data[k].append(heavy_entry.get(k, 0.0))
-            stacks = [data[k] for k in main_keys]
-            axs[1, 2].stackplot(episodes, stacks, labels=main_keys)
-            for k, values in heavy_data.items():
-                axs[1, 2].plot(episodes, values, linestyle='--', label=f'{k} heavy')
+            keys = ['home_entry', 'invalid_move', 'valid_move', 'enemy_home_entry', 'game_win']
+            for k in keys:
+                values = [entry.get(k, 0.0) for entry in self.reward_breakdown_history]
+                if any(v != 0 for v in values):
+                    axs[1, 2].plot(episodes, values, label=k)
             axs[1, 2].set_title('Reward Breakdown by Type')
             axs[1, 2].set_xlabel('Episode')
             axs[1, 2].set_ylabel('Reward')
