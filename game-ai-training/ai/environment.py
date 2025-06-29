@@ -54,6 +54,8 @@ class GameEnvironment:
             'valid_move': 0,
             'invalid_move': 0,
             'home_entry': 0,
+            'penalty_exit': 0,
+            'capture': 0,
             'enemy_home_entry': 0,
             'game_win': 0,
         }
