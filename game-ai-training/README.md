@@ -37,20 +37,18 @@ than 100 update steps.
 
 ### Reward Monitoring
 
-Training logs now include counts for several reward sources after each episode:
+Training logs now record the reward *contribution* of each event type in the
+current simplified system:
 
-- Valid moves that don't enter the home stretch
-- Invalid moves
-- Team pieces entering the home stretch
-- Opponent pieces entering the home stretch
-- Game wins
+- Valid moves that do not enter the home stretch (−0.1 each)
+- Invalid moves (−0.2 each)
+- Team pieces entering the home stretch (+10 each)
+- Opponent pieces entering the home stretch (−5 each)
+- Game wins (+3000)
 
-The entropy of this distribution is plotted to help detect reward starvation.
-You can adjust the extra incentive for these events over time using the
-`REWARD_SCHEDULE` variable in `config.py`.
-
-Heavy reward tracking from earlier versions has been removed as the new reward
-scheme relies solely on these simpler events.
+The entropy of the event counts is plotted to help detect reward starvation. A
+per‑episode breakdown subplot shows these positive and negative rewards over
+time. Heavy reward tracking from earlier versions has been removed.
 
 ## Match Logging
 
