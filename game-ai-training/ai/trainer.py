@@ -421,23 +421,18 @@ class TrainingManager:
                 for key, value in entry.items():
                     totals[key] = totals.get(key, 0) + value
             sorted_keys = sorted(totals, key=totals.get, reverse=True)
-            main_keys = sorted_keys[:4]
-            data = {k: [] for k in main_keys + ['other']}
+            main_keys = sorted_keys[:5]
+            data = {k: [] for k in main_keys}
             heavy_data = {k: [] for k in main_keys}
             for idx, entry in enumerate(self.reward_breakdown_history):
-                other_total = 0.0
                 heavy_entry = {}
                 if idx < len(self.heavy_reward_breakdown_history):
                     heavy_entry = self.heavy_reward_breakdown_history[idx]
                 for k in main_keys:
                     data[k].append(entry.get(k, 0.0))
                     heavy_data[k].append(heavy_entry.get(k, 0.0))
-                for k, v in entry.items():
-                    if k not in main_keys:
-                        other_total += v
-                data['other'].append(other_total)
-            stacks = [data[k] for k in main_keys + ['other']]
-            axs[1, 2].stackplot(episodes, stacks, labels=main_keys + ['other'])
+            stacks = [data[k] for k in main_keys]
+            axs[1, 2].stackplot(episodes, stacks, labels=main_keys)
             for k, values in heavy_data.items():
                 axs[1, 2].plot(episodes, values, linestyle='--', label=f'{k} heavy')
             axs[1, 2].set_title('Reward Breakdown by Type')
