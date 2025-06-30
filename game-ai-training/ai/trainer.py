@@ -184,10 +184,13 @@ class TrainingManager:
             action = current_bot.act(state, valid_actions)
             
             # Execute action
-            next_state, reward, done = env.step(action, current_player)
-
             step_num = step_count + 1
-            reward -= 0.02 * step_num
+            try:
+                next_state, reward, done = env.step(action, current_player, step_num)
+            except TypeError:
+                next_state, reward, done = env.step(action, current_player)
+
+            reward -= 0.02 * step_num * (1 + step_num / 500.0)
             decay = step_num // 200
             if decay > 0:
                 if reward > 0:
