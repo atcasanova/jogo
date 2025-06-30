@@ -11,6 +11,9 @@ from typing import List, Tuple, Dict, Any
 from json_logger import info, error, warning
 from config import HEAVY_REWARD_BASE
 
+# Reward scale for the nth piece entering the home stretch for a team
+HOME_ENTRY_REWARDS = [10, 30, 60, 100, 150, 210, 280, 360, 450, 550]
+
 
 class GameEnvironment:
     def __init__(self, env_id: int = 0):
@@ -58,6 +61,17 @@ class GameEnvironment:
             'capture': 0,
             'enemy_home_entry': 0,
             'game_win': 0,
+        }
+
+        # Track the total reward contributed by each event type
+        self.reward_event_totals = {
+            'valid_move': 0.0,
+            'invalid_move': 0.0,
+            'home_entry': 0.0,
+            'penalty_exit': 0.0,
+            'capture': 0.0,
+            'enemy_home_entry': 0.0,
+            'game_win': 0.0,
         }
 
         # Count how many times the heavy reward bonus was applied in a game
@@ -481,6 +495,7 @@ class GameEnvironment:
         reward = -0.2 * invalid_attempts
         if invalid_attempts:
             self.reward_event_counts['invalid_move'] += invalid_attempts
+            self.reward_event_totals['invalid_move'] += -0.2 * invalid_attempts
         done = response.get('gameEnded', False)
 
         teams = self.game_state.get('teams', []) if self.game_state else []
@@ -532,14 +547,20 @@ class GameEnvironment:
 
             if response.get('success'):
                 if team_home > prev_team_home:
-                    reward += 10.0 * team_home
+                    idx = min(team_home, len(HOME_ENTRY_REWARDS)) - 1
+                    home_reward = HOME_ENTRY_REWARDS[idx]
+                    reward += home_reward
                     self.reward_event_counts['home_entry'] += team_home - prev_team_home
+                    self.reward_event_totals['home_entry'] += home_reward
                 else:
                     reward -= 0.1
                     self.reward_event_counts['valid_move'] += 1
+                    self.reward_event_totals['valid_move'] += -0.1
             if enemy_home > prev_enemy_home:
-                reward -= 5.0 * enemy_home
+                penalty = -5.0 * enemy_home
+                reward += penalty
                 self.reward_event_counts['enemy_home_entry'] += enemy_home - prev_enemy_home
+                self.reward_event_totals['enemy_home_entry'] += penalty
 
 
         # Bonus or penalty based on game outcome
@@ -548,6 +569,7 @@ class GameEnvironment:
             if any(pl.get('position') == player_id for pl in winners):
                 reward += 3000.0
                 self.reward_event_counts['game_win'] += 1
+                self.reward_event_totals['game_win'] += 3000.0
             else:
                 reward -= 1000.0
 
@@ -591,6 +613,8 @@ class GameEnvironment:
         """Clear tracked reward event counts."""
         for key in self.reward_event_counts:
             self.reward_event_counts[key] = 0
+        for key in self.reward_event_totals:
+            self.reward_event_totals[key] = 0.0
         self.heavy_reward_events = 0
         for key in self.heavy_reward_breakdown:
             self.heavy_reward_breakdown[key] = 0
