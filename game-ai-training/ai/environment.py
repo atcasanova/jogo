@@ -411,8 +411,18 @@ class GameEnvironment:
             return True
         return bool(response.get("valid"))
     
-    def step(self, action: int, player_id: int) -> Tuple[np.ndarray, float, bool]:
-        """Execute action and return next_state, reward, done"""
+    def step(self, action: int, player_id: int, step_count: int = 0) -> Tuple[np.ndarray, float, bool]:
+        """Execute action and return next_state, reward, done
+
+        Parameters
+        ----------
+        action : int
+            The action index to perform.
+        player_id : int
+            ID of the player executing the action.
+        step_count : int, optional
+            Current step number of the episode (1-indexed). Defaults to ``0``.
+        """
         invalid_attempts = 0
         tried_actions = set()
 
@@ -567,11 +577,13 @@ class GameEnvironment:
         if done:
             winners = response.get('winningTeam') or []
             if any(pl.get('position') == player_id for pl in winners):
-                reward += 3000.0
+                bonus = 3000.0 + (1000 - step_count) * 2
+                reward += bonus
                 self.reward_event_counts['game_win'] += 1
-                self.reward_event_totals['game_win'] += 3000.0
+                self.reward_event_totals['game_win'] += bonus
             else:
-                reward -= 1000.0
+                penalty = 1000.0 + step_count
+                reward -= penalty
 
         # Log failures for easier debugging
         if not response.get('success'):
