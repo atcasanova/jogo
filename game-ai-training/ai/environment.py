@@ -64,6 +64,7 @@ class GameEnvironment:
             'no_home_penalty': 0,
             'avoid_home_penalty': 0,
             'timeout': 0,
+            'completion': 0,
         }
 
         # Track the total reward contributed by each event type
@@ -78,6 +79,7 @@ class GameEnvironment:
             'no_home_penalty': 0.0,
             'avoid_home_penalty': 0.0,
             'timeout': 0.0,
+            'completion': 0.0,
         }
 
         # Count how many times the heavy reward bonus was applied in a game
@@ -558,6 +560,7 @@ class GameEnvironment:
 
         prev_team_home = 0
         prev_enemy_home = 0
+        prev_completed = 0
         if self.game_state and 'pieces' in self.game_state:
             for p in self.game_state['pieces']:
                 if p.get('inHomeStretch'):
@@ -565,6 +568,8 @@ class GameEnvironment:
                         prev_team_home += 1
                     else:
                         prev_enemy_home += 1
+                if p.get('playerId') in my_team and p.get('completed'):
+                    prev_completed += 1
 
         # Update game state whenever provided
         if 'gameState' in response:
@@ -595,6 +600,16 @@ class GameEnvironment:
                         team_home += 1
                     else:
                         enemy_home += 1
+
+            completed_now = sum(
+                1 for p in self.game_state.get('pieces', [])
+                if p.get('playerId') in my_team and p.get('completed')
+            )
+            if completed_now > prev_completed:
+                diff = completed_now - prev_completed
+                reward += diff * 300.0
+                self.reward_event_counts['completion'] += diff
+                self.reward_event_totals['completion'] += diff * 300.0
 
             if response.get('success'):
                 if team_home > prev_team_home:
