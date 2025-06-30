@@ -63,6 +63,7 @@ class GameEnvironment:
             'game_win': 0,
             'no_home_penalty': 0,
             'avoid_home_penalty': 0,
+            'timeout': 0,
         }
 
         # Track the total reward contributed by each event type
@@ -76,6 +77,7 @@ class GameEnvironment:
             'game_win': 0.0,
             'no_home_penalty': 0.0,
             'avoid_home_penalty': 0.0,
+            'timeout': 0.0,
         }
 
         # Count how many times the heavy reward bonus was applied in a game
@@ -598,18 +600,27 @@ class GameEnvironment:
                 if team_home > prev_team_home:
                     idx = min(team_home, len(HOME_ENTRY_REWARDS)) - 1
                     home_reward = HOME_ENTRY_REWARDS[idx]
+                    if step_count < 150:
+                        home_reward *= 5
                     reward += home_reward
                     self.reward_event_counts['home_entry'] += team_home - prev_team_home
                     self.reward_event_totals['home_entry'] += home_reward
                 else:
-                    reward -= 0.1
+                    decay_penalty = 0.01 * (step_count ** 1.3)
+                    reward -= decay_penalty
                     self.reward_event_counts['valid_move'] += 1
-                    self.reward_event_totals['valid_move'] += -0.1
+                    self.reward_event_totals['valid_move'] += -decay_penalty
             if enemy_home > prev_enemy_home:
                 penalty = -5.0 * enemy_home
                 reward += penalty
                 self.reward_event_counts['enemy_home_entry'] += enemy_home - prev_enemy_home
                 self.reward_event_totals['enemy_home_entry'] += penalty
+
+            # Large penalty if no pieces have entered home by step 150
+            if step_count == 150 and team_home == 0:
+                reward -= 1000.0
+                self.reward_event_counts['timeout'] += 1
+                self.reward_event_totals['timeout'] -= 1000.0
 
             # Check if the move pulled a piece away from an entrance position
             new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
