@@ -25,7 +25,9 @@ class TrainingManager:
             'games_played': 0,
             'reward_entropies': [],
             'reward_breakdown_history': [],
-            'episode_lengths': []
+            'episode_lengths': [],
+            'games_with_completion': 0,
+            'total_completed_pieces': 0
         }
 
         # Optional external list storing per-episode reward contributions
@@ -163,7 +165,7 @@ class TrainingManager:
         actions = [None] * 4
         
         step_count = 0
-        max_steps = 1000
+        max_steps = 800
         
         while step_count < max_steps:
             # Get current player from game state
@@ -190,7 +192,7 @@ class TrainingManager:
             except TypeError:
                 next_state, reward, done = env.step(action, current_player)
 
-            reward -= 0.02 * step_num * (1 + step_num / 500.0)
+            reward -= min(2.0, 0.005 * step_num ** 1.1)
             decay = step_num // 200
             if decay > 0:
                 if reward > 0:
@@ -247,6 +249,13 @@ class TrainingManager:
             info("Game summary", summary=summary)
 
         self.training_stats['games_played'] += 1
+        pieces_completed = sum(
+            1 for p in env.game_state.get('pieces', [])
+            if p.get('completed')
+        )
+        if pieces_completed > 0:
+            self.training_stats['games_with_completion'] += 1
+        self.training_stats['total_completed_pieces'] += pieces_completed
         self.training_stats['episode_rewards'].append(sum(episode_rewards))
         self.training_stats['episode_lengths'].append(step_count)
         entropy = self._reward_entropy(env.reward_event_counts)
@@ -371,6 +380,16 @@ class TrainingManager:
             )
 
         self._check_loss_stagnation()
+
+        games = self.training_stats['games_played']
+        if games:
+            pct = (self.training_stats['games_with_completion'] / games) * 100
+            avg = self.training_stats['total_completed_pieces'] / games
+            info(
+                "Completion stats",
+                percent=f"{pct:.1f}",
+                average=f"{avg:.2f}"
+            )
     
     def plot_training_progress(self):
         fig, axs = plt.subplots(2, 3, figsize=(18, 10))
