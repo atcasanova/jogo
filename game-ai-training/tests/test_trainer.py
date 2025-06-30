@@ -17,6 +17,15 @@ class MockGameEnvironment:
             'capture': 0,
             'game_win': 0
         }
+        self.reward_event_totals = {
+            'home_entry': 0.0,
+            'penalty_exit': 0.0,
+            'capture': 0.0,
+            'game_win': 0.0,
+            'valid_move': 0.0,
+            'invalid_move': 0.0,
+            'enemy_home_entry': 0.0,
+        }
 
     def reset(self, bot_names=None):
         self.game_state = {'currentPlayerIndex': 0, 'gameEnded': False, 'winningTeam': None}

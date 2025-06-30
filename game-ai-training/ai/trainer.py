@@ -24,7 +24,8 @@ class TrainingManager:
             'kl_divergences': [],
             'games_played': 0,
             'reward_entropies': [],
-            'reward_breakdown_history': []
+            'reward_breakdown_history': [],
+            'episode_lengths': []
         }
 
         # Optional external list storing per-episode reward contributions
@@ -128,15 +129,9 @@ class TrainingManager:
         probs = np.array([c / total for c in counts.values() if c > 0])
         return float(-(probs * np.log2(probs)).sum())
 
-    def _reward_contributions(self, counts: dict) -> dict:
+    def _reward_contributions(self, totals: dict) -> dict:
         """Return reward contribution for each tracked event."""
-        return {
-            'home_entry': 10.0 * counts.get('home_entry', 0),
-            'valid_move': -0.1 * counts.get('valid_move', 0),
-            'invalid_move': -0.2 * counts.get('invalid_move', 0),
-            'enemy_home_entry': -5.0 * counts.get('enemy_home_entry', 0),
-            'game_win': 3000.0 * counts.get('game_win', 0),
-        }
+        return {k: float(v) for k, v in totals.items()}
 
     def _apply_reward_schedule(self, episode: int, env: GameEnvironment) -> None:
         """Update environment reward weight according to the configured schedule."""
@@ -190,6 +185,15 @@ class TrainingManager:
             
             # Execute action
             next_state, reward, done = env.step(action, current_player)
+
+            step_num = step_count + 1
+            reward -= 0.02 * step_num
+            decay = step_num // 200
+            if decay > 0:
+                if reward > 0:
+                    reward *= 0.9 ** decay
+                elif reward < 0:
+                    reward *= 1.1 ** decay
             
             # Store experience
             if states[current_player] is not None:
@@ -241,6 +245,7 @@ class TrainingManager:
 
         self.training_stats['games_played'] += 1
         self.training_stats['episode_rewards'].append(sum(episode_rewards))
+        self.training_stats['episode_lengths'].append(step_count)
         entropy = self._reward_entropy(env.reward_event_counts)
         self.training_stats['reward_entropies'].append(entropy)
         info(
@@ -255,7 +260,7 @@ class TrainingManager:
 
         # Store reward contributions for plotting
         self.reward_breakdown_history.append(
-            self._reward_contributions(env.reward_event_counts)
+            self._reward_contributions(env.reward_event_totals)
         )
 
         return episode_rewards
@@ -367,12 +372,22 @@ class TrainingManager:
     def plot_training_progress(self):
         fig, axs = plt.subplots(2, 3, figsize=(18, 10))
 
-        # Episode rewards
-        if self.training_stats['episode_rewards']:
-            axs[0, 0].plot(self.training_stats['episode_rewards'])
-            axs[0, 0].set_title('Episode Rewards')
-            axs[0, 0].set_xlabel('Episode')
-            axs[0, 0].set_ylabel('Total Reward')
+        # Episode length statistics
+        if self.training_stats['episode_lengths']:
+            lengths = self.training_stats['episode_lengths']
+            axs[0, 0].hist(lengths, bins=20, color='gray', alpha=0.7)
+            median_len = np.median(lengths)
+            min_len = np.min(lengths)
+            max_len = np.max(lengths)
+            axs[0, 0].axvline(median_len, color='blue', linestyle='--', label=f'Median {median_len:.1f}')
+            axs[0, 0].axvline(min_len, color='green', linestyle=':', label=f'Min {min_len}')
+            axs[0, 0].axvline(max_len, color='red', linestyle=':', label=f'Max {max_len}')
+            axs[0, 0].set_title('Episode Length Distribution')
+            axs[0, 0].set_xlabel('Steps')
+            axs[0, 0].set_ylabel('Episodes')
+            axs[0, 0].legend()
+        else:
+            axs[0, 0].axis('off')
         
         # Win rates
         sorted_bots = sorted(self.bots, key=lambda b: getattr(b, 'bot_id', 0))
@@ -421,14 +436,22 @@ class TrainingManager:
         axs[1, 1].set_xlabel('Training Step')
         axs[1, 1].set_ylabel('KL Divergence')
 
-        # Reward breakdown line plot showing per-episode contributions
+        # Reward breakdown stacked bar and negative lines
         if self.reward_breakdown_history:
-            episodes = list(range(len(self.reward_breakdown_history)))
-            keys = ['home_entry', 'invalid_move', 'valid_move', 'enemy_home_entry', 'game_win']
+            episodes = np.arange(len(self.reward_breakdown_history))
+            keys = list(self.reward_breakdown_history[0].keys())
+            pos_bottom = np.zeros(len(episodes))
             for k in keys:
-                values = [entry.get(k, 0.0) for entry in self.reward_breakdown_history]
-                if any(v != 0 for v in values):
-                    axs[1, 2].plot(episodes, values, label=k)
+                values = np.array([entry.get(k, 0.0) for entry in self.reward_breakdown_history])
+                if np.all(values == 0):
+                    continue
+                pos_vals = np.where(values > 0, values, 0)
+                neg_vals = np.where(values < 0, values, 0)
+                if np.any(pos_vals > 0):
+                    axs[1, 2].bar(episodes, pos_vals, bottom=pos_bottom, label=k)
+                    pos_bottom += pos_vals
+                if np.any(neg_vals < 0):
+                    axs[1, 2].plot(episodes, neg_vals, label=k)
             axs[1, 2].set_title('Reward Breakdown by Type')
             axs[1, 2].set_xlabel('Episode')
             axs[1, 2].set_ylabel('Reward')
