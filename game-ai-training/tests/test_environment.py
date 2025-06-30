@@ -906,3 +906,61 @@ def test_step_discards_when_all_actions_fail():
     assert env.reward_event_counts['valid_move'] == 1
 
 
+def test_team_penalty_applied_after_interval():
+    env = GameEnvironment()
+    env.game_state = {
+        'currentPlayerIndex': 0,
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+        'pieces': [
+            {'id': 'p0_1', 'playerId': 0, 'position': {'row': 0, 'col': 0}, 'inHomeStretch': False, 'inPenaltyZone': False, 'completed': False},
+            {'id': 'p2_1', 'playerId': 2, 'position': {'row': 0, 'col': 1}, 'inHomeStretch': False, 'inPenaltyZone': False, 'completed': False}
+        ]
+    }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
+    env.pending_penalties = [0.0] * 4
+    env.next_penalty_check = 60
+
+    response = {'success': True, 'gameState': env.game_state, 'gameEnded': False, 'winningTeam': None}
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                env.step(1, 0, step_count=60)
+
+    assert env.pending_penalties[0] == -50.0
+    assert env.pending_penalties[2] == -50.0
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, _ = env.step(1, 2, step_count=62)
+
+    assert reward == pytest.approx(-50.1)
+    assert env.reward_event_counts['no_home_penalty'] == 1
+
+
+def test_move_away_from_home_penalty():
+    env = GameEnvironment()
+    env.game_state = {
+        'currentPlayerIndex': 0,
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+        'pieces': [
+            {'id': 'p0_1', 'playerId': 0, 'position': {'row': 0, 'col': 3}, 'inHomeStretch': False, 'inPenaltyZone': False, 'completed': False}
+        ]
+    }
+
+    new_state = {
+        'pieces': [
+            {'id': 'p0_1', 'playerId': 0, 'position': {'row': 0, 'col': 2}, 'inHomeStretch': False, 'inPenaltyZone': False, 'completed': False}
+        ],
+        'teams': env.game_state['teams']
+    }
+    response = {'success': True, 'gameState': new_state, 'gameEnded': False, 'winningTeam': None}
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, _ = env.step(1, 0, step_count=1)
+
+    assert reward == pytest.approx(-50.1)
+    assert env.reward_event_counts['avoid_home_penalty'] == 1
+
+

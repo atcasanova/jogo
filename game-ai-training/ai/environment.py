@@ -61,6 +61,8 @@ class GameEnvironment:
             'capture': 0,
             'enemy_home_entry': 0,
             'game_win': 0,
+            'no_home_penalty': 0,
+            'avoid_home_penalty': 0,
         }
 
         # Track the total reward contributed by each event type
@@ -72,6 +74,8 @@ class GameEnvironment:
             'capture': 0.0,
             'enemy_home_entry': 0.0,
             'game_win': 0.0,
+            'no_home_penalty': 0.0,
+            'avoid_home_penalty': 0.0,
         }
 
         # Count how many times the heavy reward bonus was applied in a game
@@ -84,6 +88,13 @@ class GameEnvironment:
             'capture': 0,
             'special': 0,
         }
+
+        # Map from player index to team index
+        self.player_team_map: Dict[int, int] = {}
+        # Pending penalties to apply on each player's next move
+        self.pending_penalties = [0.0] * 4
+        # Next global turn when no-home penalties should be checked
+        self.next_penalty_check = 60
 
     def _generate_track(self) -> List[Dict[str, int]]:
         """Replicate the board track coordinates from the Node game."""
@@ -283,6 +294,15 @@ class GameEnvironment:
             # clear previous move history
             self.move_history = []
             self.reset_reward_events()
+            teams = self.game_state.get('teams', [])
+            self.player_team_map = {}
+            for idx, team in enumerate(teams):
+                for pl in team:
+                    pos = pl.get('position')
+                    if pos is not None:
+                        self.player_team_map[int(pos)] = idx
+            self.pending_penalties = [0.0] * 4
+            self.next_penalty_check = 60
         else:
             error("Game reset failed", response=response)
         
@@ -425,6 +445,25 @@ class GameEnvironment:
         """
         invalid_attempts = 0
         tried_actions = set()
+        prev_pieces = {}
+
+        if self.game_state and 'pieces' in self.game_state:
+            for p in self.game_state['pieces']:
+                if p.get('playerId') == player_id:
+                    prev_pieces[p['id']] = {
+                        'pos': p.get('position'),
+                        'in_home': p.get('inHomeStretch'),
+                        'in_penalty': p.get('inPenaltyZone'),
+                        'completed': p.get('completed'),
+                        'dist': self._steps_to_entrance(p.get('position'), player_id)
+                    }
+
+        reward = 0.0
+        if 0 <= player_id < len(self.pending_penalties) and self.pending_penalties[player_id] != 0:
+            reward += self.pending_penalties[player_id]
+            self.reward_event_counts['no_home_penalty'] += 1
+            self.reward_event_totals['no_home_penalty'] += self.pending_penalties[player_id]
+            self.pending_penalties[player_id] = 0.0
 
         while True:
             if not self.is_action_valid(player_id, action):
@@ -502,7 +541,7 @@ class GameEnvironment:
             action = alt_actions[0]
 
         # New simplified reward system
-        reward = -0.2 * invalid_attempts
+        reward += -0.2 * invalid_attempts
         if invalid_attempts:
             self.reward_event_counts['invalid_move'] += invalid_attempts
             self.reward_event_totals['invalid_move'] += -0.2 * invalid_attempts
@@ -572,6 +611,39 @@ class GameEnvironment:
                 self.reward_event_counts['enemy_home_entry'] += enemy_home - prev_enemy_home
                 self.reward_event_totals['enemy_home_entry'] += penalty
 
+            # Check if the move pulled a piece away from an entrance position
+            new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
+            for pid, prev in prev_pieces.items():
+                if pid not in new_pieces:
+                    continue
+                new = new_pieces[pid]
+                if new.get('inHomeStretch') or prev['in_home']:
+                    continue
+                if prev['in_penalty'] or prev['completed']:
+                    continue
+                before = prev['dist']
+                after = self._steps_to_entrance(new.get('position'), player_id)
+                if 0 < before <= 6 and (after == -1 or after > before):
+                    reward -= 50.0
+                    self.reward_event_counts['avoid_home_penalty'] += 1
+                    self.reward_event_totals['avoid_home_penalty'] += -50.0
+                    break
+
+            # Apply team-level penalty every 60 turns if no piece reached home
+            if step_count >= self.next_penalty_check:
+                teams = self.game_state.get('teams', [])
+                for idx, team in enumerate(teams):
+                    team_players = [pl.get('position') for pl in team if 'position' in pl]
+                    home_present = any(
+                        p.get('inHomeStretch') for p in self.game_state.get('pieces', [])
+                        if p.get('playerId') in team_players
+                    )
+                    if not home_present:
+                        for pid in team_players:
+                            if pid is not None and 0 <= pid < len(self.pending_penalties):
+                                self.pending_penalties[pid] -= 50.0
+                self.next_penalty_check += 60
+
 
         # Bonus or penalty based on game outcome
         if done:
@@ -630,6 +702,8 @@ class GameEnvironment:
         self.heavy_reward_events = 0
         for key in self.heavy_reward_breakdown:
             self.heavy_reward_breakdown[key] = 0
+        self.pending_penalties = [0.0] * 4
+        self.next_penalty_check = 60
 
     def set_heavy_reward(self, value: float) -> None:
         """Update the weight applied to major reward events."""
