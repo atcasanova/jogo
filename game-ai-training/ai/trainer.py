@@ -155,7 +155,7 @@ class TrainingManager:
         actions = [None] * 4
         
         step_count = 0
-        max_steps = 350
+        max_steps = 550
         
         while step_count < max_steps:
             # Get current player from game state
@@ -211,7 +211,10 @@ class TrainingManager:
         
         # Update statistics
         for i, bot in enumerate(self.bots):
-            bot.total_reward += episode_rewards[i]
+            capped = episode_rewards[i]
+            if capped < -2000:
+                capped = -2000
+            bot.total_reward += capped
             bot.games_played += 1
         
         # Check for winners
@@ -227,7 +230,10 @@ class TrainingManager:
             info("Game summary", summary=summary)
 
         self.training_stats['games_played'] += 1
-        self.training_stats['episode_rewards'].append(sum(episode_rewards))
+        ep_total = sum(episode_rewards)
+        if ep_total < -2000:
+            ep_total = -2000
+        self.training_stats['episode_rewards'].append(ep_total)
         entropy = self._reward_entropy(env.reward_event_counts)
         self.training_stats['reward_entropies'].append(entropy)
         info(

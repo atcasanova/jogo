@@ -12,7 +12,10 @@ from json_logger import info, error, warning
 from config import HEAVY_REWARD_BASE
 
 # Reward scale for the nth piece entering the home stretch for a team
-HOME_ENTRY_REWARDS = [10, 30, 60, 100, 150, 210, 280, 360, 450, 550]
+# Doubled from the original values
+HOME_ENTRY_REWARDS = [
+    20, 60, 120, 200, 300, 420, 560, 720, 900, 1100
+]
 
 
 class GameEnvironment:
@@ -47,6 +50,38 @@ class GameEnvironment:
             {'row': 8, 'col': 18},
             {'row': 18, 'col': 10},
             {'row': 10, 'col': 0}
+        ]
+
+        # Coordinates for each player's home stretch positions
+        self._home_stretches = [
+            [
+                {'row': 1, 'col': 4},
+                {'row': 2, 'col': 4},
+                {'row': 3, 'col': 4},
+                {'row': 4, 'col': 4},
+                {'row': 5, 'col': 4},
+            ],
+            [
+                {'row': 4, 'col': 17},
+                {'row': 4, 'col': 16},
+                {'row': 4, 'col': 15},
+                {'row': 4, 'col': 14},
+                {'row': 4, 'col': 13},
+            ],
+            [
+                {'row': 17, 'col': 14},
+                {'row': 16, 'col': 14},
+                {'row': 15, 'col': 14},
+                {'row': 14, 'col': 14},
+                {'row': 13, 'col': 14},
+            ],
+            [
+                {'row': 14, 'col': 1},
+                {'row': 14, 'col': 2},
+                {'row': 14, 'col': 3},
+                {'row': 14, 'col': 4},
+                {'row': 14, 'col': 5},
+            ],
         ]
 
         # Adjustable reward weight for important plays
@@ -126,6 +161,15 @@ class GameEnvironment:
     def _track_index(self, pos: Dict[str, int]) -> int:
         """Return the index of ``pos`` along the outer track or ``-1``."""
         for i, square in enumerate(self._track):
+            if square['row'] == pos.get('row') and square['col'] == pos.get('col'):
+                return i
+        return -1
+
+    def _home_index(self, pos: Dict[str, int], player_id: int) -> int:
+        """Return the index within the player's home stretch or ``-1``."""
+        if not pos or not (0 <= player_id < len(self._home_stretches)):
+            return -1
+        for i, square in enumerate(self._home_stretches[player_id]):
             if square['row'] == pos.get('row') and square['col'] == pos.get('col'):
                 return i
         return -1
@@ -448,6 +492,7 @@ class GameEnvironment:
         invalid_attempts = 0
         tried_actions = set()
         prev_pieces = {}
+        occupied_before: List[int] = []
 
         if self.game_state and 'pieces' in self.game_state:
             for p in self.game_state['pieces']:
@@ -459,6 +504,17 @@ class GameEnvironment:
                         'completed': p.get('completed'),
                         'dist': self._steps_to_entrance(p.get('position'), player_id)
                     }
+                    if p.get('inHomeStretch') or p.get('completed'):
+                        idx = self._home_index(p.get('position'), player_id)
+                        if idx != -1:
+                            occupied_before.append(idx)
+
+        home_len = len(self._home_stretches[player_id]) if 0 <= player_id < len(self._home_stretches) else 5
+        farthest_before = home_len - 1
+        for i in range(home_len - 1, -1, -1):
+            if i not in occupied_before:
+                farthest_before = i
+                break
 
         reward = 0.0
         if 0 <= player_id < len(self.pending_penalties) and self.pending_penalties[player_id] != 0:
@@ -590,9 +646,10 @@ class GameEnvironment:
             home_split = False
             prev_near_home: Dict[str, bool] = {}
 
-            # Count pieces in home after the move
+            # Count pieces in home after the move and accumulate rewards
             team_home = 0
             enemy_home = 0
+            home_reward_sum = 0.0
             for p in self.game_state.get('pieces', []):
                 pid = p.get('id')
                 if not pid:
@@ -673,6 +730,35 @@ class GameEnvironment:
                         self.heavy_reward_events += 1
                         self.reward_event_counts['penalty_exit'] += 1
 
+                    # Home stretch progress rewards
+                    old_idx = self._home_index(prev_info['pos'], owner) if (
+                        prev_info['in_home'] or prev_info['completed']
+                    ) else -1
+                    new_idx = self._home_index(pos, owner) if (
+                        p.get('inHomeStretch') or p.get('completed')
+                    ) else -1
+                    if not prev_info['in_home'] and p.get('inHomeStretch'):
+                        base = HOME_ENTRY_REWARDS[new_idx]
+                        if new_idx == farthest_before:
+                            home_reward_sum += base * 2
+                        else:
+                            home_reward_sum += base
+                        if step_count < 50:
+                            home_reward_sum += 100.0
+                    elif (
+                        prev_info['in_home']
+                        and p.get('inHomeStretch')
+                        and old_idx != new_idx
+                    ):
+                        base = HOME_ENTRY_REWARDS[new_idx]
+                        if new_idx == farthest_before:
+                            home_reward_sum += base / 2
+                        else:
+                            home_reward_sum += base
+                    if not prev_info['completed'] and p.get('completed'):
+                        base = HOME_ENTRY_REWARDS[new_idx]
+                        home_reward_sum += base / 2
+
                 prev_near_home[pid] = was_near
 
                 if p.get('inHomeStretch'):
@@ -751,14 +837,14 @@ class GameEnvironment:
                     self.heavy_reward_events += 1
 
             if response.get('success'):
+                if home_reward_sum:
+                    reward += home_reward_sum
+                    self.reward_event_totals['home_entry'] += home_reward_sum
                 if team_home > prev_team_home:
-                    idx = min(team_home, len(HOME_ENTRY_REWARDS)) - 1
-                    home_reward = HOME_ENTRY_REWARDS[idx]
-                    reward += home_reward
                     self.reward_event_counts['home_entry'] += team_home - prev_team_home
-                    self.reward_event_totals['home_entry'] += home_reward
                 else:
-                    decay_penalty = 0.01 * (step_count ** 1.3)
+                    exponent = 1.1 if step_count <= 300 else 1.6
+                    decay_penalty = 0.01 * (step_count ** exponent)
                     reward -= decay_penalty
                     self.reward_event_counts['valid_move'] += 1
                     self.reward_event_totals['valid_move'] += -decay_penalty
@@ -781,9 +867,9 @@ class GameEnvironment:
                 before = prev['dist']
                 after = self._steps_to_entrance(new.get('position'), player_id)
                 if 0 < before <= 6 and (after == -1 or after > before):
-                    reward -= 50.0
+                    reward -= 20.0
                     self.reward_event_counts['avoid_home_penalty'] += 1
-                    self.reward_event_totals['avoid_home_penalty'] += -50.0
+                    self.reward_event_totals['avoid_home_penalty'] += -20.0
                     break
 
             # Apply team-level penalty every 60 turns if no piece reached home
@@ -798,7 +884,7 @@ class GameEnvironment:
                     if not home_present:
                         for pid in team_players:
                             if pid is not None and 0 <= pid < len(self.pending_penalties):
-                                self.pending_penalties[pid] -= 50.0
+                                self.pending_penalties[pid] -= 20.0
                 self.next_penalty_check += 60
 
 
