@@ -47,8 +47,10 @@ current simplified system:
 - Game wins (+3000)
 
 The entropy of the event counts is plotted to help detect reward starvation. A
-per‑episode breakdown subplot shows these positive and negative rewards over
-time using shades of blue for positive values and purple for negative values.
+per‑episode breakdown subplot shows the reward contribution of **every** event
+type. Positive values stack upward while negative values stack below zero. Each
+reward type uses a distinct color from Matplotlib's `tab20` palette so negative
+events are no longer lumped into a single “other” category.
 Heavy reward tracking from earlier versions has been removed.
 
 ## Match Logging

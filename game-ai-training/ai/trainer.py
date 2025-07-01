@@ -404,64 +404,61 @@ class TrainingManager:
         axs[1, 1].set_xlabel('Training Step')
         axs[1, 1].set_ylabel('KL Divergence')
 
-        # Reward breakdown stacked bar chart with negative values below zero
+        # Reward breakdown stacked bar chart with distinct colors
         if self.reward_breakdown_history:
             episodes = list(range(len(self.reward_breakdown_history)))
+
             totals: dict = {}
             for entry in self.reward_breakdown_history:
                 for key, value in entry.items():
                     totals[key] = totals.get(key, 0) + value
-            sorted_keys = sorted(totals, key=totals.get, reverse=True)
-            main_keys = sorted_keys[:4]
 
-            data = {k: [] for k in main_keys + ['other']}
+            sorted_keys = sorted(totals, key=totals.get, reverse=True)
+
+            data = {k: [] for k in sorted_keys}
             for entry in self.reward_breakdown_history:
-                other_total = 0.0
-                for k in main_keys:
+                for k in sorted_keys:
                     data[k].append(entry.get(k, 0.0))
-                for k, v in entry.items():
-                    if k not in main_keys:
-                        other_total += v
-                data['other'].append(other_total)
 
             pos_bottom = np.zeros(len(episodes))
             neg_bottom = np.zeros(len(episodes))
-            num_keys = len(main_keys) + 1
-            pos_colors = plt.cm.Blues(np.linspace(0.4, 0.9, num_keys))
-            neg_colors = plt.cm.Purples(np.linspace(0.4, 0.9, num_keys))
-            for idx, k in enumerate(main_keys + ['other']):
+
+            colors = plt.cm.get_cmap('tab20')(np.linspace(0, 1, len(sorted_keys)))
+
+            for idx, k in enumerate(sorted_keys):
                 values = np.array(data[k])
                 pos_vals = np.where(values > 0, values, 0)
                 neg_vals = np.where(values < 0, values, 0)
-                pos_color = pos_colors[idx]
-                neg_color = neg_colors[idx]
-                label_used = False
+
+                label = k
                 if np.any(pos_vals):
                     axs[1, 2].bar(
                         episodes,
                         pos_vals,
                         bottom=pos_bottom,
-                        color=pos_color,
-                        label=f"{k} (+)"
+                        color=colors[idx],
+                        label=label,
                     )
+                    label = None
                     pos_bottom += pos_vals
-                    label_used = True
                 if np.any(neg_vals):
                     axs[1, 2].bar(
                         episodes,
                         neg_vals,
                         bottom=neg_bottom,
-                        color=neg_color,
-                        label=f"{k} (-)" if not label_used else None
+                        color=colors[idx],
+                        label=label,
                     )
+                    label = None
                     neg_bottom += neg_vals
-                elif not label_used:
-                    axs[1, 2].bar([], [], color=pos_color, label=f"{k} (+)")
+                if label is not None:
+                    axs[1, 2].bar([], [], color=colors[idx], label=label)
+
             axs[1, 2].axhline(0, color='black', linewidth=0.8)
             axs[1, 2].set_title('Reward Breakdown by Type')
             axs[1, 2].set_xlabel('Episode')
             axs[1, 2].set_ylabel('Reward')
-            axs[1, 2].legend(loc='upper left')
+            axs[1, 2].legend(loc='upper left', fontsize='small')
         else:
             axs[1, 2].axis('off')
 
