@@ -45,7 +45,7 @@ current simplified system:
 - Team pieces entering the home stretch receive a bonus starting at +40 and
   an extra +50 if the entry occurs within the first 50 turns.
 - Opponent pieces entering the home stretch (−5 each)
-- Game wins award a large bonus of roughly 13k points depending on how quickly
+- Game wins award a large bonus of roughly 20k points depending on how quickly
   the match ends.
 
 The entropy of the event counts is plotted to help detect reward starvation. A
