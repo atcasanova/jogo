@@ -160,7 +160,8 @@ class GameBot:
         ratio = (new_log_probs - old_log_probs_t.detach()).exp()
         surr1 = ratio * advantages
         surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * advantages
-        clipfrac = torch.mean((ratio > 1.0 + self.clip_eps) | (ratio < 1.0 - self.clip_eps)).item()
+        mask = (ratio > 1.0 + self.clip_eps) | (ratio < 1.0 - self.clip_eps)
+        clipfrac = mask.float().mean().item()
         actor_loss = -torch.min(surr1, surr2).mean()
         critic_loss = nn.functional.mse_loss(new_values.squeeze(-1), returns_t)
         loss = actor_loss + 0.5 * critic_loss - self.entropy_weight * entropy
