@@ -19,7 +19,8 @@ WIN_BONUS = 20000.0
 # Reward scale for the nth piece entering the home stretch for a team
 # Normalized to keep dense rewards smaller
 HOME_ENTRY_REWARDS = [
-    10, 25, 50, 75, 100, 125, 150, 175, 200, 250
+    100, 300, 600, 1000, 1500,
+    2100, 2800, 3600, 4500, 5500
 ]
 
 
@@ -650,6 +651,7 @@ class GameEnvironment:
             changed_my = set()
             home_split = False
             prev_near_home: Dict[str, bool] = {}
+            progress_made = False
 
             # Count pieces in home after the move and accumulate rewards
             team_home = 0
@@ -674,6 +676,13 @@ class GameEnvironment:
 
                 prev_info = prev_pieces.get(pid)
                 was_near = prev_near_home.get(pid, False)
+                if (
+                    owner in my_team
+                    and prev_info
+                    and prev_info.get('dist', 99) > 10
+                    and near
+                ):
+                    progress_made = True
                 if prev_info and owner in my_team and prev_info.get('pos') != pos:
                     changed_my.add(pid)
                     if (
@@ -720,9 +729,9 @@ class GameEnvironment:
                         and p.get('inHomeStretch')
                         and owner in my_team
                     ):
-                        reward += self.heavy_reward
-                        self.heavy_reward_events += 1
-                        self.reward_event_counts['home_entry'] += 1
+                        base = HOME_ENTRY_REWARDS[new_idx]
+                        home_reward_sum += base * 0.1
+                        progress_made = True
 
                     # Reward leaving the penalty zone with a capture
                     if (
@@ -734,6 +743,7 @@ class GameEnvironment:
                         reward += self.heavy_reward
                         self.heavy_reward_events += 1
                         self.reward_event_counts['penalty_exit'] += 1
+                        progress_made = True
 
                     # Home stretch progress rewards
                     old_idx = self._home_index(prev_info['pos'], owner) if (
@@ -744,27 +754,19 @@ class GameEnvironment:
                     ) else -1
                     if not prev_info['in_home'] and p.get('inHomeStretch'):
                         base = HOME_ENTRY_REWARDS[new_idx]
-                        if new_idx == farthest_before:
-                            home_reward_sum += base * 2
-                        else:
-                            home_reward_sum += base
-                        if step_count < 50:
-                            home_reward_sum += 50.0
+                        home_reward_sum += base * 0.1
+                        progress_made = True
                     elif (
                         prev_info['in_home']
                         and p.get('inHomeStretch')
                         and old_idx != new_idx
                     ):
-                        base = HOME_ENTRY_REWARDS[new_idx]
-                        if new_idx == farthest_before:
-                            home_reward_sum += base / 2
-                        else:
-                            home_reward_sum += base
+                        progress_made = True
                     if not prev_info['completed'] and p.get('completed'):
                         base = HOME_ENTRY_REWARDS[new_idx]
-                        home_reward_sum += base / 2
                         if new_idx == farthest_before:
-                            home_reward_sum += base * 10
+                            home_reward_sum += base * 0.9
+                        progress_made = True
 
                 prev_near_home[pid] = was_near
 
@@ -854,6 +856,8 @@ class GameEnvironment:
                     reward -= decay_penalty
                     self.reward_event_counts['valid_move'] += 1
                     self.reward_event_totals['valid_move'] += -decay_penalty
+                if not progress_made:
+                    reward -= 0.01 * (step_count ** 1.05)
             if enemy_home > prev_enemy_home:
                 penalty = -5.0 * enemy_home
                 reward += penalty
