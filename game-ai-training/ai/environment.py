@@ -14,7 +14,7 @@ from config import HEAVY_REWARD_BASE
 # Normalised reward weights used throughout the environment
 INVALID_MOVE_PENALTY = -0.1
 COMPLETION_BONUS = 300.0
-WIN_BONUS = 500.0
+WIN_BONUS = 20000.0
 
 # Reward scale for the nth piece entering the home stretch for a team
 # Normalized to keep dense rewards smaller
@@ -905,9 +905,9 @@ class GameEnvironment:
                 before = prev['dist']
                 after = self._steps_to_entrance(new.get('position'), player_id)
                 if 0 < before <= 3 and (after == -1 or after > before):
-                    reward -= 20.0
+                    reward -= 60.0
                     self.reward_event_counts['avoid_home_penalty'] += 1
-                    self.reward_event_totals['avoid_home_penalty'] += -20.0
+                    self.reward_event_totals['avoid_home_penalty'] += -60.0
                     break
 
             # Apply team-level penalty every 60 turns if no piece reached home
@@ -922,7 +922,7 @@ class GameEnvironment:
                     if not home_present:
                         for pid in team_players:
                             if pid is not None and 0 <= pid < len(self.pending_penalties):
-                                self.pending_penalties[pid] -= 20.0
+                                self.pending_penalties[pid] -= 60.0
                 self.next_penalty_check += 60
 
 

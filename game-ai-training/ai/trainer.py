@@ -491,10 +491,23 @@ class TrainingManager:
                 '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
                 '#bcbd22', '#17becf'
             ]
-            color_map = {
-                k: custom_colors[i % len(custom_colors)]
-                for i, k in enumerate(sorted_keys)
+
+            predefined_colors = {
+                'home_entry': 'red',
+                'penalty_exit': 'blue',
+                'capture': 'green',
+                'game_win': 'purple',
+                'completion': 'yellow',
             }
+
+            color_map = {}
+            color_index = 0
+            for k in sorted_keys:
+                if k in predefined_colors:
+                    color_map[k] = predefined_colors[k]
+                else:
+                    color_map[k] = custom_colors[color_index % len(custom_colors)]
+                    color_index += 1
 
             for idx, k in enumerate(sorted_keys):
                 values = np.array(data[k])
