@@ -3,15 +3,15 @@ TRAINING_CONFIG = {
     'num_episodes': 5000,
     'save_frequency': 500,
     'stats_frequency': 10,
-    'learning_rate': 0.001,
+    'learning_rate': 2.5e-5,
     'batch_size': 32,
     'memory_size': 10000,
     'gamma': 0.95,
     'hidden_size': 512,
     'train_freq': 4,
-    'ppo_clip': 0.2,
-    # Encourage exploration slightly more by increasing the entropy term.
-    'entropy_weight': 0.02,
+    'ppo_clip': 0.1,
+    # Slight entropy bonus to maintain exploration without destabilising updates.
+    'entropy_weight': 0.005,
     # Target KL divergence used for monitoring training stability.
     'kl_target': 0.02,
     # How often the bot's target network should be updated.
@@ -36,9 +36,8 @@ JSON_LOGGING = os.getenv('JSON_LOGGING', '0').lower() in ('1', 'true', 'yes')
 # penalty zone with a capture. ``REWARD_SCHEDULE`` can override this value at
 # different points during training to implement a simple curriculum. Each tuple
 # in the list is ``(episode_start, heavy_reward)``.
-HEAVY_REWARD_BASE = 40.0
-# By default the heavy reward starts moderately high and decreases as training
-# progresses so bots focus more on winning games rather than individual moves.
+HEAVY_REWARD_BASE = 200.0
+# The heavy reward decreases over time so early training emphasises key moves
 REWARD_SCHEDULE = [
     (0, HEAVY_REWARD_BASE),
     (1000, HEAVY_REWARD_BASE * 0.75),

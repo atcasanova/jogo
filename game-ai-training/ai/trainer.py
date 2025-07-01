@@ -423,9 +423,15 @@ class TrainingManager:
             pos_bottom = np.zeros(len(episodes))
             neg_bottom = np.zeros(len(episodes))
 
-            palette = plt.cm.tab20.colors
-            color_map = {k: palette[i % len(palette)]
-                         for i, k in enumerate(sorted_keys)}
+            custom_colors = [
+                '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
+                '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
+                '#bcbd22', '#17becf'
+            ]
+            color_map = {
+                k: custom_colors[i % len(custom_colors)]
+                for i, k in enumerate(sorted_keys)
+            }
 
             for idx, k in enumerate(sorted_keys):
                 values = np.array(data[k])
