@@ -432,12 +432,17 @@ class TrainingManager:
                 pos_vals = np.where(values > 0, values, 0)
                 neg_vals = np.where(values < 0, values, 0)
                 color = colors[idx % len(colors)]
+                label_used = False
                 if np.any(pos_vals):
                     axs[1, 2].bar(episodes, pos_vals, bottom=pos_bottom, color=color, label=k)
                     pos_bottom += pos_vals
+                    label_used = True
                 if np.any(neg_vals):
-                    axs[1, 2].bar(episodes, neg_vals, bottom=neg_bottom, color=color)
+                    axs[1, 2].bar(episodes, neg_vals, bottom=neg_bottom, color=color, label=k if not label_used else None)
                     neg_bottom += neg_vals
+                elif not label_used:
+                    # Ensure legend entry even when values are all zero
+                    axs[1, 2].bar([], [], color=color, label=k)
             axs[1, 2].axhline(0, color='black', linewidth=0.8)
             axs[1, 2].set_title('Reward Breakdown by Type')
             axs[1, 2].set_xlabel('Episode')
