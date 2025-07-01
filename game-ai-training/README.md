@@ -48,7 +48,8 @@ current simplified system:
 
 The entropy of the event counts is plotted to help detect reward starvation. A
 per‑episode breakdown subplot shows these positive and negative rewards over
-time. Heavy reward tracking from earlier versions has been removed.
+time using shades of blue for positive values and purple for negative values.
+Heavy reward tracking from earlier versions has been removed.
 
 ## Match Logging
 
