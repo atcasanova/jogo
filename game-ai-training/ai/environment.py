@@ -12,9 +12,9 @@ from json_logger import info, error, warning
 from config import HEAVY_REWARD_BASE
 
 # Reward scale for the nth piece entering the home stretch for a team
-# Doubled from the original values
+# Normalized to keep dense rewards smaller
 HOME_ENTRY_REWARDS = [
-    20, 60, 120, 200, 300, 420, 560, 720, 900, 1100
+    10, 25, 50, 75, 100, 125, 150, 175, 200, 250
 ]
 
 
@@ -790,14 +790,14 @@ class GameEnvironment:
 
             for cap in response.get('captures', []):
                 cid = cap.get('pieceId')
-                info = prev_pieces.get(cid)
-                if not info:
+                prev_info_cap = prev_pieces.get(cid)
+                if not prev_info_cap:
                     continue
-                owner = info.get('player_id')
+                owner = prev_info_cap.get('player_id')
                 near = prev_near_home.get(cid, False)
                 if owner in my_team:
                     reward += 0.5
-                    if info.get('pos') == self._starts[owner]:
+                    if prev_info_cap.get('pos') == self._starts[owner]:
                         reward += self.heavy_reward
                         self.heavy_reward_events += 1
                     if (
@@ -808,7 +808,7 @@ class GameEnvironment:
                         reward += self.heavy_reward * 2
                         self.heavy_reward_events += 2
                 else:
-                    reward += 0.5 if near else 0.2
+                    reward += 0.6 if near else 0.2
                 self.reward_event_counts['capture'] += 1
 
             if action >= 60:
@@ -871,6 +871,22 @@ class GameEnvironment:
                     self.reward_event_counts['completion'] += 1
                     self.reward_event_totals['completion'] += 2000.0
 
+            # Reward when this move completes the entire team
+            team_pieces = [
+                p for p in self.game_state.get('pieces', [])
+                if p.get('playerId') in my_team
+            ]
+            if team_pieces and all(p.get('completed') for p in team_pieces):
+                prev_completed_team = [
+                    info.get('completed')
+                    for pid, info in prev_pieces.items()
+                    if info.get('player_id') in my_team
+                ]
+                if not prev_completed_team or not all(prev_completed_team):
+                    reward += 2000.0
+                    self.reward_event_counts['completion'] += 1
+                    self.reward_event_totals['completion'] += 2000.0
+
             # Check if the move pulled a piece away from an entrance position
             new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
             for pid, prev in prev_pieces.items():
@@ -883,7 +899,7 @@ class GameEnvironment:
                     continue
                 before = prev['dist']
                 after = self._steps_to_entrance(new.get('position'), player_id)
-                if 0 < before <= 6 and (after == -1 or after > before):
+                if 0 < before <= 3 and (after == -1 or after > before):
                     reward -= 20.0
                     self.reward_event_counts['avoid_home_penalty'] += 1
                     self.reward_event_totals['avoid_home_penalty'] += -20.0
@@ -907,36 +923,41 @@ class GameEnvironment:
 
         # Bonus or penalty based on game outcome
         if done:
+            winners = response.get('winningTeam') or []
+            if winners and any(
+                pl.get('position') == player_id for pl in winners
+            ):
+                reward += 20000.0
+                self.reward_event_counts['game_win'] += 1
+                self.reward_event_totals['game_win'] += 20000.0
+
             team_pieces = [
                 p for p in self.game_state.get('pieces', [])
                 if p.get('playerId') in my_team
             ]
             if team_pieces and all(p.get('completed') for p in team_pieces):
-                reward += 1000
+                reward += 5000.0
                 self.reward_event_counts['completion'] += 1
-                self.reward_event_totals['completion'] += 1000
-
-            winners = response.get('winningTeam') or []
-            total_home = sum(HOME_ENTRY_REWARDS)
-            win_bonus = total_home * 3
-            loss_penalty = total_home / 2
-            if winners:
-                if any(pl.get('position') == player_id for pl in winners):
-                    reward += win_bonus
-                    if step_count < 350:
-                        reward += max(0.0, 1500 - step_count * 2)
-                    self.reward_event_counts['game_win'] += 1
-                    self.reward_event_totals['game_win'] += win_bonus
-                else:
-                    reward -= loss_penalty
-            else:
-                reward -= loss_penalty
+                self.reward_event_totals['completion'] += 5000.0
 
         # Log failures for easier debugging
         if not response.get('success'):
             error("Action failed", env=self.env_id, player=player_id, action=action, response=response)
         
         next_state = self.get_state(player_id)
+
+        # Optional logging of reward sources for debugging
+        top_sources = sorted(
+            self.reward_event_totals.items(),
+            key=lambda x: abs(x[1]),
+            reverse=True
+        )[:3]
+        info(
+            "Step summary",
+            reward=f"{reward:.2f}",
+            done=done,
+            top_sources={k: round(v, 2) for k, v in top_sources}
+        )
 
         # Positive rewards are applied directly without additional scaling
         # so that penalties remain meaningful relative to bonuses.
