@@ -918,6 +918,11 @@ class GameEnvironment:
             error("Action failed", env=self.env_id, player=player_id, action=action, response=response)
         
         next_state = self.get_state(player_id)
+
+        # Scale positive rewards to increase their impact on training
+        if reward > 0:
+            reward *= 5
+
         return next_state, reward, done
     
     def close(self):
