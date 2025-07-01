@@ -42,9 +42,11 @@ current simplified system:
 
 - Valid moves that do not enter the home stretch (−0.1 each)
 - Invalid moves (−0.2 each)
-- Team pieces entering the home stretch (+10 each)
+- Team pieces entering the home stretch receive a bonus starting at +40 and
+  an extra +50 if the entry occurs within the first 50 turns.
 - Opponent pieces entering the home stretch (−5 each)
-- Game wins (+3000)
+- Game wins award a large bonus of roughly 13k points depending on how quickly
+  the match ends.
 
 The entropy of the event counts is plotted to help detect reward starvation. A
 per‑episode breakdown subplot shows the reward contribution of **every** event

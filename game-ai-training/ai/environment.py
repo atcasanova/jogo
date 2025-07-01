@@ -744,7 +744,7 @@ class GameEnvironment:
                         else:
                             home_reward_sum += base
                         if step_count < 50:
-                            home_reward_sum += 100.0
+                            home_reward_sum += 50.0
                     elif (
                         prev_info['in_home']
                         and p.get('inHomeStretch')
@@ -918,13 +918,13 @@ class GameEnvironment:
 
             winners = response.get('winningTeam') or []
             total_home = sum(HOME_ENTRY_REWARDS)
-            win_bonus = total_home * 2
+            win_bonus = total_home * 3
             loss_penalty = total_home / 2
             if winners:
                 if any(pl.get('position') == player_id for pl in winners):
                     reward += win_bonus
                     if step_count < 350:
-                        reward += max(0.0, 1000 - step_count * 2)
+                        reward += max(0.0, 1500 - step_count * 2)
                     self.reward_event_counts['game_win'] += 1
                     self.reward_event_totals['game_win'] += win_bonus
                 else:
@@ -938,9 +938,8 @@ class GameEnvironment:
         
         next_state = self.get_state(player_id)
 
-        # Scale positive rewards to increase their impact on training
-        if reward > 0:
-            reward *= 5
+        # Positive rewards are applied directly without additional scaling
+        # so that penalties remain meaningful relative to bonuses.
 
         return next_state, reward, done
     

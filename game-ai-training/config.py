@@ -36,10 +36,12 @@ JSON_LOGGING = os.getenv('JSON_LOGGING', '0').lower() in ('1', 'true', 'yes')
 # penalty zone with a capture. ``REWARD_SCHEDULE`` can override this value at
 # different points during training to implement a simple curriculum. Each tuple
 # in the list is ``(episode_start, heavy_reward)``.
-HEAVY_REWARD_BASE = 200.0
-# By default the weight remains constant. Users may extend this list in their
-# own config to increase or decrease the incentive over time.
+HEAVY_REWARD_BASE = 40.0
+# By default the heavy reward starts moderately high and decreases as training
+# progresses so bots focus more on winning games rather than individual moves.
 REWARD_SCHEDULE = [
     (0, HEAVY_REWARD_BASE),
+    (1000, HEAVY_REWARD_BASE * 0.75),
+    (3000, HEAVY_REWARD_BASE * 0.5),
 ]
 

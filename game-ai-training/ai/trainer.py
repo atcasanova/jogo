@@ -423,7 +423,9 @@ class TrainingManager:
             pos_bottom = np.zeros(len(episodes))
             neg_bottom = np.zeros(len(episodes))
 
-            colors = plt.cm.get_cmap('tab20')(np.linspace(0, 1, len(sorted_keys)))
+            palette = plt.cm.tab20.colors
+            color_map = {k: palette[i % len(palette)]
+                         for i, k in enumerate(sorted_keys)}
 
             for idx, k in enumerate(sorted_keys):
                 values = np.array(data[k])
@@ -436,7 +438,7 @@ class TrainingManager:
                         episodes,
                         pos_vals,
                         bottom=pos_bottom,
-                        color=colors[idx],
+                        color=color_map[k],
                         label=label,
                     )
                     label = None
@@ -446,13 +448,13 @@ class TrainingManager:
                         episodes,
                         neg_vals,
                         bottom=neg_bottom,
-                        color=colors[idx],
+                        color=color_map[k],
                         label=label,
                     )
                     label = None
                     neg_bottom += neg_vals
                 if label is not None:
-                    axs[1, 2].bar([], [], color=colors[idx], label=label)
+                    axs[1, 2].bar([], [], color=color_map[k], label=label)
 
             axs[1, 2].axhline(0, color='black', linewidth=0.8)
             axs[1, 2].set_title('Reward Breakdown by Type')
