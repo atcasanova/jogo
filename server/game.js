@@ -16,6 +16,7 @@ class Game {
     this.pendingSpecialMove = null;
     this.history = [];
     this.homeStretchAnnounced = [false, false, false, false];
+    this.movesToFirstComplete = null;
     this.stats = {
       captures: [0, 0, 0, 0],
       roundsWithoutPlay: [0, 0, 0, 0],
@@ -211,6 +212,7 @@ class Game {
     this.pendingSpecialMove = null;
     this.history = [];
     this.homeStretchAnnounced = [false, false, false, false];
+    this.movesToFirstComplete = null;
     this.stats = {
       captures: [0, 0, 0, 0],
       roundsWithoutPlay: [0, 0, 0, 0],
@@ -911,6 +913,9 @@ discardCard(cardIndex) {
     // Se chegou na última casa, marcar como completa
     if (remainingSteps === homeStretch.length) {
       piece.completed = true;
+      if (this.movesToFirstComplete === null) {
+        this.movesToFirstComplete = this.history.length + 1;
+      }
     }
     
     return { success: true, action: 'enterHomeStretch' };
@@ -994,6 +999,9 @@ discardCard(cardIndex) {
     // Se chegou na última casa, marcar como completa
     if (newIndex === homeStretch.length - 1) {
       piece.completed = true;
+      if (this.movesToFirstComplete === null) {
+        this.movesToFirstComplete = this.history.length + 1;
+      }
     }
     
     return { success: true, action: 'moveInHomeStretch' };
@@ -1402,6 +1410,13 @@ discardCard(cardIndex) {
     const jok = pick(stat.jokersPlayed);
     const mostCap = pick(stat.timesCaptured);
     const winners = this.getWinningTeam() || [];
+    const piecesCompleted = [0, 0];
+    for (const piece of this.pieces) {
+      if (piece.completed) {
+        const idx = this.teams.findIndex(t => t.some(p => p.position === piece.playerId));
+        if (idx !== -1) piecesCompleted[idx]++;
+      }
+    }
 
     return {
       mostCaptures: {
@@ -1420,6 +1435,8 @@ discardCard(cardIndex) {
         name: this.players[mostCap.idx]?.name,
         count: mostCap.max
       },
+      piecesCompleted,
+      firstCompletionMove: this.movesToFirstComplete ?? this.history.length,
       movesPlayed: this.history.length,
       winners: winners.map(p => p.name)
     };
