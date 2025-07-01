@@ -245,8 +245,8 @@ class TrainingManager:
             entropy=f"{entropy:.3f}"
         )
 
-        # Store raw reward source counts to allow plotting breakdowns later
-        self.reward_breakdown_history.append(dict(env.reward_event_counts))
+        # Store per-episode reward totals to allow plotting breakdowns later
+        self.reward_breakdown_history.append(dict(env.reward_event_totals))
 
         return episode_rewards
     
