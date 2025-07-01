@@ -24,10 +24,7 @@ class TrainingManager:
             'kl_divergences': [],
             'games_played': 0,
             'reward_entropies': [],
-            'reward_breakdown_history': [],
-            'episode_lengths': [],
-            'games_with_completion': 0,
-            'total_completed_pieces': 0
+            'reward_breakdown_history': []
         }
 
         # Optional external list storing per-episode reward contributions
@@ -131,10 +128,6 @@ class TrainingManager:
         probs = np.array([c / total for c in counts.values() if c > 0])
         return float(-(probs * np.log2(probs)).sum())
 
-    def _reward_contributions(self, totals: dict) -> dict:
-        """Return reward contribution for each tracked event."""
-        return {k: float(v) for k, v in totals.items()}
-
     def _apply_reward_schedule(self, episode: int, env: GameEnvironment) -> None:
         """Update environment reward weight according to the configured schedule."""
         weight = env.heavy_reward
@@ -151,10 +144,7 @@ class TrainingManager:
         self._shuffle_bots()
 
         # Names for logging the actual bot identities in the Node game
-        bot_names = [
-            f"Bot_{bot.bot_id}" if hasattr(bot, 'bot_id') else f"Bot_{i}"
-            for i, bot in enumerate(self.bots)
-        ]
+        bot_names = [f"Bot_{bot.bot_id}" if hasattr(bot, 'bot_id') else f"Bot_{i}" for i, bot in enumerate(self.bots)]
 
         # Reset environment with the ordered bot names
         initial_state = env.reset(bot_names=bot_names)
@@ -165,7 +155,7 @@ class TrainingManager:
         actions = [None] * 4
         
         step_count = 0
-        max_steps = 800
+        max_steps = 350
         
         while step_count < max_steps:
             # Get current player from game state
@@ -186,19 +176,7 @@ class TrainingManager:
             action = current_bot.act(state, valid_actions)
             
             # Execute action
-            step_num = step_count + 1
-            try:
-                next_state, reward, done = env.step(action, current_player, step_num)
-            except TypeError:
-                next_state, reward, done = env.step(action, current_player)
-
-            reward -= min(2.0, 0.005 * step_num ** 1.1)
-            decay = step_num // 200
-            if decay > 0:
-                if reward > 0:
-                    reward *= 0.9 ** decay
-                elif reward < 0:
-                    reward *= 1.1 ** decay
+            next_state, reward, done = env.step(action, current_player, step_count)
             
             # Store experience
             if states[current_player] is not None:
@@ -249,42 +227,24 @@ class TrainingManager:
             info("Game summary", summary=summary)
 
         self.training_stats['games_played'] += 1
-        pieces_completed = sum(
-            1 for p in env.game_state.get('pieces', [])
-            if p.get('completed')
-        )
-        if pieces_completed > 0:
-            self.training_stats['games_with_completion'] += 1
-        self.training_stats['total_completed_pieces'] += pieces_completed
         self.training_stats['episode_rewards'].append(sum(episode_rewards))
-        self.training_stats['episode_lengths'].append(step_count)
         entropy = self._reward_entropy(env.reward_event_counts)
         self.training_stats['reward_entropies'].append(entropy)
         info(
             "Reward events",
-            home_entries=env.reward_event_counts.get('home_entry', 0),
-            invalid_moves=env.reward_event_counts.get('invalid_move', 0),
-            valid_moves=env.reward_event_counts.get('valid_move', 0),
-            enemy_home=env.reward_event_counts.get('enemy_home_entry', 0),
-            wins=env.reward_event_counts.get('game_win', 0),
+            home_entries=env.reward_event_counts['home_entry'],
+            penalty_exits=env.reward_event_counts['penalty_exit'],
+            captures=env.reward_event_counts['capture'],
+            wins=env.reward_event_counts['game_win'],
             entropy=f"{entropy:.3f}"
         )
 
-        # Store reward contributions for plotting
-        self.reward_breakdown_history.append(
-            self._reward_contributions(env.reward_event_totals)
-        )
+        # Store raw reward source counts to allow plotting breakdowns later
+        self.reward_breakdown_history.append(dict(env.reward_event_counts))
 
         return episode_rewards
     
-    def train(
-        self,
-        num_episodes=None,
-        save_freq=None,
-        stats_freq=None,
-        num_envs: int = 1,
-        save_match_log: bool = False,
-    ):
+    def train(self, num_episodes=None, save_freq=None, stats_freq=None, num_envs: int = 1, save_match_log: bool = False):
         """Train using one or more environments in parallel."""
         num_episodes = num_episodes or TRAINING_CONFIG['num_episodes']
         save_freq = save_freq or TRAINING_CONFIG['save_frequency']
@@ -380,36 +340,16 @@ class TrainingManager:
             )
 
         self._check_loss_stagnation()
-
-        games = self.training_stats['games_played']
-        if games:
-            pct = (self.training_stats['games_with_completion'] / games) * 100
-            avg = self.training_stats['total_completed_pieces'] / games
-            info(
-                "Completion stats",
-                percent=f"{pct:.1f}",
-                average=f"{avg:.2f}"
-            )
     
     def plot_training_progress(self):
         fig, axs = plt.subplots(2, 3, figsize=(18, 10))
 
-        # Episode length statistics
-        if self.training_stats['episode_lengths']:
-            lengths = self.training_stats['episode_lengths']
-            axs[0, 0].hist(lengths, bins=20, color='gray', alpha=0.7)
-            median_len = np.median(lengths)
-            min_len = np.min(lengths)
-            max_len = np.max(lengths)
-            axs[0, 0].axvline(median_len, color='blue', linestyle='--', label=f'Median {median_len:.1f}')
-            axs[0, 0].axvline(min_len, color='green', linestyle=':', label=f'Min {min_len}')
-            axs[0, 0].axvline(max_len, color='red', linestyle=':', label=f'Max {max_len}')
-            axs[0, 0].set_title('Episode Length Distribution')
-            axs[0, 0].set_xlabel('Steps')
-            axs[0, 0].set_ylabel('Episodes')
-            axs[0, 0].legend()
-        else:
-            axs[0, 0].axis('off')
+        # Episode rewards
+        if self.training_stats['episode_rewards']:
+            axs[0, 0].plot(self.training_stats['episode_rewards'])
+            axs[0, 0].set_title('Episode Rewards')
+            axs[0, 0].set_xlabel('Episode')
+            axs[0, 0].set_ylabel('Total Reward')
         
         # Win rates
         sorted_bots = sorted(self.bots, key=lambda b: getattr(b, 'bot_id', 0))
@@ -458,22 +398,26 @@ class TrainingManager:
         axs[1, 1].set_xlabel('Training Step')
         axs[1, 1].set_ylabel('KL Divergence')
 
-        # Reward breakdown stacked bar and negative lines
+        # Reward breakdown stacked area chart
         if self.reward_breakdown_history:
-            episodes = np.arange(len(self.reward_breakdown_history))
-            keys = list(self.reward_breakdown_history[0].keys())
-            pos_bottom = np.zeros(len(episodes))
-            for k in keys:
-                values = np.array([entry.get(k, 0.0) for entry in self.reward_breakdown_history])
-                if np.all(values == 0):
-                    continue
-                pos_vals = np.where(values > 0, values, 0)
-                neg_vals = np.where(values < 0, values, 0)
-                if np.any(pos_vals > 0):
-                    axs[1, 2].bar(episodes, pos_vals, bottom=pos_bottom, label=k)
-                    pos_bottom += pos_vals
-                if np.any(neg_vals < 0):
-                    axs[1, 2].plot(episodes, neg_vals, label=k)
+            episodes = list(range(len(self.reward_breakdown_history)))
+            totals = {}
+            for entry in self.reward_breakdown_history:
+                for key, value in entry.items():
+                    totals[key] = totals.get(key, 0) + value
+            sorted_keys = sorted(totals, key=totals.get, reverse=True)
+            main_keys = sorted_keys[:4]
+            data = {k: [] for k in main_keys + ['other']}
+            for entry in self.reward_breakdown_history:
+                other_total = 0.0
+                for k in main_keys:
+                    data[k].append(entry.get(k, 0.0))
+                for k, v in entry.items():
+                    if k not in main_keys:
+                        other_total += v
+                data['other'].append(other_total)
+            stacks = [data[k] for k in main_keys + ['other']]
+            axs[1, 2].stackplot(episodes, stacks, labels=main_keys + ['other'])
             axs[1, 2].set_title('Reward Breakdown by Type')
             axs[1, 2].set_xlabel('Episode')
             axs[1, 2].set_ylabel('Reward')

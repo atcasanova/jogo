@@ -63,8 +63,6 @@ class GameEnvironment:
             'game_win': 0,
             'no_home_penalty': 0,
             'avoid_home_penalty': 0,
-            'timeout': 0,
-            'completion': 0,
         }
 
         # Track the total reward contributed by each event type
@@ -78,8 +76,6 @@ class GameEnvironment:
             'game_win': 0.0,
             'no_home_penalty': 0.0,
             'avoid_home_penalty': 0.0,
-            'timeout': 0.0,
-            'completion': 0.0,
         }
 
         # Count how many times the heavy reward bonus was applied in a game
@@ -560,7 +556,6 @@ class GameEnvironment:
 
         prev_team_home = 0
         prev_enemy_home = 0
-        prev_completed = 0
         if self.game_state and 'pieces' in self.game_state:
             for p in self.game_state['pieces']:
                 if p.get('inHomeStretch'):
@@ -568,8 +563,6 @@ class GameEnvironment:
                         prev_team_home += 1
                     else:
                         prev_enemy_home += 1
-                if p.get('playerId') in my_team and p.get('completed'):
-                    prev_completed += 1
 
         # Update game state whenever provided
         if 'gameState' in response:
@@ -601,22 +594,10 @@ class GameEnvironment:
                     else:
                         enemy_home += 1
 
-            completed_now = sum(
-                1 for p in self.game_state.get('pieces', [])
-                if p.get('playerId') in my_team and p.get('completed')
-            )
-            if completed_now > prev_completed:
-                diff = completed_now - prev_completed
-                reward += diff * 300.0
-                self.reward_event_counts['completion'] += diff
-                self.reward_event_totals['completion'] += diff * 300.0
-
             if response.get('success'):
                 if team_home > prev_team_home:
                     idx = min(team_home, len(HOME_ENTRY_REWARDS)) - 1
                     home_reward = HOME_ENTRY_REWARDS[idx]
-                    if step_count < 150:
-                        home_reward *= 5
                     reward += home_reward
                     self.reward_event_counts['home_entry'] += team_home - prev_team_home
                     self.reward_event_totals['home_entry'] += home_reward
@@ -630,12 +611,6 @@ class GameEnvironment:
                 reward += penalty
                 self.reward_event_counts['enemy_home_entry'] += enemy_home - prev_enemy_home
                 self.reward_event_totals['enemy_home_entry'] += penalty
-
-            # Large penalty if no pieces have entered home by step 150
-            if step_count == 150 and team_home == 0:
-                reward -= 1000.0
-                self.reward_event_counts['timeout'] += 1
-                self.reward_event_totals['timeout'] -= 1000.0
 
             # Check if the move pulled a piece away from an entrance position
             new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
@@ -674,14 +649,18 @@ class GameEnvironment:
         # Bonus or penalty based on game outcome
         if done:
             winners = response.get('winningTeam') or []
-            if any(pl.get('position') == player_id for pl in winners):
-                bonus = 3000.0 + (1000 - step_count) * 2
-                reward += bonus
-                self.reward_event_counts['game_win'] += 1
-                self.reward_event_totals['game_win'] += bonus
+            total_home = sum(HOME_ENTRY_REWARDS)
+            win_bonus = total_home * 2
+            loss_penalty = total_home / 2
+            if winners:
+                if any(pl.get('position') == player_id for pl in winners):
+                    reward += win_bonus
+                    self.reward_event_counts['game_win'] += 1
+                    self.reward_event_totals['game_win'] += win_bonus
+                else:
+                    reward -= loss_penalty
             else:
-                penalty = 1000.0 + step_count
-                reward -= penalty
+                reward -= loss_penalty
 
         # Log failures for easier debugging
         if not response.get('success'):

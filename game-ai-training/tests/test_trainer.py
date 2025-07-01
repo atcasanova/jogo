@@ -37,7 +37,7 @@ class MockGameEnvironment:
     def get_valid_actions(self, player_id):
         return [0]
 
-    def step(self, action, player_id):
+    def step(self, action, player_id, step_count=0):
         self.game_state = {
             'currentPlayerIndex': 0,
             'gameEnded': True,
