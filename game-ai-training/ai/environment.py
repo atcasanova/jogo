@@ -63,6 +63,7 @@ class GameEnvironment:
             'game_win': 0,
             'no_home_penalty': 0,
             'avoid_home_penalty': 0,
+            'completion': 0,
         }
 
         # Track the total reward contributed by each event type
@@ -76,6 +77,7 @@ class GameEnvironment:
             'game_win': 0.0,
             'no_home_penalty': 0.0,
             'avoid_home_penalty': 0.0,
+            'completion': 0.0,
         }
 
         # Count how many times the heavy reward bonus was applied in a game
@@ -802,6 +804,15 @@ class GameEnvironment:
 
         # Bonus or penalty based on game outcome
         if done:
+            team_pieces = [
+                p for p in self.game_state.get('pieces', [])
+                if p.get('playerId') in my_team
+            ]
+            if team_pieces and all(p.get('completed') for p in team_pieces):
+                reward += 1000
+                self.reward_event_counts['completion'] += 1
+                self.reward_event_totals['completion'] += 1000
+
             winners = response.get('winningTeam') or []
             total_home = sum(HOME_ENTRY_REWARDS)
             win_bonus = total_home * 2
