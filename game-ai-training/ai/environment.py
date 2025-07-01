@@ -758,6 +758,8 @@ class GameEnvironment:
                     if not prev_info['completed'] and p.get('completed'):
                         base = HOME_ENTRY_REWARDS[new_idx]
                         home_reward_sum += base / 2
+                        if new_idx == farthest_before:
+                            home_reward_sum += base * 10
 
                 prev_near_home[pid] = was_near
 
@@ -843,8 +845,7 @@ class GameEnvironment:
                 if team_home > prev_team_home:
                     self.reward_event_counts['home_entry'] += team_home - prev_team_home
                 else:
-                    exponent = 1.1 if step_count <= 300 else 1.6
-                    decay_penalty = 0.01 * (step_count ** exponent)
+                    decay_penalty = 0.005 * (step_count ** 1.2)
                     reward -= decay_penalty
                     self.reward_event_counts['valid_move'] += 1
                     self.reward_event_totals['valid_move'] += -decay_penalty
@@ -853,6 +854,22 @@ class GameEnvironment:
                 reward += penalty
                 self.reward_event_counts['enemy_home_entry'] += enemy_home - prev_enemy_home
                 self.reward_event_totals['enemy_home_entry'] += penalty
+
+            # Extra reward when the current player finishes all pieces
+            player_pieces = [
+                p for p in self.game_state.get('pieces', [])
+                if p.get('playerId') == player_id
+            ]
+            if player_pieces and all(p.get('completed') for p in player_pieces):
+                prev_completed = [
+                    info.get('completed')
+                    for pid, info in prev_pieces.items()
+                    if info.get('player_id') == player_id
+                ]
+                if not prev_completed or not all(prev_completed):
+                    reward += 2000.0
+                    self.reward_event_counts['completion'] += 1
+                    self.reward_event_totals['completion'] += 2000.0
 
             # Check if the move pulled a piece away from an entrance position
             new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
@@ -906,6 +923,8 @@ class GameEnvironment:
             if winners:
                 if any(pl.get('position') == player_id for pl in winners):
                     reward += win_bonus
+                    if step_count < 350:
+                        reward += max(0.0, 1000 - step_count * 2)
                     self.reward_event_counts['game_win'] += 1
                     self.reward_event_totals['game_win'] += win_bonus
                 else:

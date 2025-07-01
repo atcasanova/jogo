@@ -212,8 +212,8 @@ class TrainingManager:
         # Update statistics
         for i, bot in enumerate(self.bots):
             capped = episode_rewards[i]
-            if capped < -2000:
-                capped = -2000
+            if capped < -10000:
+                capped = -10000
             bot.total_reward += capped
             bot.games_played += 1
         
@@ -231,8 +231,8 @@ class TrainingManager:
 
         self.training_stats['games_played'] += 1
         ep_total = sum(episode_rewards)
-        if ep_total < -2000:
-            ep_total = -2000
+        if ep_total < -10000:
+            ep_total = -10000
         self.training_stats['episode_rewards'].append(ep_total)
         entropy = self._reward_entropy(env.reward_event_counts)
         self.training_stats['reward_entropies'].append(entropy)
