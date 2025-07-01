@@ -426,23 +426,37 @@ class TrainingManager:
 
             pos_bottom = np.zeros(len(episodes))
             neg_bottom = np.zeros(len(episodes))
-            colors = plt.cm.tab10.colors
+            num_keys = len(main_keys) + 1
+            pos_colors = plt.cm.Blues(np.linspace(0.4, 0.9, num_keys))
+            neg_colors = plt.cm.Purples(np.linspace(0.4, 0.9, num_keys))
             for idx, k in enumerate(main_keys + ['other']):
                 values = np.array(data[k])
                 pos_vals = np.where(values > 0, values, 0)
                 neg_vals = np.where(values < 0, values, 0)
-                color = colors[idx % len(colors)]
+                pos_color = pos_colors[idx]
+                neg_color = neg_colors[idx]
                 label_used = False
                 if np.any(pos_vals):
-                    axs[1, 2].bar(episodes, pos_vals, bottom=pos_bottom, color=color, label=k)
+                    axs[1, 2].bar(
+                        episodes,
+                        pos_vals,
+                        bottom=pos_bottom,
+                        color=pos_color,
+                        label=f"{k} (+)"
+                    )
                     pos_bottom += pos_vals
                     label_used = True
                 if np.any(neg_vals):
-                    axs[1, 2].bar(episodes, neg_vals, bottom=neg_bottom, color=color, label=k if not label_used else None)
+                    axs[1, 2].bar(
+                        episodes,
+                        neg_vals,
+                        bottom=neg_bottom,
+                        color=neg_color,
+                        label=f"{k} (-)" if not label_used else None
+                    )
                     neg_bottom += neg_vals
                 elif not label_used:
-                    # Ensure legend entry even when values are all zero
-                    axs[1, 2].bar([], [], color=color, label=k)
+                    axs[1, 2].bar([], [], color=pos_color, label=f"{k} (+)")
             axs[1, 2].axhline(0, color='black', linewidth=0.8)
             axs[1, 2].set_title('Reward Breakdown by Type')
             axs[1, 2].set_xlabel('Episode')
