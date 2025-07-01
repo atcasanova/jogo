@@ -11,6 +11,11 @@ from typing import List, Tuple, Dict, Any
 from json_logger import info, error, warning
 from config import HEAVY_REWARD_BASE
 
+# Normalised reward weights used throughout the environment
+INVALID_MOVE_PENALTY = -0.1
+COMPLETION_BONUS = 300.0
+WIN_BONUS = 500.0
+
 # Reward scale for the nth piece entering the home stretch for a team
 # Normalized to keep dense rewards smaller
 HOME_ENTRY_REWARDS = [
@@ -599,10 +604,10 @@ class GameEnvironment:
             action = alt_actions[0]
 
         # New simplified reward system
-        reward += -0.2 * invalid_attempts
+        reward += INVALID_MOVE_PENALTY * invalid_attempts
         if invalid_attempts:
             self.reward_event_counts['invalid_move'] += invalid_attempts
-            self.reward_event_totals['invalid_move'] += -0.2 * invalid_attempts
+            self.reward_event_totals['invalid_move'] += INVALID_MOVE_PENALTY * invalid_attempts
         done = response.get('gameEnded', False)
 
         teams = self.game_state.get('teams', []) if self.game_state else []
@@ -867,9 +872,9 @@ class GameEnvironment:
                     if info.get('player_id') == player_id
                 ]
                 if not prev_completed or not all(prev_completed):
-                    reward += 2000.0
+                    reward += COMPLETION_BONUS
                     self.reward_event_counts['completion'] += 1
-                    self.reward_event_totals['completion'] += 2000.0
+                    self.reward_event_totals['completion'] += COMPLETION_BONUS
 
             # Reward when this move completes the entire team
             team_pieces = [
@@ -883,9 +888,9 @@ class GameEnvironment:
                     if info.get('player_id') in my_team
                 ]
                 if not prev_completed_team or not all(prev_completed_team):
-                    reward += 2000.0
+                    reward += COMPLETION_BONUS
                     self.reward_event_counts['completion'] += 1
-                    self.reward_event_totals['completion'] += 2000.0
+                    self.reward_event_totals['completion'] += COMPLETION_BONUS
 
             # Check if the move pulled a piece away from an entrance position
             new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
@@ -927,18 +932,18 @@ class GameEnvironment:
             if winners and any(
                 pl.get('position') == player_id for pl in winners
             ):
-                reward += 20000.0
+                reward += WIN_BONUS
                 self.reward_event_counts['game_win'] += 1
-                self.reward_event_totals['game_win'] += 20000.0
+                self.reward_event_totals['game_win'] += WIN_BONUS
 
             team_pieces = [
                 p for p in self.game_state.get('pieces', [])
                 if p.get('playerId') in my_team
             ]
             if team_pieces and all(p.get('completed') for p in team_pieces):
-                reward += 5000.0
+                reward += COMPLETION_BONUS
                 self.reward_event_counts['completion'] += 1
-                self.reward_event_totals['completion'] += 5000.0
+                self.reward_event_totals['completion'] += COMPLETION_BONUS
 
         # Log failures for easier debugging
         if not response.get('success'):

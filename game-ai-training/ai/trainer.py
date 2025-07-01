@@ -22,6 +22,8 @@ class TrainingManager:
             'win_rates': [],
             'average_losses': [],
             'kl_divergences': [],
+            'clip_fractions': [],
+            'entropy_avgs': [],
             'games_played': 0,
             'reward_entropies': [],
             'reward_breakdown_history': []
@@ -37,6 +39,14 @@ class TrainingManager:
         self.low_kl_count = 0
         self.kl_warning_steps = 100
         self.loss_window = 100
+
+        self.lr_start = TRAINING_CONFIG.get('learning_rate', 3e-4)
+        self.lr_final = TRAINING_CONFIG.get('lr_final', self.lr_start / 10)
+
+        # Running statistics for reward normalisation
+        self.reward_mean = 0.0
+        self.reward_var = 1.0
+        self.reward_alpha = 0.99
 
         # Create directories
         for directory in [MODEL_DIR, PLOT_DIR, LOG_DIR]:
@@ -128,6 +138,34 @@ class TrainingManager:
         probs = np.array([c / total for c in counts.values() if c > 0])
         return float(-(probs * np.log2(probs)).sum())
 
+    def _normalize_reward(self, reward: float) -> float:
+        """Return reward normalised using a running standard deviation."""
+        self.reward_mean = (
+            self.reward_alpha * self.reward_mean + (1 - self.reward_alpha) * reward
+        )
+        diff = reward - self.reward_mean
+        self.reward_var = self.reward_alpha * self.reward_var + (1 - self.reward_alpha) * (diff ** 2)
+        std = max(np.sqrt(self.reward_var), 1e-6)
+        return diff / std
+
+    def _adjust_ppo_params(self, bot: GameBot, kl: float) -> None:
+        """Dynamically adjust learning rate and clip range based on KL."""
+        target = self.kl_target
+        if kl > target * 1.5:
+            bot.clip_eps = max(bot.clip_eps * 0.9, 0.05)
+            for group in bot.optimizer.param_groups:
+                group['lr'] *= 0.5
+        elif kl < target * 0.5:
+            bot.clip_eps = min(bot.clip_eps * 1.1, 0.3)
+            for group in bot.optimizer.param_groups:
+                group['lr'] *= 1.1
+
+    def _update_lr_schedule(self, bot: GameBot, progress: float) -> None:
+        """Linearly decay the learning rate based on training progress."""
+        lr = self.lr_start - progress * (self.lr_start - self.lr_final)
+        for group in bot.optimizer.param_groups:
+            group['lr'] = max(lr, self.lr_final)
+
     def _apply_reward_schedule(self, episode: int, env: GameEnvironment) -> None:
         """Update environment reward weight according to the configured schedule."""
         weight = env.heavy_reward
@@ -177,13 +215,15 @@ class TrainingManager:
             
             # Execute action
             next_state, reward, done = env.step(action, current_player, step_count)
+            reward += 0.01 * getattr(current_bot, 'last_entropy', 0.0)
+            norm_reward = self._normalize_reward(reward)
             
             # Store experience
             if states[current_player] is not None:
                 current_bot.remember(
                     states[current_player],
                     actions[current_player],
-                    reward,
+                    norm_reward,
                     next_state,
                     done
                 )
@@ -196,10 +236,16 @@ class TrainingManager:
             # Train bot
             current_bot.step_count += 1
             if current_bot.step_count % current_bot.train_freq == 0:
-                kl = current_bot.replay()
-                if kl is not None:
+                result = current_bot.replay()
+                if result is not None:
+                    kl, clipfrac, ent = result
                     self.training_stats['kl_divergences'].append(kl)
+                    self.training_stats['clip_fractions'].append(clipfrac)
+                    self.training_stats['entropy_avgs'].append(ent)
                     self._check_kl_warning(kl)
+                    self._adjust_ppo_params(current_bot, kl)
+                    progress = self.training_stats['games_played'] / TRAINING_CONFIG['num_episodes']
+                    self._update_lr_schedule(current_bot, progress)
             
             if current_bot.step_count % current_bot.update_target_freq == 0:
                 current_bot.update_target_network()
@@ -346,6 +392,17 @@ class TrainingManager:
             )
 
         self._check_loss_stagnation()
+
+        if self.training_stats['kl_divergences']:
+            avg_kl = np.mean(self.training_stats['kl_divergences'][-10:])
+            avg_clip = np.mean(self.training_stats['clip_fractions'][-10:]) if self.training_stats['clip_fractions'] else 0
+            avg_ent = np.mean(self.training_stats['entropy_avgs'][-10:]) if self.training_stats['entropy_avgs'] else 0
+            info(
+                "PPO stats",
+                kl=f"{avg_kl:.4f}",
+                clip_frac=f"{avg_clip:.3f}",
+                entropy=f"{avg_ent:.3f}"
+            )
     
     def plot_training_progress(self):
         fig, axs = plt.subplots(2, 3, figsize=(18, 10))
@@ -397,12 +454,18 @@ class TrainingManager:
         if has_loss_plots:
             axs[1, 0].legend()
         
-        # KL divergence
+        # KL divergence and related metrics
         if self.training_stats['kl_divergences']:
-            axs[1, 1].plot(self.training_stats['kl_divergences'])
-        axs[1, 1].set_title('Approximate KL Divergence')
+            axs[1, 1].plot(self.training_stats['kl_divergences'], label='kl')
+        if self.training_stats['clip_fractions']:
+            axs[1, 1].plot(self.training_stats['clip_fractions'], label='clipfrac')
+        if self.training_stats['entropy_avgs']:
+            axs[1, 1].plot(self.training_stats['entropy_avgs'], label='entropy')
+        axs[1, 1].set_title('PPO Diagnostics')
         axs[1, 1].set_xlabel('Training Step')
-        axs[1, 1].set_ylabel('KL Divergence')
+        axs[1, 1].set_ylabel('Value')
+        if any(self.training_stats[k] for k in ['kl_divergences', 'clip_fractions', 'entropy_avgs']):
+            axs[1, 1].legend()
 
         # Reward breakdown stacked bar chart with distinct colors
         if self.reward_breakdown_history:
