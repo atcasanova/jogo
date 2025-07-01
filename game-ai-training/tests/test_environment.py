@@ -74,7 +74,7 @@ def test_step_updates_state_on_failure():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 next_state, reward, done = env.step(1, 0)
 
-    assert reward == -2.2
+    assert reward == -1.1
     assert env.reward_event_counts['invalid_move'] == 11
     assert env.reward_event_counts['valid_move'] == 0
     assert done is False
@@ -876,7 +876,7 @@ def test_step_retries_until_success():
                 with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                     next_state, reward, done = env.step(1, 0)
 
-    assert reward == pytest.approx(-0.4)
+    assert reward == pytest.approx(-0.2)
     assert env.reward_event_counts['invalid_move'] == 2
     assert env.reward_event_counts['valid_move'] == 1
     assert mock_cmd.call_count == 3

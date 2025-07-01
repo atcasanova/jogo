@@ -94,6 +94,7 @@ class GameBot:
         self.losses: List[float] = []
 
         self.last_log_prob = None
+        self.last_entropy = 0.0
         self.last_value = None
 
     def act(self, state: np.ndarray, valid_actions: List[int]) -> int:
@@ -110,23 +111,27 @@ class GameBot:
         action = dist.sample()
 
         self.last_log_prob = dist.log_prob(action)
+        self.last_entropy = dist.entropy().item()
         self.last_value = value.squeeze(0)
         return int(action.item())
 
     def remember(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, done, self.last_log_prob, self.last_value))
+        self.memory.append(
+            (state, action, reward, done, self.last_log_prob, self.last_value, self.last_entropy)
+        )
 
     def replay(self):
         if len(self.memory) < self.batch_size:
             return None
 
-        states, actions, rewards, dones, log_probs, values = zip(*self.memory)
+        states, actions, rewards, dones, log_probs, values, entropies = zip(*self.memory)
         self.memory = []
 
         states_t = torch.FloatTensor(np.array(states)).to(self.device)
         actions_t = torch.LongTensor(actions).to(self.device)
         rewards_t = torch.FloatTensor(rewards).to(self.device)
         dones_t = torch.FloatTensor(dones).to(self.device)
+        entropies_t = torch.FloatTensor(entropies).to(self.device)
         old_log_probs_t = torch.stack(log_probs).to(self.device)
         values_t = torch.stack(values).to(self.device)
 
@@ -155,6 +160,7 @@ class GameBot:
         ratio = (new_log_probs - old_log_probs_t.detach()).exp()
         surr1 = ratio * advantages
         surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * advantages
+        clipfrac = torch.mean((ratio > 1.0 + self.clip_eps) | (ratio < 1.0 - self.clip_eps)).item()
         actor_loss = -torch.min(surr1, surr2).mean()
         critic_loss = nn.functional.mse_loss(new_values.squeeze(-1), returns_t)
         loss = actor_loss + 0.5 * critic_loss - self.entropy_weight * entropy
@@ -165,7 +171,7 @@ class GameBot:
 
         self.losses.append(float(loss.item()))
 
-        return approx_kl
+        return approx_kl, clipfrac, float(entropies_t.mean().item())
 
     def update_target_network(self):
         pass

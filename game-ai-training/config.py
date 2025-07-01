@@ -3,8 +3,8 @@ TRAINING_CONFIG = {
     'num_episodes': 5000,
     'save_frequency': 500,
     'stats_frequency': 10,
-    'learning_rate': 2.5e-5,
-    'batch_size': 32,
+    'learning_rate': 3e-4,
+    'batch_size': 64,
     'memory_size': 10000,
     'gamma': 0.95,
     'hidden_size': 512,
@@ -18,7 +18,8 @@ TRAINING_CONFIG = {
     # Used by TrainingManager to call GameBot.update_target_network().
     # Defaulting to a relatively high value keeps updates infrequent
     # but allows quick overrides in custom configs.
-    'update_target_freq': 1000
+    'update_target_freq': 1000,
+    'lr_final': 1e-5
 }
 
 # Paths
