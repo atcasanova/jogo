@@ -952,12 +952,13 @@ class GameEnvironment:
             key=lambda x: abs(x[1]),
             reverse=True
         )[:3]
-        info(
-            "Step summary",
-            reward=f"{reward:.2f}",
-            done=done,
-            top_sources={k: round(v, 2) for k, v in top_sources}
-        )
+        if done:
+            info(
+                "Step summary",
+                reward=f"{reward:.2f}",
+                done=done,
+                top_sources={k: round(v, 2) for k, v in top_sources}
+            )
 
         # Positive rewards are applied directly without additional scaling
         # so that penalties remain meaningful relative to bonuses.
