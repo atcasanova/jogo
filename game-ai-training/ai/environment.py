@@ -584,15 +584,169 @@ class GameEnvironment:
                     state_copy = self.game_state
                 self.move_history.append({'move': str(last_move), 'state': state_copy})
 
+            changed_my = set()
+            home_split = False
+            prev_near_home: Dict[str, bool] = {}
+
             # Count pieces in home after the move
             team_home = 0
             enemy_home = 0
             for p in self.game_state.get('pieces', []):
+                pid = p.get('id')
+                if not pid:
+                    continue
+                owner = p.get('playerId')
+                now_penalty = p.get('inPenaltyZone')
+                pos = p.get('position')
+                near = False
+                if (
+                    pos
+                    and not now_penalty
+                    and not p.get('inHomeStretch')
+                    and not p.get('completed')
+                ):
+                    steps = self._steps_to_entrance(pos, owner)
+                    near = 0 <= steps <= 10
+
+                prev_info = prev_pieces.get(pid)
+                was_near = prev_near_home.get(pid, False)
+                if prev_info and owner in my_team and prev_info.get('pos') != pos:
+                    changed_my.add(pid)
+                    if (
+                        (not prev_info['in_home'] and p.get('inHomeStretch'))
+                        or (
+                            prev_info['in_home']
+                            and p.get('inHomeStretch')
+                            and p.get('position') != prev_info.get('pos')
+                        )
+                    ):
+                        home_split = True
+                if (
+                    prev_info
+                    and pos
+                    and prev_info.get('pos')
+                    and not now_penalty
+                    and not p.get('completed')
+                ):
+                    prev_idx = self._track_index(prev_info['pos'])
+                    new_idx = self._track_index(pos)
+                    if prev_idx != -1 and new_idx != -1:
+                        # Penalize skipping the home entrance when it was
+                        # possible to enter.
+                        forward = (new_idx - prev_idx) % len(self._track)
+                        backward = (prev_idx - new_idx) % len(self._track)
+                        moved_forward = forward <= backward
+                        prev_steps = self._steps_to_entrance(prev_info['pos'], owner)
+                        if (
+                            moved_forward
+                            and 0 < prev_steps <= 6
+                            and forward > prev_steps
+                            and not p.get('inHomeStretch')
+                        ):
+                            reward -= 0.6
+
+                if owner in my_team:
+                    if prev_info and not prev_info['in_penalty'] and now_penalty:
+                        reward -= 0.5
+
+                if prev_info:
+                    # Reward entering the home stretch
+                    if (
+                        not prev_info['in_home']
+                        and p.get('inHomeStretch')
+                        and owner in my_team
+                    ):
+                        reward += self.heavy_reward
+                        self.heavy_reward_events += 1
+                        self.reward_event_counts['home_entry'] += 1
+
+                    # Reward leaving the penalty zone with a capture
+                    if (
+                        prev_info['in_penalty']
+                        and not now_penalty
+                        and pos == self._starts[owner]
+                        and response.get('captures')
+                    ):
+                        reward += self.heavy_reward
+                        self.heavy_reward_events += 1
+                        self.reward_event_counts['penalty_exit'] += 1
+
+                prev_near_home[pid] = was_near
+
                 if p.get('inHomeStretch'):
-                    if p.get('playerId') in my_team:
+                    if owner in my_team:
                         team_home += 1
                     else:
                         enemy_home += 1
+
+            partner_id = None
+            if len(my_team) == 2:
+                partner_id = my_team[0] if my_team[1] == player_id else my_team[1]
+
+            moved_from_partner_home = False
+            if partner_id is not None:
+                for p in self.game_state.get('pieces', []):
+                    if p.get('playerId') != player_id:
+                        continue
+                    pid = p.get('id')
+                    prev_info = prev_pieces.get(pid)
+                    if (
+                        prev_info
+                        and prev_info.get('pos') == self._entrances[partner_id]
+                        and p.get('position') == self._entrances[player_id]
+                    ):
+                        moved_from_partner_home = True
+                        break
+
+            for cap in response.get('captures', []):
+                cid = cap.get('pieceId')
+                info = prev_pieces.get(cid)
+                if not info:
+                    continue
+                owner = info.get('player_id')
+                near = prev_near_home.get(cid, False)
+                if owner in my_team:
+                    reward += 0.5
+                    if info.get('pos') == self._starts[owner]:
+                        reward += self.heavy_reward
+                        self.heavy_reward_events += 1
+                    if (
+                        partner_id is not None
+                        and owner == partner_id
+                        and moved_from_partner_home
+                    ):
+                        reward += self.heavy_reward * 2
+                        self.heavy_reward_events += 2
+                else:
+                    reward += 0.5 if near else 0.2
+                self.reward_event_counts['capture'] += 1
+
+            if action >= 60:
+                if len(changed_my) >= 2:
+                    reward += self.heavy_reward
+                    self.heavy_reward_events += 1
+                    if home_split:
+                        reward += self.heavy_reward * 2
+                        self.heavy_reward_events += 2
+
+                moved_home = 0
+                for p in self.game_state.get('pieces', []):
+                    pid = p.get('id')
+                    if not pid:
+                        continue
+                    prev_info = prev_pieces.get(pid)
+                    if (
+                        prev_info
+                        and prev_info['in_home']
+                        and p.get('inHomeStretch')
+                        and not p.get('completed')
+                        and p.get('position') != prev_info.get('pos')
+                        and p.get('playerId') in my_team
+                    ):
+                        moved_home += 1
+                if moved_home >= 2:
+                    reward += self.heavy_reward
+                    self.heavy_reward_events += 1
 
             if response.get('success'):
                 if team_home > prev_team_home:

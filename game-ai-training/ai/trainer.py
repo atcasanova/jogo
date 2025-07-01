@@ -398,15 +398,16 @@ class TrainingManager:
         axs[1, 1].set_xlabel('Training Step')
         axs[1, 1].set_ylabel('KL Divergence')
 
-        # Reward breakdown stacked area chart
+        # Reward breakdown stacked bar chart with negative values below zero
         if self.reward_breakdown_history:
             episodes = list(range(len(self.reward_breakdown_history)))
-            totals = {}
+            totals: dict = {}
             for entry in self.reward_breakdown_history:
                 for key, value in entry.items():
                     totals[key] = totals.get(key, 0) + value
             sorted_keys = sorted(totals, key=totals.get, reverse=True)
             main_keys = sorted_keys[:4]
+
             data = {k: [] for k in main_keys + ['other']}
             for entry in self.reward_breakdown_history:
                 other_total = 0.0
@@ -416,8 +417,22 @@ class TrainingManager:
                     if k not in main_keys:
                         other_total += v
                 data['other'].append(other_total)
-            stacks = [data[k] for k in main_keys + ['other']]
-            axs[1, 2].stackplot(episodes, stacks, labels=main_keys + ['other'])
+
+            pos_bottom = np.zeros(len(episodes))
+            neg_bottom = np.zeros(len(episodes))
+            colors = plt.cm.tab10.colors
+            for idx, k in enumerate(main_keys + ['other']):
+                values = np.array(data[k])
+                pos_vals = np.where(values > 0, values, 0)
+                neg_vals = np.where(values < 0, values, 0)
+                color = colors[idx % len(colors)]
+                if np.any(pos_vals):
+                    axs[1, 2].bar(episodes, pos_vals, bottom=pos_bottom, color=color, label=k)
+                    pos_bottom += pos_vals
+                if np.any(neg_vals):
+                    axs[1, 2].bar(episodes, neg_vals, bottom=neg_bottom, color=color)
+                    neg_bottom += neg_vals
+            axs[1, 2].axhline(0, color='black', linewidth=0.8)
             axs[1, 2].set_title('Reward Breakdown by Type')
             axs[1, 2].set_xlabel('Episode')
             axs[1, 2].set_ylabel('Reward')
