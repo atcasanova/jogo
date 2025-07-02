@@ -41,6 +41,10 @@ class TrainingManager:
         # environment logic.
         self.reward_breakdown_history = self.training_stats['reward_breakdown_history']
 
+        # Track bonus rewards separately
+        self.training_stats['bonus_breakdown_history'] = []
+        self.bonus_breakdown_history = self.training_stats['bonus_breakdown_history']
+
         self.total_training_steps = 0
 
         self.kl_target = TRAINING_CONFIG.get('kl_target', 0.02)
@@ -56,6 +60,14 @@ class TrainingManager:
         self.reward_mean = 0.0
         self.reward_var = 1.0
         self.reward_alpha = 0.99
+
+        # Snapshot training setup
+        self.snapshot_dir = 'snapshots'
+        os.makedirs(self.snapshot_dir, exist_ok=True)
+        self.snapshot_freq = 2000
+        self.focus_interval = 500
+        self.train_focus_idx = 0
+        self.latest_snapshot = None
 
         # Create directories
         for directory in [MODEL_DIR, PLOT_DIR, LOG_DIR]:
@@ -187,9 +199,13 @@ class TrainingManager:
         """Run a single training episode using the provided environment."""
         env = env or self.env
 
+        episode_num = self.training_stats['games_played']
+        if episode_num > 0 and episode_num % self.focus_interval == 0:
+            self.train_focus_idx = (self.train_focus_idx + 1) % len(self.bots)
+
         if (
-            self.training_stats['games_played'] > 0
-            and self.training_stats['games_played'] % 10000 == 0
+            episode_num > 0
+            and episode_num % 5000 == 0
         ):
             seed = np.random.randint(0, 2**32 - 1)
             np.random.seed(seed)
@@ -197,6 +213,16 @@ class TrainingManager:
 
         # Randomize bot seating for this episode
         self._shuffle_bots()
+
+        if self.latest_snapshot and episode_num % 4 != 0:
+            opponents = [i for i in range(len(self.bots)) if i != self.train_focus_idx]
+            num_snapshot = np.random.randint(1, len(opponents) + 1)
+            chosen = random.sample(opponents, num_snapshot)
+            for idx in chosen:
+                try:
+                    self.bots[idx].load_model(self.latest_snapshot, reset_stats=False)
+                except Exception:
+                    pass
 
         # Names for logging the actual bot identities in the Node game
         bot_names = [f"Bot_{bot.bot_id}" if hasattr(bot, 'bot_id') else f"Bot_{i}" for i, bot in enumerate(self.bots)]
@@ -251,8 +277,11 @@ class TrainingManager:
             reward += 0.01 * getattr(current_bot, 'last_entropy', 0.0)
             norm_reward = self._normalize_reward(reward)
 
-            # Store experience
-            if states[current_player] is not None:
+            # Store experience only for the training focus bot
+            if (
+                current_player == self.train_focus_idx
+                and states[current_player] is not None
+            ):
                 current_bot.remember(
                     states[current_player],
                     actions[current_player],
@@ -271,7 +300,10 @@ class TrainingManager:
             
             # Train bot
             current_bot.step_count += 1
-            if current_bot.step_count % current_bot.train_freq == 0:
+            if (
+                current_player == self.train_focus_idx
+                and current_bot.step_count % current_bot.train_freq == 0
+            ):
                 result = current_bot.replay()
                 if result is not None:
                     kl, clipfrac, ent = result
@@ -282,8 +314,11 @@ class TrainingManager:
                     self._adjust_ppo_params(current_bot, kl)
                     progress = self.training_stats['games_played'] / TRAINING_CONFIG['num_episodes']
                     self._update_lr_schedule(current_bot, progress)
-            
-            if current_bot.step_count % current_bot.update_target_freq == 0:
+
+            if (
+                current_player == self.train_focus_idx
+                and current_bot.step_count % current_bot.update_target_freq == 0
+            ):
                 current_bot.update_target_network()
 
             step_count += 1
@@ -355,6 +390,7 @@ class TrainingManager:
 
         # Store per-episode reward totals to allow plotting breakdowns later
         self.reward_breakdown_history.append(dict(env.reward_event_totals))
+        self.bonus_breakdown_history.append(dict(env.reward_bonus_totals))
 
         if step_records:
             top = sorted(step_records, key=lambda x: x[0], reverse=True)[:3]
@@ -386,6 +422,9 @@ class TrainingManager:
                 for episode in range(num_episodes):
                     self._apply_reward_schedule(episode, self.env)
                     self.train_episode(self.env)
+
+                    if (episode + 1) % self.snapshot_freq == 0:
+                        self.save_snapshot(episode + 1)
 
                     if (episode + 1) % stats_freq == 0:
                         self.print_statistics(episode + 1)
@@ -420,6 +459,9 @@ class TrainingManager:
                         self._apply_reward_schedule(episode, env)
                     with ThreadPoolExecutor(max_workers=num_envs) as executor:
                         list(executor.map(self.train_episode, self.envs))
+
+                    if (episode + 1) % self.snapshot_freq == 0:
+                        self.save_snapshot((episode + 1) * num_envs)
 
                     if (episode + 1) % stats_freq == 0:
                         self.print_statistics((episode + 1) * num_envs)
@@ -647,4 +689,21 @@ class TrainingManager:
             if os.path.exists(model_path):
                 bot.load_model(model_path)
                 info("Loaded model", bot=bot.bot_id)
+
+    def save_snapshot(self, episode: int) -> None:
+        """Save the best-performing bot as a frozen snapshot."""
+        if not self.bots:
+            return
+
+        def win_rate(bot):
+            return (bot.wins / bot.games_played) if bot.games_played else 0.0
+
+        best_bot = max(self.bots, key=win_rate)
+        path = os.path.join(
+            self.snapshot_dir,
+            f"bot_{best_bot.bot_id}_ep{episode}.pt",
+        )
+        best_bot.save_model(path)
+        self.latest_snapshot = path
+        info("Saved snapshot", bot=best_bot.bot_id, episode=episode, path=path)
 

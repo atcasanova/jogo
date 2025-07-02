@@ -38,6 +38,8 @@ POSITIVE_REWARD_DECAY = 1.01
 # Additional sparse reward bonuses and penalties
 FINAL_MOVE_BONUS = 2000.0
 STAGNATION_PENALTY = -20.0
+# Additional penalty when two pieces are complete but progress stalls
+LATE_STAGNATION_PENALTY = -50.0
 
 
 class GameEnvironment:
@@ -142,6 +144,11 @@ class GameEnvironment:
             'completion_delay': 0.0,
             'timeout': 0.0,
         }
+        # Bonus rewards tracked separately so graphs only show base returns
+        self.reward_bonus_totals: Dict[str, float] = {
+            'win_bonus': 0.0,
+            'final_move_bonus': 0.0,
+        }
 
         # Count how many times the heavy reward bonus was applied in a game
         self.heavy_reward_events = 0
@@ -164,8 +171,12 @@ class GameEnvironment:
         self.completion_delay_turns = [0, 0]
         # Rate at which the completion delay penalty grows for each team
         self.completion_delay_growth = [COMPLETION_DELAY_GROWTH] * 2
-        # Track consecutive steps without progress for stagnation penalty
-        self.no_progress_steps = [0] * 4
+        # Track consecutive steps without progress for stagnation penalties
+        # Each entry stores general stagnation count and count after two
+        # pieces are completed with no further progress.
+        self.no_progress_steps = [
+            {'general': 0, 'since_two': 0} for _ in range(4)
+        ]
         # Store info for the most recent step such as final bonuses
         self.last_step_info: Dict[str, float] = {}
 
@@ -555,7 +566,7 @@ class GameEnvironment:
         team_idx = self.player_team_map.get(player_id, 0)
         teams = self.game_state.get('teams', []) if self.game_state else []
         prev_completed = [0] * max(len(teams), 2)
-        prev_completed_players = self.get_completed_counts()
+        prev_completed_players = self.get_completed_counts() if self.game_state else [0]*4
 
         if self.game_state and 'pieces' in self.game_state:
             for p in self.game_state['pieces']:
@@ -979,13 +990,13 @@ class GameEnvironment:
                 if not progress_made:
                     reward -= 0.01 * (step_count ** 1.05)
                     if 0 <= player_id < len(self.no_progress_steps):
-                        self.no_progress_steps[player_id] += 1
-                        if self.no_progress_steps[player_id] >= 20:
+                        self.no_progress_steps[player_id]['general'] += 1
+                        if self.no_progress_steps[player_id]['general'] >= 20:
                             reward += STAGNATION_PENALTY
-                            self.no_progress_steps[player_id] = 0
+                            self.no_progress_steps[player_id]['general'] = 0
                 else:
                     if 0 <= player_id < len(self.no_progress_steps):
-                        self.no_progress_steps[player_id] = 0
+                        self.no_progress_steps[player_id]['general'] = 0
             if enemy_home > prev_enemy_home:
                 penalty = -5.0 * enemy_home
                 reward += penalty
@@ -1021,6 +1032,23 @@ class GameEnvironment:
                 reward += COMPLETION_BONUS
                 self.reward_event_counts['completion'] += 1
                 self.reward_event_totals['completion'] += COMPLETION_BONUS
+
+            # Longer stagnation after two completions
+            if 0 <= player_id < len(self.no_progress_steps):
+                entry = self.no_progress_steps[player_id]
+                if after_player_completed >= 2:
+                    if (
+                        team_home <= prev_team_home
+                        and after_player_completed == before_player_completed
+                    ):
+                        entry['since_two'] += 1
+                        if entry['since_two'] >= 40:
+                            reward += LATE_STAGNATION_PENALTY
+                            entry['since_two'] = 0
+                    else:
+                        entry['since_two'] = 0
+                else:
+                    entry['since_two'] = 0
 
             # Check if the move pulled a piece away from an entrance position
             new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
@@ -1083,10 +1111,11 @@ class GameEnvironment:
                 pl.get('position') == player_id for pl in winners
             ):
                 self.last_step_info['win_bonus'] = self.win_bonus
-                self.reward_event_counts['game_win'] += 1
-                self.reward_event_totals['game_win'] += self.win_bonus
-                # Apply final move bonus separately
                 self.last_step_info['final_move_bonus'] = FINAL_MOVE_BONUS
+                self.last_step_info['was_final'] = True
+                self.reward_event_counts['game_win'] += 1
+                self.reward_bonus_totals['win_bonus'] += self.win_bonus
+                self.reward_bonus_totals['final_move_bonus'] += FINAL_MOVE_BONUS
 
             team_pieces = [
                 p for p in self.game_state.get('pieces', [])
@@ -1162,13 +1191,17 @@ class GameEnvironment:
             self.reward_event_counts[key] = 0
         for key in self.reward_event_totals:
             self.reward_event_totals[key] = 0.0
+        for key in self.reward_bonus_totals:
+            self.reward_bonus_totals[key] = 0.0
         self.heavy_reward_events = 0
         for key in self.heavy_reward_breakdown:
             self.heavy_reward_breakdown[key] = 0
         self.pending_penalties = [0.0] * 4
         self.next_penalty_check = 60
         self.completion_delay_turns = [0, 0]
-        self.no_progress_steps = [0] * 4
+        self.no_progress_steps = [
+            {'general': 0, 'since_two': 0} for _ in range(4)
+        ]
         self.last_step_info = {}
 
     def set_heavy_reward(self, value: float) -> None:
