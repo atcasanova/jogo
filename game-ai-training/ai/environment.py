@@ -1186,9 +1186,6 @@ class GameEnvironment:
     def count_completed_pieces(self, player_id: int) -> int:
         """Return how many pieces are completed for ``player_id`` based on
         home stretch position."""
-        if not self.game_state:
-            return 0
-
         indexes = set()
         for p in self.game_state.get('pieces', []):
             if p.get('playerId') == player_id and p.get('inHomeStretch'):
