@@ -115,16 +115,26 @@ class GameBot:
         self.last_value = value.squeeze(0)
         return int(action.item())
 
-    def remember(self, state, action, reward, next_state, done):
+    def remember(self, state, action, reward, next_state, done, game_won=False):
+        """Store a transition in memory."""
         self.memory.append(
-            (state, action, reward, done, self.last_log_prob, self.last_value, self.last_entropy)
+            (
+                state,
+                action,
+                reward,
+                done,
+                self.last_log_prob,
+                self.last_value,
+                self.last_entropy,
+                game_won,
+            )
         )
 
     def replay(self):
         if len(self.memory) < self.batch_size:
             return None
 
-        states, actions, rewards, dones, log_probs, values, entropies = zip(*self.memory)
+        states, actions, rewards, dones, log_probs, values, entropies, game_wons = zip(*self.memory)
         self.memory = []
 
         states_t = torch.FloatTensor(np.array(states)).to(self.device)
@@ -132,6 +142,7 @@ class GameBot:
         rewards_t = torch.FloatTensor(rewards).to(self.device)
         dones_t = torch.FloatTensor(dones).to(self.device)
         entropies_t = torch.FloatTensor(entropies).to(self.device)
+        game_wons_t = torch.FloatTensor(game_wons).to(self.device)
         old_log_probs_t = torch.stack(log_probs).to(self.device)
         values_t = torch.stack(values).to(self.device)
 
@@ -144,6 +155,8 @@ class GameBot:
             returns.insert(0, R)
         returns_t = torch.FloatTensor(returns).to(self.device)
         advantages = returns_t - values_t.detach()
+        # Encourage learning from successful episodes
+        advantages += dones_t * game_wons_t * 10000.0
 
         logits, new_values = self.model(states_t)
         logit_mask = torch.full_like(logits, float('-inf'))

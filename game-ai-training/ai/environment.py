@@ -13,8 +13,8 @@ from config import HEAVY_REWARD_BASE
 
 # Normalised reward weights used throughout the environment
 INVALID_MOVE_PENALTY = -0.1
-COMPLETION_BONUS = 300.0
-WIN_BONUS = 20000.0
+COMPLETION_BONUS = 1000.0
+WIN_BONUS = 100000.0
 
 # Reward scale for the nth piece entering the home stretch for a team
 # Normalized to keep dense rewards smaller
@@ -1014,7 +1014,11 @@ class GameEnvironment:
             )
 
         # Scale down positive rewards as completion is delayed.
-        if reward > 0 and 0 <= team_idx < len(self.completion_delay_turns):
+        if (
+            reward > 0
+            and reward < 1000.0
+            and 0 <= team_idx < len(self.completion_delay_turns)
+        ):
             reward /= POSITIVE_REWARD_DECAY ** self.completion_delay_turns[team_idx]
 
         return next_state, reward, done

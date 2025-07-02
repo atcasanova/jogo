@@ -215,6 +215,12 @@ class TrainingManager:
             
             # Execute action
             next_state, reward, done = env.step(action, current_player, step_count)
+            game_won = False
+            if done:
+                winners = env.game_state.get('winningTeam') or []
+                game_won = any(
+                    pl.get('position') == current_player for pl in winners
+                )
             reward += 0.01 * getattr(current_bot, 'last_entropy', 0.0)
             norm_reward = self._normalize_reward(reward)
             
@@ -225,7 +231,8 @@ class TrainingManager:
                     actions[current_player],
                     norm_reward,
                     next_state,
-                    done
+                    done,
+                    game_won,
                 )
             
             # Update tracking
