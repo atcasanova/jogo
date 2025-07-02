@@ -5,7 +5,12 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import torch
 from concurrent.futures import ThreadPoolExecutor
-from ai.environment import GameEnvironment, TIMEOUT_PENALTY
+from ai.environment import (
+    GameEnvironment,
+    TIMEOUT_PENALTY,
+    WIN_BONUS,
+    FINAL_MOVE_BONUS,
+)
 from ai.bot import GameBot
 from config import TRAINING_CONFIG, MODEL_DIR, PLOT_DIR, LOG_DIR, REWARD_SCHEDULE
 from json_logger import info, warning
@@ -35,6 +40,8 @@ class TrainingManager:
         # This allows plotting detailed breakdowns without modifying the core
         # environment logic.
         self.reward_breakdown_history = self.training_stats['reward_breakdown_history']
+
+        self.total_training_steps = 0
 
         self.kl_target = TRAINING_CONFIG.get('kl_target', 0.02)
         self.kl_threshold = self.kl_target / 2
@@ -180,6 +187,14 @@ class TrainingManager:
         """Run a single training episode using the provided environment."""
         env = env or self.env
 
+        if (
+            self.training_stats['games_played'] > 0
+            and self.training_stats['games_played'] % 10000 == 0
+        ):
+            seed = np.random.randint(0, 2**32 - 1)
+            np.random.seed(seed)
+            env.reseed(seed)
+
         # Randomize bot seating for this episode
         self._shuffle_bots()
 
@@ -189,10 +204,11 @@ class TrainingManager:
         # Reset environment with the ordered bot names
         initial_state = env.reset(bot_names=bot_names)
         env.reset_reward_events()
-        
+
         episode_rewards = [0] * 4
         states = [None] * 4
         actions = [None] * 4
+        step_records = []
         
         step_count = 0
         max_steps = 550
@@ -201,7 +217,11 @@ class TrainingManager:
             # Get current player from game state
             current_player = env.game_state.get('currentPlayerIndex', 0)
             current_bot = self.bots[current_player]
-            
+
+            current_win_bonus = WIN_BONUS * (0.99 ** (self.total_training_steps // 1000))
+            if hasattr(env, "set_win_bonus"):
+                env.set_win_bonus(current_win_bonus)
+
             # Get current state and valid actions
             state = env.get_state(current_player)
             valid_actions = env.get_valid_actions(current_player)
@@ -223,9 +243,14 @@ class TrainingManager:
                 game_won = any(
                     pl.get('position') == current_player for pl in winners
                 )
+            bonus = 0.0
+            info_dict = getattr(env, "last_step_info", None)
+            if done and info_dict:
+                bonus += info_dict.get('win_bonus', 0.0)
+                bonus += info_dict.get('final_move_bonus', 0.0)
             reward += 0.01 * getattr(current_bot, 'last_entropy', 0.0)
             norm_reward = self._normalize_reward(reward)
-            
+
             # Store experience
             if states[current_player] is not None:
                 current_bot.remember(
@@ -235,12 +260,14 @@ class TrainingManager:
                     next_state,
                     done,
                     game_won,
+                    bonus,
                 )
-            
+
             # Update tracking
             states[current_player] = state
             actions[current_player] = action
             episode_rewards[current_player] += reward
+            step_records.append((abs(reward), current_player, action, reward))
             
             # Train bot
             current_bot.step_count += 1
@@ -258,9 +285,10 @@ class TrainingManager:
             
             if current_bot.step_count % current_bot.update_target_freq == 0:
                 current_bot.update_target_network()
-            
+
             step_count += 1
-            
+            self.total_training_steps += 1
+
             if done:
                 break
 
@@ -290,13 +318,19 @@ class TrainingManager:
         if summary:
             info("Game summary", summary=summary)
 
-        completed_counts = [0] * len(self.bots)
+        if hasattr(env, "get_completed_counts"):
+            completed_counts = env.get_completed_counts()
+        else:
+            completed_counts = [0] * len(self.bots)
+            for p in env.game_state.get('pieces', []):
+                pid = p.get('playerId')
+                if pid is not None and 0 <= pid < len(self.bots):
+                    if p.get('completed'):
+                        completed_counts[pid] += 1
         homestretch_counts = [0] * len(self.bots)
         for p in env.game_state.get('pieces', []):
             pid = p.get('playerId')
             if pid is not None and 0 <= pid < len(self.bots):
-                if p.get('completed'):
-                    completed_counts[pid] += 1
                 if p.get('inHomeStretch'):
                     homestretch_counts[pid] += 1
 
@@ -321,6 +355,16 @@ class TrainingManager:
 
         # Store per-episode reward totals to allow plotting breakdowns later
         self.reward_breakdown_history.append(dict(env.reward_event_totals))
+
+        if step_records:
+            top = sorted(step_records, key=lambda x: x[0], reverse=True)[:3]
+            info(
+                "Top moves",
+                moves=[
+                    {"player": p, "action": a, "reward": round(r, 2)}
+                    for _, p, a, r in top
+                ],
+            )
 
         return episode_rewards
     

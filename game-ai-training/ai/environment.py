@@ -35,6 +35,10 @@ COMPLETION_DELAY_GROWTH = 1.05
 # ``POSITIVE_REWARD_DECAY`` factor.
 POSITIVE_REWARD_DECAY = 1.01
 
+# Additional sparse reward bonuses and penalties
+FINAL_MOVE_BONUS = 2000.0
+STAGNATION_PENALTY = -20.0
+
 
 class GameEnvironment:
     def __init__(self, env_id: int = 0):
@@ -104,6 +108,8 @@ class GameEnvironment:
 
         # Adjustable reward weight for important plays
         self.heavy_reward = HEAVY_REWARD_BASE
+        # Configurable win bonus that may decay over training
+        self.win_bonus = WIN_BONUS
 
         # Track how often each reward type occurs for analysis
         self.reward_event_counts = {
@@ -158,6 +164,10 @@ class GameEnvironment:
         self.completion_delay_turns = [0, 0]
         # Rate at which the completion delay penalty grows for each team
         self.completion_delay_growth = [COMPLETION_DELAY_GROWTH] * 2
+        # Track consecutive steps without progress for stagnation penalty
+        self.no_progress_steps = [0] * 4
+        # Store info for the most recent step such as final bonuses
+        self.last_step_info: Dict[str, float] = {}
 
     def _generate_track(self) -> List[Dict[str, int]]:
         """Replicate the board track coordinates from the Node game."""
@@ -536,6 +546,7 @@ class GameEnvironment:
         step_count : int, optional
             Current step number of the episode (1-indexed). Defaults to ``0``.
         """
+        self.last_step_info = {}
         invalid_attempts = 0
         tried_actions = set()
         prev_pieces = {}
@@ -964,6 +975,14 @@ class GameEnvironment:
                     self.reward_event_totals['valid_move'] += -decay_penalty
                 if not progress_made:
                     reward -= 0.01 * (step_count ** 1.05)
+                    if 0 <= player_id < len(self.no_progress_steps):
+                        self.no_progress_steps[player_id] += 1
+                        if self.no_progress_steps[player_id] >= 20:
+                            reward += STAGNATION_PENALTY
+                            self.no_progress_steps[player_id] = 0
+                else:
+                    if 0 <= player_id < len(self.no_progress_steps):
+                        self.no_progress_steps[player_id] = 0
             if enemy_home > prev_enemy_home:
                 penalty = -5.0 * enemy_home
                 reward += penalty
@@ -1058,12 +1077,15 @@ class GameEnvironment:
         # Bonus or penalty based on game outcome
         if done:
             winners = response.get('winningTeam') or []
+            self.last_step_info = {}
             if winners and any(
                 pl.get('position') == player_id for pl in winners
             ):
-                reward += WIN_BONUS
+                self.last_step_info['win_bonus'] = self.win_bonus
                 self.reward_event_counts['game_win'] += 1
-                self.reward_event_totals['game_win'] += WIN_BONUS
+                self.reward_event_totals['game_win'] += self.win_bonus
+                # Apply final move bonus separately
+                self.last_step_info['final_move_bonus'] = FINAL_MOVE_BONUS
 
             team_pieces = [
                 p for p in self.game_state.get('pieces', [])
@@ -1145,8 +1167,45 @@ class GameEnvironment:
         self.pending_penalties = [0.0] * 4
         self.next_penalty_check = 60
         self.completion_delay_turns = [0, 0]
+        self.no_progress_steps = [0] * 4
+        self.last_step_info = {}
 
     def set_heavy_reward(self, value: float) -> None:
         """Update the weight applied to major reward events."""
         self.heavy_reward = float(value)
+
+    def set_win_bonus(self, value: float) -> None:
+        """Update the win bonus applied when a team wins."""
+        self.win_bonus = float(value)
+
+    def reseed(self, seed: int) -> None:
+        """Reseed any environment RNGs."""
+        np.random.seed(seed)
+
+    def count_completed_pieces(self, player_id: int) -> int:
+        """Return how many pieces are completed for ``player_id`` based on
+        home stretch position."""
+        indexes = set()
+        for p in self.game_state.get('pieces', []):
+            if p.get('playerId') == player_id and p.get('inHomeStretch'):
+                idx = self._home_index(p.get('position'), player_id)
+                if idx != -1:
+                    indexes.add(idx)
+        if not indexes:
+            return 0
+        home_len = len(self._home_stretches[player_id])
+        completed = 0
+        for idx in range(home_len - 1, -1, -1):
+            if idx in indexes:
+                completed += 1
+            else:
+                break
+        return completed
+
+    def get_completed_counts(self) -> List[int]:
+        """Return completed piece counts for all players."""
+        counts = []
+        for pid in range(4):
+            counts.append(self.count_completed_pieces(pid))
+        return counts
 
