@@ -55,6 +55,8 @@ early progress reduces the negative reward for later turns. The trainer also
 records how many pieces each bot has in the home stretch and how many are
 fully completed after every episode. These metrics appear in the training
 progress plots.
+To avoid extremely large negatives, the decay penalty is clamped so it never
+drops below roughly 30k points even after very long games.
 
 The entropy of the event counts is plotted to help detect reward starvation. A
 per‑episode breakdown subplot shows the reward contribution of **every** event

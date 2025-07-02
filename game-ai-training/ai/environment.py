@@ -31,6 +31,9 @@ HOME_ENTRY_REWARDS = [
 COMPLETION_DELAY_BASE = -1.0
 # Slower growth prevents runaway negative rewards
 COMPLETION_DELAY_GROWTH = 1.02
+# Cap the exponential delay penalty so it never exceeds roughly
+# -30k regardless of how long a team goes without completing a piece.
+COMPLETION_DELAY_CAP = -30000.0
 # Apply the same decay logic to positive rewards using the
 # ``POSITIVE_REWARD_DECAY`` factor.
 POSITIVE_REWARD_DECAY = 1.01
@@ -615,6 +618,8 @@ class GameEnvironment:
                 completed_so_far = prev_completed[team_idx]
             fraction = min(completed_so_far / 10.0, 1.0)
             decay *= max(0.0, 1.0 - fraction)
+            if decay < COMPLETION_DELAY_CAP:
+                decay = COMPLETION_DELAY_CAP
 
         skip_decay = False
         extra_delay = 0
