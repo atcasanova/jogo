@@ -702,12 +702,12 @@ class GameEnvironment:
                     and not p.get('completed')
                 ):
                     prev_idx = self._track_index(prev_info['pos'])
-                    new_idx = self._track_index(pos)
-                    if prev_idx != -1 and new_idx != -1:
+                    track_idx = self._track_index(pos)
+                    if prev_idx != -1 and track_idx != -1:
                         # Penalize skipping the home entrance when it was
                         # possible to enter.
-                        forward = (new_idx - prev_idx) % len(self._track)
-                        backward = (prev_idx - new_idx) % len(self._track)
+                        forward = (track_idx - prev_idx) % len(self._track)
+                        backward = (prev_idx - track_idx) % len(self._track)
                         moved_forward = forward <= backward
                         prev_steps = self._steps_to_entrance(prev_info['pos'], owner)
                         if (
@@ -729,7 +729,8 @@ class GameEnvironment:
                         and p.get('inHomeStretch')
                         and owner in my_team
                     ):
-                        base = HOME_ENTRY_REWARDS[new_idx]
+                        home_idx = self._home_index(pos, owner)
+                        base = HOME_ENTRY_REWARDS[home_idx]
                         home_reward_sum += base * 0.1
                         progress_made = True
 
@@ -749,22 +750,22 @@ class GameEnvironment:
                     old_idx = self._home_index(prev_info['pos'], owner) if (
                         prev_info['in_home'] or prev_info['completed']
                     ) else -1
-                    new_idx = self._home_index(pos, owner) if (
+                    home_idx = self._home_index(pos, owner) if (
                         p.get('inHomeStretch') or p.get('completed')
                     ) else -1
                     if not prev_info['in_home'] and p.get('inHomeStretch'):
-                        base = HOME_ENTRY_REWARDS[new_idx]
+                        base = HOME_ENTRY_REWARDS[home_idx]
                         home_reward_sum += base * 0.1
                         progress_made = True
                     elif (
                         prev_info['in_home']
                         and p.get('inHomeStretch')
-                        and old_idx != new_idx
+                        and old_idx != home_idx
                     ):
                         progress_made = True
                     if not prev_info['completed'] and p.get('completed'):
-                        base = HOME_ENTRY_REWARDS[new_idx]
-                        if new_idx == farthest_before:
+                        base = HOME_ENTRY_REWARDS[home_idx]
+                        if home_idx == farthest_before:
                             home_reward_sum += base * 0.9
                         progress_made = True
 
