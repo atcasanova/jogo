@@ -53,7 +53,7 @@ def test_step_updates_game_state_and_returns_rewards():
         with patch.object(env, 'is_action_valid', return_value=True):
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 next_state, reward, done = env.step(1, 0)
-    assert reward == -2.0
+    assert reward == -4.0
     assert env.reward_event_counts['valid_move'] == 1
     assert env.reward_event_counts['invalid_move'] == 0
     assert done is False
@@ -74,7 +74,7 @@ def test_step_updates_state_on_failure():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 next_state, reward, done = env.step(1, 0)
 
-    assert reward == -3.1
+    assert reward == -5.1
     assert env.reward_event_counts['invalid_move'] == 11
     assert env.reward_event_counts['valid_move'] == 0
     assert done is False
@@ -876,7 +876,7 @@ def test_step_retries_until_success():
                 with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                     next_state, reward, done = env.step(1, 0)
 
-    assert reward == pytest.approx(-2.2)
+    assert reward == pytest.approx(-4.2)
     assert env.reward_event_counts['invalid_move'] == 2
     assert env.reward_event_counts['valid_move'] == 1
     assert mock_cmd.call_count == 3
@@ -936,7 +936,7 @@ def test_team_penalty_applied_after_interval():
 
     # Updated expected value after further slowing the delay growth rate and
     # scaling positive rewards
-    assert reward == pytest.approx(-63.46978, rel=1e-4)
+    assert reward == pytest.approx(-65.46978, rel=1e-4)
     assert env.reward_event_counts['no_home_penalty'] == 1
 
 
