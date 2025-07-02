@@ -12,34 +12,34 @@ from json_logger import info, error, warning
 from config import HEAVY_REWARD_BASE
 
 # Normalised reward weights used throughout the environment
-INVALID_MOVE_PENALTY = -0.1
-COMPLETION_BONUS = 200.0
+INVALID_MOVE_PENALTY = -0.05
+COMPLETION_BONUS = 300.0
 WIN_BONUS = 100000.0
 # Large penalty applied when the episode ends without a winner
-TIMEOUT_PENALTY = -WIN_BONUS / 2
+TIMEOUT_PENALTY = -WIN_BONUS / 4
 
 # Reward scale for the nth piece entering the home stretch for a team
 # Normalized to keep dense rewards smaller
 HOME_ENTRY_REWARDS = [
-    20, 60, 120, 200, 300,
-    420, 560, 720, 900, 1100
+    40, 120, 240, 400, 600,
+    840, 1120, 1440, 1800, 2200
 ]
 
 # Penalty applied each turn a team goes without completing a piece.
 # Starts at ``COMPLETION_DELAY_BASE`` and is multiplied by
 # ``COMPLETION_DELAY_GROWTH`` every subsequent turn until reset.
-COMPLETION_DELAY_BASE = -4.0
-# Increase growth so penalties escalate faster in long games
-COMPLETION_DELAY_GROWTH = 1.05
+COMPLETION_DELAY_BASE = -1.0
+# Slower growth prevents runaway negative rewards
+COMPLETION_DELAY_GROWTH = 1.02
 # Apply the same decay logic to positive rewards using the
 # ``POSITIVE_REWARD_DECAY`` factor.
 POSITIVE_REWARD_DECAY = 1.01
 
 # Additional sparse reward bonuses and penalties
 FINAL_MOVE_BONUS = 2000.0
-STAGNATION_PENALTY = -20.0
+STAGNATION_PENALTY = -10.0
 # Additional penalty when two pieces are complete but progress stalls
-LATE_STAGNATION_PENALTY = -50.0
+LATE_STAGNATION_PENALTY = -25.0
 
 
 class GameEnvironment:
