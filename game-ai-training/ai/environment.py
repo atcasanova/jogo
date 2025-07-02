@@ -27,7 +27,8 @@ HOME_ENTRY_REWARDS = [
 # Starts at ``COMPLETION_DELAY_BASE`` and is multiplied by
 # ``COMPLETION_DELAY_GROWTH`` every subsequent turn until reset.
 COMPLETION_DELAY_BASE = -2.0
-COMPLETION_DELAY_GROWTH = 1.08
+# Slower exponential rate so penalties do not dominate long games
+COMPLETION_DELAY_GROWTH = 1.02
 
 
 class GameEnvironment:
