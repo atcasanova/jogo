@@ -295,8 +295,8 @@ class TrainingManager:
             # Update tracking
             states[current_player] = state
             actions[current_player] = action
-            episode_rewards[current_player] += reward
-            step_records.append((abs(reward), current_player, action, reward))
+            episode_rewards[current_player] += reward + bonus
+            step_records.append((abs(reward + bonus), current_player, action, reward + bonus))
             
             # Train bot
             current_bot.step_count += 1
@@ -586,15 +586,23 @@ class TrainingManager:
         if self.reward_breakdown_history:
             episodes = list(range(len(self.reward_breakdown_history)))
 
+            combined_history = []
+            for i, entry in enumerate(self.reward_breakdown_history):
+                combined = dict(entry)
+                if i < len(self.bonus_breakdown_history):
+                    for k, v in self.bonus_breakdown_history[i].items():
+                        combined[k] = combined.get(k, 0.0) + v
+                combined_history.append(combined)
+
             totals: dict = {}
-            for entry in self.reward_breakdown_history:
+            for entry in combined_history:
                 for key, value in entry.items():
                     totals[key] = totals.get(key, 0) + value
 
             sorted_keys = sorted(totals, key=totals.get, reverse=True)
 
             data = {k: [] for k in sorted_keys}
-            for entry in self.reward_breakdown_history:
+            for entry in combined_history:
                 for k in sorted_keys:
                     data[k].append(entry.get(k, 0.0))
 
