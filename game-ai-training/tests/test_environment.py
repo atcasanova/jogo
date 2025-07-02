@@ -934,8 +934,9 @@ def test_team_penalty_applied_after_interval():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 _, reward, _ = env.step(1, 2, step_count=62)
 
-    # Updated expected value after reducing the completion delay growth rate
-    assert reward == pytest.approx(-63.50978, rel=1e-4)
+    # Updated expected value after further slowing the delay growth rate and
+    # scaling positive rewards
+    assert reward == pytest.approx(-63.48978, rel=1e-4)
     assert env.reward_event_counts['no_home_penalty'] == 1
 
 
