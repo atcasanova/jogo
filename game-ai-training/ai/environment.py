@@ -27,8 +27,11 @@ HOME_ENTRY_REWARDS = [
 # Starts at ``COMPLETION_DELAY_BASE`` and is multiplied by
 # ``COMPLETION_DELAY_GROWTH`` every subsequent turn until reset.
 COMPLETION_DELAY_BASE = -2.0
-# Slower exponential rate so penalties do not dominate long games
-COMPLETION_DELAY_GROWTH = 1.02
+# Further slow exponential rate so penalties do not dominate long games
+COMPLETION_DELAY_GROWTH = 1.01
+# Apply the same decay logic to positive rewards using the
+# ``POSITIVE_REWARD_DECAY`` factor.
+POSITIVE_REWARD_DECAY = 1.01
 
 
 class GameEnvironment:
@@ -1010,8 +1013,9 @@ class GameEnvironment:
                 top_sources={k: round(v, 2) for k, v in top_sources}
             )
 
-        # Positive rewards are applied directly without additional scaling
-        # so that penalties remain meaningful relative to bonuses.
+        # Scale down positive rewards as completion is delayed.
+        if reward > 0 and 0 <= team_idx < len(self.completion_delay_turns):
+            reward /= POSITIVE_REWARD_DECAY ** self.completion_delay_turns[team_idx]
 
         return next_state, reward, done
     
