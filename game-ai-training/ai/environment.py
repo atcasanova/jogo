@@ -152,6 +152,8 @@ class GameEnvironment:
         self.next_penalty_check = 60
         # Turns since each team last completed a piece
         self.completion_delay_turns = [0, 0]
+        # Rate at which the completion delay penalty grows for each team
+        self.completion_delay_growth = [COMPLETION_DELAY_GROWTH] * 2
 
     def _generate_track(self) -> List[Dict[str, int]]:
         """Replicate the board track coordinates from the Node game."""
@@ -194,6 +196,20 @@ class GameEnvironment:
                 return i
         return -1
 
+    def _in_entry_zone(self, pos: Dict[str, int], player_id: int) -> bool:
+        """Return ``True`` if ``pos`` lies within the player's entry zone."""
+        steps = self._steps_to_entrance(pos, player_id)
+        return 0 <= steps <= 10
+
+    def _is_start_square(self, pos: Dict[str, int], player_id: int) -> bool:
+        """Return ``True`` if ``pos`` is the starting square for ``player_id``."""
+        start = self._starts[player_id]
+        return (
+            pos
+            and pos.get('row') == start['row']
+            and pos.get('col') == start['col']
+        )
+
     def _count_opponent_near_home(self, pieces: Dict[str, Dict[str, Any]], player_id: int, threshold: int = 10) -> int:
         """Count opponent pieces close to their home stretch entrance."""
         teams = self.game_state.get('teams', []) if self.game_state else []
@@ -202,6 +218,12 @@ class GameEnvironment:
             if any(pl.get('position') == player_id for pl in team):
                 my_team = [pl.get('position') for pl in team]
                 break
+
+        partner_id = None
+        if len(my_team) == 2:
+            partner_id = my_team[0] if my_team[1] == player_id else my_team[1]
+
+
         opponents = {pl for pl in range(4) if pl not in my_team}
         count = 0
         for pinfo in pieces.values():
@@ -553,11 +575,15 @@ class GameEnvironment:
             self.reward_event_totals['no_home_penalty'] += self.pending_penalties[player_id]
             self.pending_penalties[player_id] = 0.0
 
+        decay = 0.0
         if 0 <= team_idx < len(self.completion_delay_turns):
-            decay = COMPLETION_DELAY_BASE * (COMPLETION_DELAY_GROWTH ** self.completion_delay_turns[team_idx])
-            reward += decay
-            self.reward_event_counts['completion_delay'] += 1
-            self.reward_event_totals['completion_delay'] += decay
+            decay = (
+                COMPLETION_DELAY_BASE
+                * (self.completion_delay_growth[team_idx] ** self.completion_delay_turns[team_idx])
+            )
+
+        skip_decay = False
+        extra_delay = 0
 
         while True:
             if not self.is_action_valid(player_id, action):
@@ -648,6 +674,11 @@ class GameEnvironment:
                 my_team = [pl.get('position') for pl in team]
                 break
 
+        partner_id=None
+        if len(my_team)==2:
+            partner_id = my_team[0] if my_team[1]==player_id else my_team[1]
+
+
         prev_team_home = 0
         prev_enemy_home = 0
         if self.game_state and 'pieces' in self.game_state:
@@ -682,6 +713,7 @@ class GameEnvironment:
             home_split = False
             prev_near_home: Dict[str, bool] = {}
             progress_made = False
+            left_entry = False
 
             # Count pieces in home after the move and accumulate rewards
             team_home = 0
@@ -706,6 +738,19 @@ class GameEnvironment:
 
                 prev_info = prev_pieces.get(pid)
                 was_near = prev_near_home.get(pid, False)
+                if owner == player_id:
+                    if partner_id is not None and self._is_start_square(pos, partner_id):
+                        skip_decay = True
+                    if self._in_entry_zone(pos, player_id):
+                        skip_decay = True
+                    if (
+                        prev_info
+                        and prev_info.get('dist', 99) <= 10
+                        and not prev_info['in_home']
+                        and not p.get('inHomeStretch')
+                        and not self._in_entry_zone(pos, player_id)
+                    ):
+                        left_entry = True
                 if (
                     owner in my_team
                     and prev_info
@@ -795,9 +840,12 @@ class GameEnvironment:
                         progress_made = True
                     if not prev_info['completed'] and p.get('completed'):
                         base = HOME_ENTRY_REWARDS[home_idx]
+                        bonus = base * 0.9
                         if home_idx == farthest_before:
-                            home_reward_sum += base * 0.9
+                            bonus *= 1.5
+                        home_reward_sum += bonus
                         progress_made = True
+                        skip_decay = True
 
                 prev_near_home[pid] = was_near
 
@@ -806,10 +854,8 @@ class GameEnvironment:
                         team_home += 1
                     else:
                         enemy_home += 1
-
-            partner_id = None
-            if len(my_team) == 2:
-                partner_id = my_team[0] if my_team[1] == player_id else my_team[1]
+            if left_entry:
+                extra_delay += 1
 
             moved_from_partner_home = False
             if partner_id is not None:
@@ -834,28 +880,38 @@ class GameEnvironment:
                 owner = prev_info_cap.get('player_id')
                 near = prev_near_home.get(cid, False)
                 if owner in my_team:
-                    reward += 0.5
-                    if prev_info_cap.get('pos') == self._starts[owner]:
-                        reward += self.heavy_reward
-                        self.heavy_reward_events += 1
-                    if (
-                        partner_id is not None
-                        and owner == partner_id
-                        and moved_from_partner_home
-                    ):
-                        reward += self.heavy_reward * 2
-                        self.heavy_reward_events += 2
+                    in_zone = self._in_entry_zone(prev_info_cap.get('pos'), player_id)
+                    if in_zone:
+                        if len(response.get('captures', [])) > 1:
+                            reward += self.heavy_reward * 1.5
+                            self.heavy_reward_events += 1
+                    else:
+                        reward += 0.5
+                        skip_decay = True
+                        if prev_info_cap.get('pos') == self._starts[owner]:
+                            reward += self.heavy_reward
+                            self.heavy_reward_events += 1
+                        if (
+                            partner_id is not None
+                            and owner == partner_id
+                            and moved_from_partner_home
+                        ):
+                            reward += self.heavy_reward * 2
+                            self.heavy_reward_events += 2
                 else:
                     reward += 0.6 if near else 0.2
+                    if self._in_entry_zone(prev_info_cap.get('pos'), player_id):
+                        skip_decay = True
                 self.reward_event_counts['capture'] += 1
 
             if action >= 60:
                 if len(changed_my) >= 2:
-                    reward += self.heavy_reward
-                    self.heavy_reward_events += 1
+                    bonus = self.heavy_reward
                     if home_split:
-                        reward += self.heavy_reward * 2
-                        self.heavy_reward_events += 2
+                        bonus *= 1.5
+                    reward += bonus
+                    self.heavy_reward_events += 1
+                    self.heavy_reward_breakdown['special'] += 1
 
                 moved_home = 0
                 for p in self.game_state.get('pieces', []):
@@ -875,6 +931,16 @@ class GameEnvironment:
                 if moved_home >= 2:
                     reward += self.heavy_reward
                     self.heavy_reward_events += 1
+
+            for opp in range(4):
+                if opp in my_team:
+                    continue
+                for piece in self.game_state.get('pieces', []):
+                    if (
+                        piece.get('playerId') == player_id
+                        and self._is_start_square(piece.get('position'), opp)
+                    ):
+                        reward -= 0.3
 
             if response.get('success'):
                 if home_reward_sum:
@@ -960,6 +1026,11 @@ class GameEnvironment:
                                 self.pending_penalties[pid] -= 60.0
                 self.next_penalty_check += 60
 
+        if not skip_decay and 0 <= team_idx < len(self.completion_delay_turns):
+            reward += decay
+            self.reward_event_counts['completion_delay'] += 1
+            self.reward_event_totals['completion_delay'] += decay
+
         teams_now = self.game_state.get('teams', [])
         new_completed = [0] * max(len(teams_now), 2)
         for p in self.game_state.get('pieces', []):
@@ -971,8 +1042,9 @@ class GameEnvironment:
         if 0 <= team_idx < len(self.completion_delay_turns):
             if new_completed[team_idx] > prev_completed[team_idx]:
                 self.completion_delay_turns[team_idx] = 0
-            else:
-                self.completion_delay_turns[team_idx] += 1
+                self.completion_delay_growth[team_idx] *= 0.99
+            elif not skip_decay:
+                self.completion_delay_turns[team_idx] += 1 + extra_delay
 
         # Bonus or penalty based on game outcome
         if done:

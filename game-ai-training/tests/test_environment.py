@@ -936,7 +936,7 @@ def test_team_penalty_applied_after_interval():
 
     # Updated expected value after further slowing the delay growth rate and
     # scaling positive rewards
-    assert reward == pytest.approx(-63.48978, rel=1e-4)
+    assert reward == pytest.approx(-63.46978, rel=1e-4)
     assert env.reward_event_counts['no_home_penalty'] == 1
 
 
@@ -962,7 +962,7 @@ def test_move_away_from_home_penalty():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 _, reward, _ = env.step(1, 0, step_count=1)
 
-    assert reward == pytest.approx(-62.015)
+    assert reward == pytest.approx(-60.015)
     assert env.reward_event_counts['avoid_home_penalty'] == 1
 
 
