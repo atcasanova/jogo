@@ -35,6 +35,10 @@ COMPLETION_DELAY_GROWTH = 1.05
 # ``POSITIVE_REWARD_DECAY`` factor.
 POSITIVE_REWARD_DECAY = 1.01
 
+# Additional sparse reward bonuses and penalties
+FINAL_MOVE_BONUS = 2000.0
+STAGNATION_PENALTY = -20.0
+
 
 class GameEnvironment:
     def __init__(self, env_id: int = 0):
@@ -104,6 +108,8 @@ class GameEnvironment:
 
         # Adjustable reward weight for important plays
         self.heavy_reward = HEAVY_REWARD_BASE
+        # Configurable win bonus that may decay over training
+        self.win_bonus = WIN_BONUS
 
         # Track how often each reward type occurs for analysis
         self.reward_event_counts = {
@@ -158,6 +164,10 @@ class GameEnvironment:
         self.completion_delay_turns = [0, 0]
         # Rate at which the completion delay penalty grows for each team
         self.completion_delay_growth = [COMPLETION_DELAY_GROWTH] * 2
+        # Track consecutive steps without progress for stagnation penalty
+        self.no_progress_steps = [0] * 4
+        # Store info for the most recent step such as final bonuses
+        self.last_step_info: Dict[str, float] = {}
 
     def _generate_track(self) -> List[Dict[str, int]]:
         """Replicate the board track coordinates from the Node game."""
@@ -536,6 +546,7 @@ class GameEnvironment:
         step_count : int, optional
             Current step number of the episode (1-indexed). Defaults to ``0``.
         """
+        self.last_step_info = {}
         invalid_attempts = 0
         tried_actions = set()
         prev_pieces = {}
@@ -544,6 +555,7 @@ class GameEnvironment:
         team_idx = self.player_team_map.get(player_id, 0)
         teams = self.game_state.get('teams', []) if self.game_state else []
         prev_completed = [0] * max(len(teams), 2)
+        prev_completed_players = self.get_completed_counts()
 
         if self.game_state and 'pieces' in self.game_state:
             for p in self.game_state['pieces']:
@@ -560,11 +572,13 @@ class GameEnvironment:
                         idx = self._home_index(p.get('position'), player_id)
                         if idx != -1:
                             occupied_before.append(idx)
-                t_idx = self.player_team_map.get(pid)
-                if t_idx is not None and 0 <= t_idx < len(prev_completed):
-                    if p.get('completed'):
-                        prev_completed[t_idx] += 1
 
+                # team completion counts will be aggregated after the loop
+
+        for pid, count in enumerate(prev_completed_players):
+            t_idx = self.player_team_map.get(pid)
+            if t_idx is not None and 0 <= t_idx < len(prev_completed):
+                prev_completed[t_idx] += count
         home_len = len(self._home_stretches[player_id]) if 0 <= player_id < len(self._home_stretches) else 5
         farthest_before = home_len - 1
         for i in range(home_len - 1, -1, -1):
@@ -964,6 +978,14 @@ class GameEnvironment:
                     self.reward_event_totals['valid_move'] += -decay_penalty
                 if not progress_made:
                     reward -= 0.01 * (step_count ** 1.05)
+                    if 0 <= player_id < len(self.no_progress_steps):
+                        self.no_progress_steps[player_id] += 1
+                        if self.no_progress_steps[player_id] >= 20:
+                            reward += STAGNATION_PENALTY
+                            self.no_progress_steps[player_id] = 0
+                else:
+                    if 0 <= player_id < len(self.no_progress_steps):
+                        self.no_progress_steps[player_id] = 0
             if enemy_home > prev_enemy_home:
                 penalty = -5.0 * enemy_home
                 reward += penalty
@@ -971,36 +993,34 @@ class GameEnvironment:
                 self.reward_event_totals['enemy_home_entry'] += penalty
 
             # Extra reward when the current player finishes all pieces
-            player_pieces = [
-                p for p in self.game_state.get('pieces', [])
-                if p.get('playerId') == player_id
-            ]
-            if player_pieces and all(p.get('completed') for p in player_pieces):
-                prev_completed = [
-                    info.get('completed')
-                    for pid, info in prev_pieces.items()
-                    if info.get('player_id') == player_id
-                ]
-                if not prev_completed or not all(prev_completed):
-                    reward += COMPLETION_BONUS
-                    self.reward_event_counts['completion'] += 1
-                    self.reward_event_totals['completion'] += COMPLETION_BONUS
+            player_total = sum(
+                1 for p in self.game_state.get('pieces', []) if p.get('playerId') == player_id
+            )
+            after_player_completed = self.count_completed_pieces(player_id)
+            before_player_completed = prev_completed_players[player_id]
+            if (
+                player_total
+                and after_player_completed == player_total
+                and after_player_completed > before_player_completed
+            ):
+                reward += COMPLETION_BONUS
+                self.reward_event_counts['completion'] += 1
+                self.reward_event_totals['completion'] += COMPLETION_BONUS
 
             # Reward when this move completes the entire team
             team_pieces = [
-                p for p in self.game_state.get('pieces', [])
-                if p.get('playerId') in my_team
+                p for p in self.game_state.get('pieces', []) if p.get('playerId') in my_team
             ]
-            if team_pieces and all(p.get('completed') for p in team_pieces):
-                prev_completed_team = [
-                    info.get('completed')
-                    for pid, info in prev_pieces.items()
-                    if info.get('player_id') in my_team
-                ]
-                if not prev_completed_team or not all(prev_completed_team):
-                    reward += COMPLETION_BONUS
-                    self.reward_event_counts['completion'] += 1
-                    self.reward_event_totals['completion'] += COMPLETION_BONUS
+            after_team_completed = sum(self.count_completed_pieces(pid) for pid in my_team)
+            before_team_completed = sum(prev_completed_players[pid] for pid in my_team)
+            if (
+                team_pieces
+                and after_team_completed == len(team_pieces)
+                and after_team_completed > before_team_completed
+            ):
+                reward += COMPLETION_BONUS
+                self.reward_event_counts['completion'] += 1
+                self.reward_event_totals['completion'] += COMPLETION_BONUS
 
             # Check if the move pulled a piece away from an entrance position
             new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
@@ -1042,11 +1062,11 @@ class GameEnvironment:
 
         teams_now = self.game_state.get('teams', [])
         new_completed = [0] * max(len(teams_now), 2)
-        for p in self.game_state.get('pieces', []):
-            t_idx = self.player_team_map.get(p.get('playerId'))
+        new_completed_players = self.get_completed_counts()
+        for pid, count in enumerate(new_completed_players):
+            t_idx = self.player_team_map.get(pid)
             if t_idx is not None and 0 <= t_idx < len(new_completed):
-                if p.get('completed'):
-                    new_completed[t_idx] += 1
+                new_completed[t_idx] += count
 
         if 0 <= team_idx < len(self.completion_delay_turns):
             if new_completed[team_idx] > prev_completed[team_idx]:
@@ -1058,12 +1078,15 @@ class GameEnvironment:
         # Bonus or penalty based on game outcome
         if done:
             winners = response.get('winningTeam') or []
+            self.last_step_info = {}
             if winners and any(
                 pl.get('position') == player_id for pl in winners
             ):
-                reward += WIN_BONUS
+                self.last_step_info['win_bonus'] = self.win_bonus
                 self.reward_event_counts['game_win'] += 1
-                self.reward_event_totals['game_win'] += WIN_BONUS
+                self.reward_event_totals['game_win'] += self.win_bonus
+                # Apply final move bonus separately
+                self.last_step_info['final_move_bonus'] = FINAL_MOVE_BONUS
 
             team_pieces = [
                 p for p in self.game_state.get('pieces', [])
@@ -1145,8 +1168,48 @@ class GameEnvironment:
         self.pending_penalties = [0.0] * 4
         self.next_penalty_check = 60
         self.completion_delay_turns = [0, 0]
+        self.no_progress_steps = [0] * 4
+        self.last_step_info = {}
 
     def set_heavy_reward(self, value: float) -> None:
         """Update the weight applied to major reward events."""
         self.heavy_reward = float(value)
+
+    def set_win_bonus(self, value: float) -> None:
+        """Update the win bonus applied when a team wins."""
+        self.win_bonus = float(value)
+
+    def reseed(self, seed: int) -> None:
+        """Reseed any environment RNGs."""
+        np.random.seed(seed)
+
+    def count_completed_pieces(self, player_id: int) -> int:
+        """Return how many pieces are completed for ``player_id`` based on
+        home stretch position."""
+        if not self.game_state:
+            return 0
+
+        indexes = set()
+        for p in self.game_state.get('pieces', []):
+            if p.get('playerId') == player_id and p.get('inHomeStretch'):
+                idx = self._home_index(p.get('position'), player_id)
+                if idx != -1:
+                    indexes.add(idx)
+        if not indexes:
+            return 0
+        home_len = len(self._home_stretches[player_id])
+        completed = 0
+        for idx in range(home_len - 1, -1, -1):
+            if idx in indexes:
+                completed += 1
+            else:
+                break
+        return completed
+
+    def get_completed_counts(self) -> List[int]:
+        """Return completed piece counts for all players."""
+        counts = []
+        for pid in range(4):
+            counts.append(self.count_completed_pieces(pid))
+        return counts
 
