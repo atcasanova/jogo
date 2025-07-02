@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import torch
 from concurrent.futures import ThreadPoolExecutor
-from ai.environment import GameEnvironment
+from ai.environment import GameEnvironment, TIMEOUT_PENALTY
 from ai.bot import GameBot
 from config import TRAINING_CONFIG, MODEL_DIR, PLOT_DIR, LOG_DIR, REWARD_SCHEDULE
 from json_logger import info, warning
@@ -261,7 +261,13 @@ class TrainingManager:
             
             if done:
                 break
-        
+
+        if not env.game_state.get('gameEnded', False):
+            for i in range(len(episode_rewards)):
+                episode_rewards[i] += TIMEOUT_PENALTY
+            env.reward_event_counts['timeout'] = env.reward_event_counts.get('timeout', 0) + 1
+            env.reward_event_totals['timeout'] = env.reward_event_totals.get('timeout', 0.0) + TIMEOUT_PENALTY * len(episode_rewards)
+
         # Update statistics
         for i, bot in enumerate(self.bots):
             capped = episode_rewards[i]
@@ -505,6 +511,7 @@ class TrainingManager:
                 'capture': 'green',
                 'game_win': 'purple',
                 'completion': 'yellow',
+                'timeout': 'orange',
             }
 
             color_map = {}
