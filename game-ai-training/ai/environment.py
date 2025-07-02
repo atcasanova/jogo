@@ -555,6 +555,7 @@ class GameEnvironment:
         team_idx = self.player_team_map.get(player_id, 0)
         teams = self.game_state.get('teams', []) if self.game_state else []
         prev_completed = [0] * max(len(teams), 2)
+        prev_completed_players = self.get_completed_counts()
 
         if self.game_state and 'pieces' in self.game_state:
             for p in self.game_state['pieces']:
@@ -571,11 +572,13 @@ class GameEnvironment:
                         idx = self._home_index(p.get('position'), player_id)
                         if idx != -1:
                             occupied_before.append(idx)
-                t_idx = self.player_team_map.get(pid)
-                if t_idx is not None and 0 <= t_idx < len(prev_completed):
-                    if p.get('completed'):
-                        prev_completed[t_idx] += 1
 
+                # team completion counts will be aggregated after the loop
+
+        for pid, count in enumerate(prev_completed_players):
+            t_idx = self.player_team_map.get(pid)
+            if t_idx is not None and 0 <= t_idx < len(prev_completed):
+                prev_completed[t_idx] += count
         home_len = len(self._home_stretches[player_id]) if 0 <= player_id < len(self._home_stretches) else 5
         farthest_before = home_len - 1
         for i in range(home_len - 1, -1, -1):
@@ -990,36 +993,34 @@ class GameEnvironment:
                 self.reward_event_totals['enemy_home_entry'] += penalty
 
             # Extra reward when the current player finishes all pieces
-            player_pieces = [
-                p for p in self.game_state.get('pieces', [])
-                if p.get('playerId') == player_id
-            ]
-            if player_pieces and all(p.get('completed') for p in player_pieces):
-                prev_completed = [
-                    info.get('completed')
-                    for pid, info in prev_pieces.items()
-                    if info.get('player_id') == player_id
-                ]
-                if not prev_completed or not all(prev_completed):
-                    reward += COMPLETION_BONUS
-                    self.reward_event_counts['completion'] += 1
-                    self.reward_event_totals['completion'] += COMPLETION_BONUS
+            player_total = sum(
+                1 for p in self.game_state.get('pieces', []) if p.get('playerId') == player_id
+            )
+            after_player_completed = self.count_completed_pieces(player_id)
+            before_player_completed = prev_completed_players[player_id]
+            if (
+                player_total
+                and after_player_completed == player_total
+                and after_player_completed > before_player_completed
+            ):
+                reward += COMPLETION_BONUS
+                self.reward_event_counts['completion'] += 1
+                self.reward_event_totals['completion'] += COMPLETION_BONUS
 
             # Reward when this move completes the entire team
             team_pieces = [
-                p for p in self.game_state.get('pieces', [])
-                if p.get('playerId') in my_team
+                p for p in self.game_state.get('pieces', []) if p.get('playerId') in my_team
             ]
-            if team_pieces and all(p.get('completed') for p in team_pieces):
-                prev_completed_team = [
-                    info.get('completed')
-                    for pid, info in prev_pieces.items()
-                    if info.get('player_id') in my_team
-                ]
-                if not prev_completed_team or not all(prev_completed_team):
-                    reward += COMPLETION_BONUS
-                    self.reward_event_counts['completion'] += 1
-                    self.reward_event_totals['completion'] += COMPLETION_BONUS
+            after_team_completed = sum(self.count_completed_pieces(pid) for pid in my_team)
+            before_team_completed = sum(prev_completed_players[pid] for pid in my_team)
+            if (
+                team_pieces
+                and after_team_completed == len(team_pieces)
+                and after_team_completed > before_team_completed
+            ):
+                reward += COMPLETION_BONUS
+                self.reward_event_counts['completion'] += 1
+                self.reward_event_totals['completion'] += COMPLETION_BONUS
 
             # Check if the move pulled a piece away from an entrance position
             new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
@@ -1061,11 +1062,11 @@ class GameEnvironment:
 
         teams_now = self.game_state.get('teams', [])
         new_completed = [0] * max(len(teams_now), 2)
-        for p in self.game_state.get('pieces', []):
-            t_idx = self.player_team_map.get(p.get('playerId'))
+        new_completed_players = self.get_completed_counts()
+        for pid, count in enumerate(new_completed_players):
+            t_idx = self.player_team_map.get(pid)
             if t_idx is not None and 0 <= t_idx < len(new_completed):
-                if p.get('completed'):
-                    new_completed[t_idx] += 1
+                new_completed[t_idx] += count
 
         if 0 <= team_idx < len(self.completion_delay_turns):
             if new_completed[team_idx] > prev_completed[team_idx]:
@@ -1185,6 +1186,9 @@ class GameEnvironment:
     def count_completed_pieces(self, player_id: int) -> int:
         """Return how many pieces are completed for ``player_id`` based on
         home stretch position."""
+        if not self.game_state:
+            return 0
+
         indexes = set()
         for p in self.game_state.get('pieces', []):
             if p.get('playerId') == player_id and p.get('inHomeStretch'):
