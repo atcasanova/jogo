@@ -26,7 +26,9 @@ class TrainingManager:
             'entropy_avgs': [],
             'games_played': 0,
             'reward_entropies': [],
-            'reward_breakdown_history': []
+            'reward_breakdown_history': [],
+            'completed_pieces': [],
+            'homestretch_pieces': []
         }
 
         # Optional external list storing per-episode reward contributions
@@ -288,6 +290,19 @@ class TrainingManager:
         if summary:
             info("Game summary", summary=summary)
 
+        completed_counts = [0] * len(self.bots)
+        homestretch_counts = [0] * len(self.bots)
+        for p in env.game_state.get('pieces', []):
+            pid = p.get('playerId')
+            if pid is not None and 0 <= pid < len(self.bots):
+                if p.get('completed'):
+                    completed_counts[pid] += 1
+                if p.get('inHomeStretch'):
+                    homestretch_counts[pid] += 1
+
+        self.training_stats['completed_pieces'].append(completed_counts)
+        self.training_stats['homestretch_pieces'].append(homestretch_counts)
+
         self.training_stats['games_played'] += 1
         ep_total = sum(episode_rewards)
         if ep_total < -10000:
@@ -467,18 +482,19 @@ class TrainingManager:
         if has_loss_plots:
             axs[1, 0].legend()
         
-        # KL divergence and related metrics
-        if self.training_stats['kl_divergences']:
-            axs[1, 1].plot(self.training_stats['kl_divergences'], label='kl')
-        if self.training_stats['clip_fractions']:
-            axs[1, 1].plot(self.training_stats['clip_fractions'], label='clipfrac')
-        if self.training_stats['entropy_avgs']:
-            axs[1, 1].plot(self.training_stats['entropy_avgs'], label='entropy')
-        axs[1, 1].set_title('PPO Diagnostics')
-        axs[1, 1].set_xlabel('Training Step')
-        axs[1, 1].set_ylabel('Value')
-        if any(self.training_stats[k] for k in ['kl_divergences', 'clip_fractions', 'entropy_avgs']):
+        # Completed pieces per episode
+        if self.training_stats['completed_pieces']:
+            episodes = range(len(self.training_stats['completed_pieces']))
+            for bot_idx in range(len(self.bots)):
+                values = [c[bot_idx] for c in self.training_stats['completed_pieces']]
+                color = colors[bot_idx % len(colors)]
+                axs[1, 1].plot(episodes, values, label=f'Bot {bot_idx}', color=color)
+            axs[1, 1].set_xlabel('Episode')
+            axs[1, 1].set_ylabel('Completed Pieces')
+            axs[1, 1].set_title('Completed Pieces per Bot')
             axs[1, 1].legend()
+        else:
+            axs[1, 1].axis('off')
 
         # Reward breakdown stacked bar chart with distinct colors
         if self.reward_breakdown_history:
