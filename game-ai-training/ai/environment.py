@@ -585,6 +585,11 @@ class GameEnvironment:
                 COMPLETION_DELAY_BASE
                 * (self.completion_delay_growth[team_idx] ** self.completion_delay_turns[team_idx])
             )
+            completed_so_far = 0
+            if 0 <= team_idx < len(prev_completed):
+                completed_so_far = prev_completed[team_idx]
+            fraction = min(completed_so_far / 10.0, 1.0)
+            decay *= max(0.0, 1.0 - fraction)
 
         skip_decay = False
         extra_delay = 0

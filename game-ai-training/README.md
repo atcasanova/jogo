@@ -50,6 +50,12 @@ current simplified system:
 - Episodes that end due to the 550 step limit apply a timeout penalty of
   −50k to every bot.
 
+Completion delay penalties now shrink as a team finishes more pieces, so
+early progress reduces the negative reward for later turns. The trainer also
+records how many pieces each bot has in the home stretch and how many are
+fully completed after every episode. These metrics appear in the training
+progress plots.
+
 The entropy of the event counts is plotted to help detect reward starvation. A
 per‑episode breakdown subplot shows the reward contribution of **every** event
 type. Positive values stack upward while negative values stack below zero. Each
