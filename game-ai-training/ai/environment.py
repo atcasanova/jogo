@@ -23,6 +23,12 @@ HOME_ENTRY_REWARDS = [
     2100, 2800, 3600, 4500, 5500
 ]
 
+# Penalty applied each turn a team goes without completing a piece.
+# Starts at ``COMPLETION_DELAY_BASE`` and is multiplied by
+# ``COMPLETION_DELAY_GROWTH`` every subsequent turn until reset.
+COMPLETION_DELAY_BASE = -2.0
+COMPLETION_DELAY_GROWTH = 1.08
+
 
 class GameEnvironment:
     def __init__(self, env_id: int = 0):
@@ -105,6 +111,7 @@ class GameEnvironment:
             'no_home_penalty': 0,
             'avoid_home_penalty': 0,
             'completion': 0,
+            'completion_delay': 0,
         }
 
         # Track the total reward contributed by each event type
@@ -119,6 +126,7 @@ class GameEnvironment:
             'no_home_penalty': 0.0,
             'avoid_home_penalty': 0.0,
             'completion': 0.0,
+            'completion_delay': 0.0,
         }
 
         # Count how many times the heavy reward bonus was applied in a game
@@ -138,6 +146,8 @@ class GameEnvironment:
         self.pending_penalties = [0.0] * 4
         # Next global turn when no-home penalties should be checked
         self.next_penalty_check = 60
+        # Turns since each team last completed a piece
+        self.completion_delay_turns = [0, 0]
 
     def _generate_track(self) -> List[Dict[str, int]]:
         """Replicate the board track coordinates from the Node game."""
@@ -355,6 +365,7 @@ class GameEnvironment:
                         self.player_team_map[int(pos)] = idx
             self.pending_penalties = [0.0] * 4
             self.next_penalty_check = 60
+            self.completion_delay_turns = [0] * max(len(teams), 2)
         else:
             error("Game reset failed", response=response)
         
@@ -500,9 +511,14 @@ class GameEnvironment:
         prev_pieces = {}
         occupied_before: List[int] = []
 
+        team_idx = self.player_team_map.get(player_id, 0)
+        teams = self.game_state.get('teams', []) if self.game_state else []
+        prev_completed = [0] * max(len(teams), 2)
+
         if self.game_state and 'pieces' in self.game_state:
             for p in self.game_state['pieces']:
-                if p.get('playerId') == player_id:
+                pid = p.get('playerId')
+                if pid == player_id:
                     prev_pieces[p['id']] = {
                         'pos': p.get('position'),
                         'in_home': p.get('inHomeStretch'),
@@ -514,6 +530,10 @@ class GameEnvironment:
                         idx = self._home_index(p.get('position'), player_id)
                         if idx != -1:
                             occupied_before.append(idx)
+                t_idx = self.player_team_map.get(pid)
+                if t_idx is not None and 0 <= t_idx < len(prev_completed):
+                    if p.get('completed'):
+                        prev_completed[t_idx] += 1
 
         home_len = len(self._home_stretches[player_id]) if 0 <= player_id < len(self._home_stretches) else 5
         farthest_before = home_len - 1
@@ -528,6 +548,12 @@ class GameEnvironment:
             self.reward_event_counts['no_home_penalty'] += 1
             self.reward_event_totals['no_home_penalty'] += self.pending_penalties[player_id]
             self.pending_penalties[player_id] = 0.0
+
+        if 0 <= team_idx < len(self.completion_delay_turns):
+            decay = COMPLETION_DELAY_BASE * (COMPLETION_DELAY_GROWTH ** self.completion_delay_turns[team_idx])
+            reward += decay
+            self.reward_event_counts['completion_delay'] += 1
+            self.reward_event_totals['completion_delay'] += decay
 
         while True:
             if not self.is_action_valid(player_id, action):
@@ -930,6 +956,19 @@ class GameEnvironment:
                                 self.pending_penalties[pid] -= 60.0
                 self.next_penalty_check += 60
 
+        teams_now = self.game_state.get('teams', [])
+        new_completed = [0] * max(len(teams_now), 2)
+        for p in self.game_state.get('pieces', []):
+            t_idx = self.player_team_map.get(p.get('playerId'))
+            if t_idx is not None and 0 <= t_idx < len(new_completed):
+                if p.get('completed'):
+                    new_completed[t_idx] += 1
+
+        if 0 <= team_idx < len(self.completion_delay_turns):
+            if new_completed[team_idx] > prev_completed[team_idx]:
+                self.completion_delay_turns[team_idx] = 0
+            else:
+                self.completion_delay_turns[team_idx] += 1
 
         # Bonus or penalty based on game outcome
         if done:
@@ -1015,6 +1054,7 @@ class GameEnvironment:
             self.heavy_reward_breakdown[key] = 0
         self.pending_penalties = [0.0] * 4
         self.next_penalty_check = 60
+        self.completion_delay_turns = [0, 0]
 
     def set_heavy_reward(self, value: float) -> None:
         """Update the weight applied to major reward events."""
