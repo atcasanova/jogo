@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 import tempfile
 import pytest
-from ai.environment import GameEnvironment
+from ai.environment import GameEnvironment, COMPLETION_DELAY_CAP
 
 
 def test_reset_returns_zero_when_start_fails():
@@ -124,6 +124,24 @@ def test_step_includes_heavy_reward_count_in_summary():
                 _, reward, done = env.step(0, 0)
 
     assert env.game_state['statsSummary']['heavyRewards'] == 5
+
+
+def test_completion_delay_penalty_capped():
+    env = GameEnvironment()
+    env.completion_delay_turns = [1000, 0]
+    env.game_state = {}
+    response = {
+        'success': True,
+        'gameState': {},
+        'gameEnded': False,
+        'winningTeam': None
+    }
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, _ = env.step(0, 0)
+
+    assert reward == COMPLETION_DELAY_CAP
 
 
 def _run_get_valid_actions_mock(has_move: bool):
