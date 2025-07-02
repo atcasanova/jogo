@@ -13,7 +13,6 @@ from config import HEAVY_REWARD_BASE
 
 # Normalised reward weights used throughout the environment
 INVALID_MOVE_PENALTY = -0.05
-COMPLETION_BONUS = 300.0
 WIN_BONUS = 100000.0
 # Large penalty applied when the episode ends without a winner
 TIMEOUT_PENALTY = -WIN_BONUS / 4
@@ -24,6 +23,7 @@ HOME_ENTRY_REWARDS = [
     40, 120, 240, 400, 600,
     840, 1120, 1440, 1800, 2200
 ]
+COMPLETION_BONUS = HOME_ENTRY_REWARDS[0] * 2
 
 # Penalty applied each turn a team goes without completing a piece.
 # Starts at ``COMPLETION_DELAY_BASE`` and is multiplied by
@@ -718,13 +718,13 @@ class GameEnvironment:
             partner_id = my_team[0] if my_team[1]==player_id else my_team[1]
 
 
-        prev_team_home = 0
+        prev_player_home = 0
         prev_enemy_home = 0
         if self.game_state and 'pieces' in self.game_state:
             for p in self.game_state['pieces']:
                 if p.get('inHomeStretch'):
-                    if p.get('playerId') in my_team:
-                        prev_team_home += 1
+                    if p.get('playerId') == player_id:
+                        prev_player_home += 1
                     else:
                         prev_enemy_home += 1
 
@@ -755,7 +755,7 @@ class GameEnvironment:
             left_entry = False
 
             # Count pieces in home after the move and accumulate rewards
-            team_home = 0
+            player_home = 0
             enemy_home = 0
             home_reward_sum = 0.0
             for p in self.game_state.get('pieces', []):
@@ -791,13 +791,13 @@ class GameEnvironment:
                     ):
                         left_entry = True
                 if (
-                    owner in my_team
+                    owner == player_id
                     and prev_info
                     and prev_info.get('dist', 99) > 10
                     and near
                 ):
                     progress_made = True
-                if prev_info and owner in my_team and prev_info.get('pos') != pos:
+                if prev_info and owner == player_id and prev_info.get('pos') != pos:
                     changed_my.add(pid)
                     if (
                         (not prev_info['in_home'] and p.get('inHomeStretch'))
@@ -832,7 +832,7 @@ class GameEnvironment:
                         ):
                             reward -= 0.6
 
-                if owner in my_team:
+                if owner == player_id:
                     if prev_info and not prev_info['in_penalty'] and now_penalty:
                         reward -= 0.5
 
@@ -841,7 +841,7 @@ class GameEnvironment:
                     if (
                         not prev_info['in_home']
                         and p.get('inHomeStretch')
-                        and owner in my_team
+                        and owner == player_id
                     ):
                         home_idx = self._home_index(pos, owner)
                         base = HOME_ENTRY_REWARDS[home_idx]
@@ -879,7 +879,7 @@ class GameEnvironment:
                         progress_made = True
                     if not prev_info['completed'] and p.get('completed'):
                         base = HOME_ENTRY_REWARDS[home_idx]
-                        bonus = base * 0.9
+                        bonus = base * 0.2
                         if home_idx == farthest_before:
                             bonus *= 1.5
                         home_reward_sum += bonus
@@ -889,8 +889,8 @@ class GameEnvironment:
                 prev_near_home[pid] = was_near
 
                 if p.get('inHomeStretch'):
-                    if owner in my_team:
-                        team_home += 1
+                    if owner == player_id:
+                        player_home += 1
                     else:
                         enemy_home += 1
             if left_entry:
@@ -985,8 +985,8 @@ class GameEnvironment:
                 if home_reward_sum:
                     reward += home_reward_sum
                     self.reward_event_totals['home_entry'] += home_reward_sum
-                if team_home > prev_team_home:
-                    self.reward_event_counts['home_entry'] += team_home - prev_team_home
+                if player_home > prev_player_home:
+                    self.reward_event_counts['home_entry'] += player_home - prev_player_home
                 else:
                     decay_penalty = 0.005 * (step_count ** 1.2)
                     reward -= decay_penalty
@@ -1023,27 +1023,14 @@ class GameEnvironment:
                 self.reward_event_counts['completion'] += 1
                 self.reward_event_totals['completion'] += COMPLETION_BONUS
 
-            # Reward when this move completes the entire team
-            team_pieces = [
-                p for p in self.game_state.get('pieces', []) if p.get('playerId') in my_team
-            ]
-            after_team_completed = sum(self.count_completed_pieces(pid) for pid in my_team)
-            before_team_completed = sum(prev_completed_players[pid] for pid in my_team)
-            if (
-                team_pieces
-                and after_team_completed == len(team_pieces)
-                and after_team_completed > before_team_completed
-            ):
-                reward += COMPLETION_BONUS
-                self.reward_event_counts['completion'] += 1
-                self.reward_event_totals['completion'] += COMPLETION_BONUS
+
 
             # Longer stagnation after two completions
             if 0 <= player_id < len(self.no_progress_steps):
                 entry = self.no_progress_steps[player_id]
                 if after_player_completed >= 2:
                     if (
-                        team_home <= prev_team_home
+                        player_home <= prev_player_home
                         and after_player_completed == before_player_completed
                     ):
                         entry['since_two'] += 1
@@ -1122,11 +1109,11 @@ class GameEnvironment:
                 self.reward_bonus_totals['win_bonus'] += self.win_bonus
                 self.reward_bonus_totals['final_move_bonus'] += FINAL_MOVE_BONUS
 
-            team_pieces = [
+            player_pieces = [
                 p for p in self.game_state.get('pieces', [])
-                if p.get('playerId') in my_team
+                if p.get('playerId') == player_id
             ]
-            if team_pieces and all(p.get('completed') for p in team_pieces):
+            if player_pieces and all(p.get('completed') for p in player_pieces):
                 reward += COMPLETION_BONUS
                 self.reward_event_counts['completion'] += 1
                 self.reward_event_totals['completion'] += COMPLETION_BONUS
