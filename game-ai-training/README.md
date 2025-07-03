@@ -65,6 +65,10 @@ reward type uses a distinct color from Matplotlib's `tab20` palette so negative
 events are no longer lumped into a single “other” category.
 Heavy reward tracking from earlier versions has been removed.
 
+Every 100 episodes the trainer now logs the cumulative reward totals for each
+event type. These summaries are useful when sharing progress logs for further
+analysis.
+
 ## Match Logging
 
 Passing the `--save-match-log` flag to `main.py` writes the move history of
