@@ -75,6 +75,10 @@ class TrainingManager:
         for directory in [MODEL_DIR, PLOT_DIR, LOG_DIR]:
             os.makedirs(directory, exist_ok=True)
 
+        # Curriculum tracking
+        self.stage_games = 0
+        self.stage_winning_games = 0
+
     
     def create_bots(self, num_bots=4):
         self.bots = []
@@ -118,7 +122,10 @@ class TrainingManager:
         info("Created bots for training", count=num_bots, gpus=num_gpus)
         self.stage_start_wins = [0 for _ in range(num_bots)]
         self.stage_start_games = [0 for _ in range(num_bots)]
+        # Track how many games have been played in the current curriculum stage
         self.stage_games = 0
+        # Track how many of those games ended with a winner
+        self.stage_winning_games = 0
 
     def _shuffle_bots(self) -> None:
         """Randomize bot seating positions for the next episode."""
@@ -369,6 +376,8 @@ class TrainingManager:
         # Check for winners
         if env.game_state.get('gameEnded', False):
             winning_team = env.game_state.get('winningTeam', [])
+            if winning_team:
+                self.stage_winning_games += 1
             for player in winning_team:
                 player_pos = player.get('position', -1)
                 if 0 <= player_pos < len(self.bots):
@@ -376,19 +385,23 @@ class TrainingManager:
 
         # Update curriculum tracking
         self.stage_games += 1
-        wins = 0
-        games = 0
-        for idx, bot in enumerate(self.bots):
-            wins += bot.wins - self.stage_start_wins[idx]
-            games += bot.games_played - self.stage_start_games[idx]
-        win_rate = wins / games if games > 0 else 0.0
+        # Win rate is based on the portion of games that ended with a winner
+        win_rate = (
+            self.stage_winning_games / self.stage_games
+            if self.stage_games > 0
+            else 0.0
+        )
         info(
             "Curriculum progress",
             pieces=self.pieces_per_player,
             game=self.stage_games,
             win_rate=f"{win_rate:.2f}"
         )
-        if games >= 20 and win_rate >= 0.7 and self.pieces_per_player < 5:
+        if (
+            self.stage_games >= 5000
+            and win_rate >= 0.7
+            and self.pieces_per_player < 5
+        ):
             self.pieces_per_player += 1
             self.turn_limit = 250 + 75 * (self.pieces_per_player - 1)
             for env in [self.env] + self.envs:
@@ -397,6 +410,7 @@ class TrainingManager:
             self.stage_start_wins = [bot.wins for bot in self.bots]
             self.stage_start_games = [bot.games_played for bot in self.bots]
             self.stage_games = 0
+            self.stage_winning_games = 0
             info(
                 "Increased difficulty",
                 pieces=self.pieces_per_player,
