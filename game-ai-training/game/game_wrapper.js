@@ -45,9 +45,9 @@ class GameWrapper {
         process.stdout.write(JSON.stringify(response) + '\n');
     }
     
-    setupGame(botNames) {
+    setupGame(botNames, pieceCount = 5) {
         try {
-            this.game = new Game("training_room");
+            this.game = new Game("training_room", pieceCount);
 
             // Add 4 bot players
             for (let i = 0; i < 4; i++) {
@@ -94,7 +94,7 @@ class GameWrapper {
         try {
             switch (command.action) {
                 case 'reset':
-                    if (this.setupGame(command.botNames)) {
+                    if (this.setupGame(command.botNames, command.pieces)) {
                         return {
                             success: true,
                             gameState: this.getGameState()
@@ -185,15 +185,16 @@ class GameWrapper {
             // cardIdx >= 6 would yield IDs >= 60.
             const maxMoveCards = Math.min(cardIndices.length, 6);
 
+            const pieceCount = this.game.piecesPerPlayer || 5;
             const pieceInfos = [];
-            for (let n = 1; n <= 5; n++) {
+            for (let n = 1; n <= pieceCount; n++) {
                 pieceInfos.push({ owner: playerId, num: n, id: `p${playerId}_${n}` });
             }
             if (this.game.hasAllPiecesInHomeStretch && this.game.partnerIdFor &&
                 this.game.hasAllPiecesInHomeStretch(playerId)) {
                 const partner = this.game.partnerIdFor(playerId);
                 if (partner !== null && partner !== undefined) {
-                    for (let n = 1; n <= 5; n++) {
+                    for (let n = 1; n <= pieceCount; n++) {
                         pieceInfos.push({ owner: partner, num: n + 5, id: `p${partner}_${n}` });
                     }
                 }
@@ -329,14 +330,15 @@ class GameWrapper {
                     if (pieceNumber === 0) {
                         pieceNumber = 10;
                     }
+                    const countCheck = this.game.piecesPerPlayer || 5;
                     let ownerId = playerId;
-                    if (pieceNumber > 5) {
+                    if (pieceNumber > countCheck) {
                         const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
                         if (partner === null || partner === undefined) {
                             continue;
                         }
                         ownerId = partner;
-                        pieceNumber -= 5;
+                        pieceNumber -= countCheck;
                     }
                     const pid = `p${ownerId}_${pieceNumber}`;
                     try {
@@ -404,14 +406,15 @@ class GameWrapper {
                 pieceNumber = 10;
             }
 
+            const countCheck = this.game.piecesPerPlayer || 5;
             let ownerId = playerId;
-            if (pieceNumber > 5) {
+            if (pieceNumber > countCheck) {
                 const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
                 if (partner === null || partner === undefined) {
                     return false;
                 }
                 ownerId = partner;
-                pieceNumber -= 5;
+                pieceNumber -= countCheck;
             }
 
             const pid = `p${ownerId}_${pieceNumber}`;
@@ -479,15 +482,16 @@ class GameWrapper {
                 } catch (e) {
                     if (e.message && e.message.includes('jogadas disponíveis')) {
                         const player = this.game.players[playerId];
+                        const count = this.game.piecesPerPlayer || 5;
                         const infos = [];
-                        for (let n = 1; n <= 5; n++) {
+                        for (let n = 1; n <= count; n++) {
                             infos.push({ owner: playerId, id: `p${playerId}_${n}` });
                         }
                         if (this.game.hasAllPiecesInHomeStretch && this.game.partnerIdFor &&
                             this.game.hasAllPiecesInHomeStretch(playerId)) {
                             const partner = this.game.partnerIdFor(playerId);
                             if (partner !== null && partner !== undefined) {
-                                for (let n = 1; n <= 5; n++) {
+                                for (let n = 1; n <= count; n++) {
                                     infos.push({ owner: partner, id: `p${partner}_${n}` });
                                 }
                             }
@@ -528,15 +532,16 @@ class GameWrapper {
                             for (let ci = 0; ci < player.cards.length && !result; ci++) {
                                 if (player.cards[ci].value !== '7') continue;
                                 const pieceIds = [];
+                                const count7 = this.game.piecesPerPlayer || 5;
                                 const infoList = [];
-                                for (let n = 1; n <= 5; n++) {
+                                for (let n = 1; n <= count7; n++) {
                                     infoList.push(`p${playerId}_${n}`);
                                 }
                                 if (this.game.hasAllPiecesInHomeStretch && this.game.partnerIdFor &&
                                     this.game.hasAllPiecesInHomeStretch(playerId)) {
                                     const partner = this.game.partnerIdFor(playerId);
                                     if (partner !== null && partner !== undefined) {
-                                        for (let n = 1; n <= 5; n++) {
+                                        for (let n = 1; n <= count7; n++) {
                                             infoList.push(`p${partner}_${n}`);
                                         }
                                     }
@@ -615,14 +620,15 @@ class GameWrapper {
                 } else {
                     cardIndex = Math.floor(actionId / 10);
                 }
+                const countCheck2 = this.game.piecesPerPlayer || 5;
                 let ownerId = playerId;
-                if (pieceNumber > 5) {
+                if (pieceNumber > countCheck2) {
                     const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
                     if (partner === null || partner === undefined) {
                         throw new Error('Invalid partner move');
                     }
                     ownerId = partner;
-                    pieceNumber -= 5;
+                    pieceNumber -= countCheck2;
                 }
                 const pieceId = `p${ownerId}_${pieceNumber}`;
                 playedCard = this.game.players[playerId].cards[cardIndex];

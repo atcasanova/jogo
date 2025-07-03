@@ -2,8 +2,9 @@
 const { shuffle, createDeck, boardLayout } = require('./utils');
 
 class Game {
-  constructor(roomId) {
+  constructor(roomId, piecesPerPlayer = 5) {
     this.roomId = roomId;
+    this.piecesPerPlayer = piecesPerPlayer;
     this.players = [];
     this.teams = [[], []]; // Equipe 0 e Equipe 1
     this.deck = [];
@@ -44,7 +45,7 @@ class Game {
     ];
 
     for (let playerId = 0; playerId < 4; playerId++) {
-      for (let pieceId = 1; pieceId <= 5; pieceId++) {
+      for (let pieceId = 1; pieceId <= this.piecesPerPlayer; pieceId++) {
         pieces.push({
           id: `p${playerId}_${pieceId}`,
           playerId,
@@ -1437,7 +1438,7 @@ class Game {
   }
 
   cloneForSimulation() {
-    const clone = new Game(this.roomId);
+    const clone = new Game(this.roomId, this.piecesPerPlayer);
     clone.players = JSON.parse(JSON.stringify(this.players));
 
     // Ensure team arrays reference the cloned player objects rather than
