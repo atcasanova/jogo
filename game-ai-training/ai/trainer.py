@@ -244,9 +244,6 @@ class TrainingManager:
             current_player = env.game_state.get('currentPlayerIndex', 0)
             current_bot = self.bots[current_player]
 
-            current_win_bonus = WIN_BONUS * (0.99 ** (self.total_training_steps // 1000))
-            if hasattr(env, "set_win_bonus"):
-                env.set_win_bonus(current_win_bonus)
 
             # Get current state and valid actions
             state = env.get_state(current_player)
