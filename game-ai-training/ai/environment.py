@@ -1028,6 +1028,16 @@ class GameEnvironment:
                 self.reward_event_counts['completion'] += 1
                 self.reward_event_totals['completion'] += COMPLETION_BONUS
 
+            if (
+                not done
+                and player_total
+                and after_player_completed == player_total
+            ):
+                done = True
+                response['winningTeam'] = [{'position': player_id}]
+                self.game_state['gameEnded'] = True
+                self.game_state['winningTeam'] = response['winningTeam']
+
 
 
             # Longer stagnation after two completions
