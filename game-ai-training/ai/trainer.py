@@ -18,9 +18,11 @@ import random
 
 class TrainingManager:
     def __init__(self, num_envs: int = 1):
-        self.env = GameEnvironment(env_id=0)
+        self.pieces_per_player = 1
+        self.turn_limit = 250
+        self.env = GameEnvironment(env_id=0, pieces_per_player=self.pieces_per_player, turn_limit=self.turn_limit)
         # Additional environments for parallel execution
-        self.envs = [GameEnvironment(env_id=i) for i in range(max(1, num_envs))]
+        self.envs = [GameEnvironment(env_id=i, pieces_per_player=self.pieces_per_player, turn_limit=self.turn_limit) for i in range(max(1, num_envs))]
         self.bots = []
         self.training_stats = {
             'episode_rewards': [],
@@ -72,6 +74,7 @@ class TrainingManager:
         # Create directories
         for directory in [MODEL_DIR, PLOT_DIR, LOG_DIR]:
             os.makedirs(directory, exist_ok=True)
+
     
     def create_bots(self, num_bots=4):
         self.bots = []
@@ -113,6 +116,9 @@ class TrainingManager:
             self.bots.append(bot)
 
         info("Created bots for training", count=num_bots, gpus=num_gpus)
+        self.stage_start_wins = [0 for _ in range(num_bots)]
+        self.stage_start_games = [0 for _ in range(num_bots)]
+        self.stage_games = 0
 
     def _shuffle_bots(self) -> None:
         """Randomize bot seating positions for the next episode."""
@@ -259,7 +265,7 @@ class TrainingManager:
         step_records = []
         
         step_count = 0
-        max_steps = 550
+        max_steps = self.turn_limit
         
         while step_count < max_steps:
             # Get current player from game state
@@ -368,6 +374,35 @@ class TrainingManager:
                 if 0 <= player_pos < len(self.bots):
                     self.bots[player_pos].wins += 1
 
+        # Update curriculum tracking
+        self.stage_games += 1
+        wins = 0
+        games = 0
+        for idx, bot in enumerate(self.bots):
+            wins += bot.wins - self.stage_start_wins[idx]
+            games += bot.games_played - self.stage_start_games[idx]
+        win_rate = wins / games if games > 0 else 0.0
+        info(
+            "Curriculum progress",
+            pieces=self.pieces_per_player,
+            game=self.stage_games,
+            win_rate=f"{win_rate:.2f}"
+        )
+        if games >= 20 and win_rate >= 0.7 and self.pieces_per_player < 5:
+            self.pieces_per_player += 1
+            self.turn_limit = 250 + 75 * (self.pieces_per_player - 1)
+            for env in [self.env] + self.envs:
+                env.set_piece_count(self.pieces_per_player)
+                env.set_turn_limit(self.turn_limit)
+            self.stage_start_wins = [bot.wins for bot in self.bots]
+            self.stage_start_games = [bot.games_played for bot in self.bots]
+            self.stage_games = 0
+            info(
+                "Increased difficulty",
+                pieces=self.pieces_per_player,
+                turns=self.turn_limit
+            )
+
         summary = env.game_state.get('statsSummary')
         if summary:
             info("Game summary", summary=summary)
@@ -469,7 +504,7 @@ class TrainingManager:
                 self.env.close()
         else:
             # Initialize and start multiple environments
-            self.envs = [GameEnvironment(env_id=i) for i in range(num_envs)]
+            self.envs = [GameEnvironment(env_id=i, pieces_per_player=self.pieces_per_player, turn_limit=self.turn_limit) for i in range(num_envs)]
             for env in self.envs:
                 if not env.start_node_game():
                     warning("Failed to start Node.js game process")

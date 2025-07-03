@@ -13,21 +13,19 @@ from config import HEAVY_REWARD_BASE
 
 # Normalised reward weights used throughout the environment
 INVALID_MOVE_PENALTY = -0.05
-WIN_BONUS = 100000.0
-# Timeout penalty per bot. Reduced so the total deduction for all four players
-# stays around 30k when a match reaches the step limit.
+WIN_BONUS = 10.0
+# Timeout penalty per bot scaled with ``WIN_BONUS`` so the value remains
+# proportional if the bonus is adjusted.
 TIMEOUT_PENALTY = -WIN_BONUS / 12
 
 # Reward scale for the nth piece entering the home stretch for a team
-# Normalized to keep dense rewards smaller
-# Reward scale for the nth piece entering the home stretch for a team
-# Values drastically increased to counteract generally negative returns
+# Values kept small to avoid runaway rewards
 HOME_ENTRY_REWARDS = [
-    600, 1800, 3600, 6000, 9000,
-    12600, 16800, 21600, 27000, 33000
+    0.6, 1.8, 3.6, 6.0, 9.0,
+    12.6, 16.8, 21.6, 27.0, 33.0
 ]
 # Extra reward when a player finishes all pieces
-COMPLETION_BONUS = HOME_ENTRY_REWARDS[0] * 5
+COMPLETION_BONUS = 5.0
 
 # Penalty applied each turn a team goes without completing a piece.
 # Starts at ``COMPLETION_DELAY_BASE`` and is multiplied by
@@ -35,27 +33,29 @@ COMPLETION_BONUS = HOME_ENTRY_REWARDS[0] * 5
 COMPLETION_DELAY_BASE = -1.0
 # Slower growth prevents runaway negative rewards
 COMPLETION_DELAY_GROWTH = 1.02
-# Cap the exponential delay penalty so it never exceeds roughly
-# -30k regardless of how long a team goes without completing a piece.
-COMPLETION_DELAY_CAP = -30000.0
+# Cap the exponential delay penalty to avoid overly harsh negatives
+COMPLETION_DELAY_CAP = -3.0
 # Apply the same decay logic to positive rewards using the
 # ``POSITIVE_REWARD_DECAY`` factor.
 POSITIVE_REWARD_DECAY = 1.01
 
 # Additional sparse reward bonuses and penalties
-# Final move bonus dramatically increased to reduce negative totals
-FINAL_MOVE_BONUS = 30000.0
+# Final move bonus kept small for stable gradients
+FINAL_MOVE_BONUS = 5.0
 STAGNATION_PENALTY = -10.0
 # Additional penalty when two pieces are complete but progress stalls
 LATE_STAGNATION_PENALTY = -25.0
 
 
 class GameEnvironment:
-    def __init__(self, env_id: int = 0):
+    def __init__(self, env_id: int = 0, pieces_per_player: int = 5, turn_limit: int = 550):
         self.node_process = None
         self.game_state = None
         self.action_space_size = 80
         self.state_size = 200
+
+        self.pieces_per_player = pieces_per_player
+        self.turn_limit = turn_limit
 
         # identifier for logging when multiple environments are used
         self.env_id = env_id
@@ -401,7 +401,7 @@ class GameEnvironment:
             if not self.start_node_game():
                 return np.zeros(self.state_size)
 
-        command = {"action": "reset"}
+        command = {"action": "reset", "pieces": self.pieces_per_player}
         if bot_names:
             command["botNames"] = bot_names
 
@@ -1208,6 +1208,14 @@ class GameEnvironment:
     def set_win_bonus(self, value: float) -> None:
         """Update the win bonus applied when a team wins."""
         self.win_bonus = float(value)
+
+    def set_turn_limit(self, turns: int) -> None:
+        """Update the maximum turns per episode."""
+        self.turn_limit = int(turns)
+
+    def set_piece_count(self, pieces: int) -> None:
+        """Update the number of pieces per player for new games."""
+        self.pieces_per_player = max(1, min(5, int(pieces)))
 
     def reseed(self, seed: int) -> None:
         """Reseed any environment RNGs."""
