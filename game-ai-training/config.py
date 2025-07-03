@@ -37,7 +37,8 @@ JSON_LOGGING = os.getenv('JSON_LOGGING', '0').lower() in ('1', 'true', 'yes')
 # penalty zone with a capture. ``REWARD_SCHEDULE`` can override this value at
 # different points during training to implement a simple curriculum. Each tuple
 # in the list is ``(episode_start, heavy_reward)``.
-HEAVY_REWARD_BASE = 400.0
+# Increase heavy reward to give stronger incentives for impactful plays
+HEAVY_REWARD_BASE = 6000.0
 # The heavy reward decreases over time so early training emphasises key moves
 REWARD_SCHEDULE = [
     (0, HEAVY_REWARD_BASE),

@@ -20,9 +20,11 @@ TIMEOUT_PENALTY = -WIN_BONUS / 12
 
 # Reward scale for the nth piece entering the home stretch for a team
 # Normalized to keep dense rewards smaller
+# Reward scale for the nth piece entering the home stretch for a team
+# Values drastically increased to counteract generally negative returns
 HOME_ENTRY_REWARDS = [
-    40, 120, 240, 400, 600,
-    840, 1120, 1440, 1800, 2200
+    600, 1800, 3600, 6000, 9000,
+    12600, 16800, 21600, 27000, 33000
 ]
 # Extra reward when a player finishes all pieces
 COMPLETION_BONUS = HOME_ENTRY_REWARDS[0] * 5
@@ -41,7 +43,8 @@ COMPLETION_DELAY_CAP = -30000.0
 POSITIVE_REWARD_DECAY = 1.01
 
 # Additional sparse reward bonuses and penalties
-FINAL_MOVE_BONUS = 2000.0
+# Final move bonus dramatically increased to reduce negative totals
+FINAL_MOVE_BONUS = 30000.0
 STAGNATION_PENALTY = -10.0
 # Additional penalty when two pieces are complete but progress stalls
 LATE_STAGNATION_PENALTY = -25.0
