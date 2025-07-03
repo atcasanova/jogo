@@ -1222,24 +1222,13 @@ class GameEnvironment:
         np.random.seed(seed)
 
     def count_completed_pieces(self, player_id: int) -> int:
-        """Return how many pieces are completed for ``player_id`` based on
-        home stretch position."""
-        indexes = set()
+        """Return how many pieces are fully completed for ``player_id``."""
+
+        count = 0
         for p in self.game_state.get('pieces', []):
-            if p.get('playerId') == player_id and p.get('inHomeStretch'):
-                idx = self._home_index(p.get('position'), player_id)
-                if idx != -1:
-                    indexes.add(idx)
-        if not indexes:
-            return 0
-        home_len = len(self._home_stretches[player_id])
-        completed = 0
-        for idx in range(home_len - 1, -1, -1):
-            if idx in indexes:
-                completed += 1
-            else:
-                break
-        return completed
+            if p.get('playerId') == player_id and p.get('completed'):
+                count += 1
+        return count
 
     def get_completed_counts(self) -> List[int]:
         """Return completed piece counts for all players."""

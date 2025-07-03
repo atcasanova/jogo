@@ -1359,13 +1359,13 @@ class Game {
       const team = this.teams[teamIndex];
       const playerIds = team.map(p => p.position);
 
-      // Considerar vitória quando todas as peças estão pelo menos no corredor
-      // de chegada (inHomeStretch) ou finalizadas (completed)
-      const allHome = this.pieces
+      // Considerar vitória apenas quando todas as peças estiverem
+      // finalizadas (completed)
+      const allComplete = this.pieces
         .filter(p => playerIds.includes(p.playerId))
-        .every(p => p.completed || p.inHomeStretch);
+        .every(p => p.completed);
 
-      if (allHome) {
+      if (allComplete) {
         return true;
       }
     }
@@ -1379,11 +1379,11 @@ class Game {
       const team = this.teams[teamIndex];
       const playerIds = team.map(p => p.position);
 
-      const allHome = this.pieces
+      const allComplete = this.pieces
         .filter(p => playerIds.includes(p.playerId))
-        .every(p => p.completed || p.inHomeStretch);
+        .every(p => p.completed);
 
-      if (allHome) {
+      if (allComplete) {
         return team;
       }
     }
