@@ -113,7 +113,7 @@ class GameEnvironment:
 
         # Adjustable reward weight for important plays
         self.heavy_reward = HEAVY_REWARD_BASE
-        # Configurable win bonus that may decay over training
+        # Configurable win bonus applied when a team wins
         self.win_bonus = WIN_BONUS
 
         # Track how often each reward type occurs for analysis
