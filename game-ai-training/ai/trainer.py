@@ -194,6 +194,28 @@ class TrainingManager:
             if episode >= start:
                 weight = value
         env.set_heavy_reward(weight)
+
+    def _log_reward_summary(self, interval: int = 100) -> None:
+        """Aggregate reward totals for the last ``interval`` episodes and log them."""
+        if len(self.reward_breakdown_history) < interval:
+            return
+
+        start = len(self.reward_breakdown_history) - interval
+        totals: dict = {}
+        for entry in self.reward_breakdown_history[start:]:
+            for key, value in entry.items():
+                totals[key] = totals.get(key, 0.0) + value
+
+        bonus_totals: dict = {}
+        for entry in self.bonus_breakdown_history[start:]:
+            for key, value in entry.items():
+                bonus_totals[key] = bonus_totals.get(key, 0.0) + value
+
+        summary = {k: round(v, 2) for k, v in totals.items()}
+        for k, v in bonus_totals.items():
+            summary[k] = round(summary.get(k, 0.0) + v, 2)
+
+        info(f"Reward totals last {interval} games", **summary)
     
     def train_episode(self, env=None):
         """Run a single training episode using the provided environment."""
@@ -401,6 +423,9 @@ class TrainingManager:
                     for _, p, a, r in top
                 ],
             )
+
+        if self.training_stats['games_played'] % 100 == 0:
+            self._log_reward_summary()
 
         return episode_rewards
     
