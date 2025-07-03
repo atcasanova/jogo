@@ -39,3 +39,29 @@ describe('GameWrapper.isActionValid', () => {
     expect(wrapper.isActionValid(0, actionId)).toBe(false);
   });
 });
+
+describe('GameWrapper win condition', () => {
+  test('requires all pieces to be completed', () => {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+    wrapper.setupGame();
+
+    const game = wrapper.game;
+    for (const piece of game.pieces) {
+      if (piece.playerId === 0 || piece.playerId === 2) {
+        piece.inPenaltyZone = false;
+        piece.inHomeStretch = true;
+        piece.completed = true;
+      }
+    }
+
+    const lastPiece = game.pieces.find(p => p.id === 'p0_1');
+    lastPiece.completed = false;
+    lastPiece.inHomeStretch = true;
+
+    expect(game.checkWinCondition()).toBe(false);
+
+    lastPiece.completed = true;
+    expect(game.checkWinCondition()).toBe(true);
+  });
+});

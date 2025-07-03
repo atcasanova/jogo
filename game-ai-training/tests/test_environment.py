@@ -984,3 +984,15 @@ def test_move_away_from_home_penalty():
     assert env.reward_event_counts['avoid_home_penalty'] == 1
 
 
+def test_count_completed_pieces_uses_flag():
+    env = GameEnvironment()
+    env.game_state = {
+        'pieces': [
+            {'playerId': 0, 'completed': False, 'inHomeStretch': True, 'position': {'row': 1, 'col': 0}},
+            {'playerId': 0, 'completed': True, 'inHomeStretch': True, 'position': {'row': 2, 'col': 0}},
+            {'playerId': 0, 'completed': False, 'inHomeStretch': True, 'position': {'row': 3, 'col': 0}},
+        ]
+    }
+    assert env.count_completed_pieces(0) == 1
+
+
