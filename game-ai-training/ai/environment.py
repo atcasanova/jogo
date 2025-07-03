@@ -14,8 +14,9 @@ from config import HEAVY_REWARD_BASE
 # Normalised reward weights used throughout the environment
 INVALID_MOVE_PENALTY = -0.05
 WIN_BONUS = 100000.0
-# Large penalty applied when the episode ends without a winner
-TIMEOUT_PENALTY = -WIN_BONUS / 4
+# Timeout penalty per bot. Reduced so the total deduction for all four players
+# stays around 30k when a match reaches the step limit.
+TIMEOUT_PENALTY = -WIN_BONUS / 12
 
 # Reward scale for the nth piece entering the home stretch for a team
 # Normalized to keep dense rewards smaller
@@ -23,7 +24,8 @@ HOME_ENTRY_REWARDS = [
     40, 120, 240, 400, 600,
     840, 1120, 1440, 1800, 2200
 ]
-COMPLETION_BONUS = HOME_ENTRY_REWARDS[0] * 2
+# Extra reward when a player finishes all pieces
+COMPLETION_BONUS = HOME_ENTRY_REWARDS[0] * 5
 
 # Penalty applied each turn a team goes without completing a piece.
 # Starts at ``COMPLETION_DELAY_BASE`` and is multiplied by

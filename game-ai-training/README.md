@@ -48,7 +48,7 @@ current simplified system:
 - Game wins award a large bonus of around 100k points depending on how quickly
   the match ends.
 - Episodes that end due to the 550 step limit apply a timeout penalty of
-  −50k to every bot.
+  roughly −8k per bot so the total deduction stays near −30k.
 
 Completion delay penalties now shrink as a team finishes more pieces, so
 early progress reduces the negative reward for later turns. The trainer also
