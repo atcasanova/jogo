@@ -421,7 +421,16 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     const snap = JSON.parse(JSON.stringify(snapState));
     game.history.push({ move: discardMsg, state: snap });
     io.to(roomId).emit('lastMove', { message: discardMsg });
-    
+
+    if (game.checkWinCondition()) {
+      saveReplay(game);
+      io.to(roomId).emit('gameOver', {
+        winners: game.getWinningTeam()
+      });
+      game.endGame();
+      return;
+    }
+
     // Notificar próximo jogador
     const nextPlayer = game.getCurrentPlayer();
     
