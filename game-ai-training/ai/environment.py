@@ -6,7 +6,7 @@ import time
 import fcntl
 import select
 import threading
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 
 from json_logger import info, error, warning
 from config import HEAVY_REWARD_BASE
@@ -1099,14 +1099,10 @@ class GameEnvironment:
                 new_completed[t_idx] += count
 
         if not done and teams_now:
-            target = self.pieces_per_player * 2
-            for idx, team in enumerate(teams_now):
-                if new_completed[idx] == target:
-                    done = True
-                    response['winningTeam'] = team
-                    self.game_state['gameEnded'] = True
-                    self.game_state['winningTeam'] = team
-                    break
+            winner = self._check_team_completion(teams_now, new_completed)
+            if winner is not None:
+                done = True
+                response['winningTeam'] = winner
 
         if 0 <= team_idx < len(self.completion_delay_turns):
             if new_completed[team_idx] > prev_completed[team_idx]:
@@ -1251,4 +1247,17 @@ class GameEnvironment:
         for pid in range(4):
             counts.append(self.count_completed_pieces(pid))
         return counts
+
+    def _check_team_completion(
+        self, teams: List[List[Dict[str, int]]], completed: List[int]
+    ) -> Optional[List[Dict[str, int]]]:
+        """Return the winning team if any team has finished all pieces."""
+
+        target = self.pieces_per_player * 2
+        for idx, team in enumerate(teams):
+            if completed[idx] == target:
+                self.game_state['gameEnded'] = True
+                self.game_state['winningTeam'] = team
+                return team
+        return None
 
