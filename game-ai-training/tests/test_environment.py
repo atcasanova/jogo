@@ -177,6 +177,43 @@ def test_step_flags_win_when_player_completes_all_pieces():
     assert env.game_state['winningTeam'] == [{'position': 0}]
 
 
+def test_step_flags_win_when_team_completes_all_pieces():
+    env = GameEnvironment(pieces_per_player=2)
+    env.game_state = {
+        'pieces': [
+            {'id': 'p0_1', 'playerId': 0, 'completed': True, 'position': {'row': 0, 'col': 0}},
+            {'id': 'p0_2', 'playerId': 0, 'completed': True, 'position': {'row': 1, 'col': 0}},
+            {'id': 'p2_1', 'playerId': 2, 'completed': True, 'position': {'row': 0, 'col': 1}},
+            {'id': 'p2_2', 'playerId': 2, 'completed': False, 'position': {'row': 1, 'col': 1}},
+        ],
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]]
+    }
+
+    response = {
+        'success': True,
+        'gameState': {
+            'pieces': [
+                {'id': 'p0_1', 'playerId': 0, 'completed': True, 'position': {'row': 0, 'col': 0}},
+                {'id': 'p0_2', 'playerId': 0, 'completed': True, 'position': {'row': 1, 'col': 0}},
+                {'id': 'p2_1', 'playerId': 2, 'completed': True, 'position': {'row': 0, 'col': 1}},
+                {'id': 'p2_2', 'playerId': 2, 'completed': True, 'position': {'row': 1, 'col': 1}},
+            ],
+            'teams': env.game_state['teams']
+        },
+        'gameEnded': False,
+        'winningTeam': None
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, done = env.step(0, 0)
+
+    assert done is True
+    assert env.game_state['gameEnded'] is True
+    assert env.game_state['winningTeam'] == [{'position': 0}, {'position': 2}]
+
+
 def _run_get_valid_actions_mock(has_move: bool):
     """Helper to execute GameWrapper.getValidActions under Node with mocked
     hasAnyValidMove."""
