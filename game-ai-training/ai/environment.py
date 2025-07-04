@@ -1103,6 +1103,16 @@ class GameEnvironment:
             if t_idx is not None and 0 <= t_idx < len(new_completed):
                 new_completed[t_idx] += count
 
+        if not done and teams_now:
+            target = self.pieces_per_player * 2
+            for idx, team in enumerate(teams_now):
+                if new_completed[idx] == target:
+                    done = True
+                    response['winningTeam'] = team
+                    self.game_state['gameEnded'] = True
+                    self.game_state['winningTeam'] = team
+                    break
+
         if 0 <= team_idx < len(self.completion_delay_turns):
             if new_completed[team_idx] > prev_completed[team_idx]:
                 self.completion_delay_turns[team_idx] = 0
