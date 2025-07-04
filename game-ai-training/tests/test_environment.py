@@ -153,6 +153,7 @@ def test_step_flags_win_when_player_completes_all_pieces():
         ],
         'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]]
     }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
 
     response = {
         'success': True,
@@ -172,9 +173,9 @@ def test_step_flags_win_when_player_completes_all_pieces():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 _, reward, done = env.step(0, 0)
 
-    assert done is True
-    assert env.game_state['gameEnded'] is True
-    assert env.game_state['winningTeam'] == [{'position': 0}]
+    assert done is False
+    assert env.game_state['gameEnded'] is False
+    assert env.game_state['winningTeam'] is None
 
 
 def test_step_flags_win_when_team_completes_all_pieces():
@@ -188,6 +189,7 @@ def test_step_flags_win_when_team_completes_all_pieces():
         ],
         'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]]
     }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
 
     response = {
         'success': True,

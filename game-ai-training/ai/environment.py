@@ -1028,15 +1028,10 @@ class GameEnvironment:
                 self.reward_event_counts['completion'] += 1
                 self.reward_event_totals['completion'] += COMPLETION_BONUS
 
-            if (
-                not done
-                and player_total
-                and after_player_completed == player_total
-            ):
-                done = True
-                response['winningTeam'] = [{'position': player_id}]
-                self.game_state['gameEnded'] = True
-                self.game_state['winningTeam'] = response['winningTeam']
+            # Only end the game when an entire team finishes all pieces.
+            # Individual players completing their set should award the
+            # completion bonus above but the episode continues until the
+            # partner also finishes.
 
 
 
