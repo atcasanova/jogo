@@ -17,6 +17,8 @@ class Game {
     this.history = [];
     this.homeStretchAnnounced = [false, false, false, false];
     this.movesToFirstComplete = null;
+    this.gameEnded = false;
+    this.winningTeam = null;
     this.stats = {
       captures: [0, 0, 0, 0],
       roundsWithoutPlay: [0, 0, 0, 0],
@@ -196,6 +198,8 @@ class Game {
   }
   
   this.isActive = true;
+  this.gameEnded = false;
+  this.winningTeam = null;
   if (process.env.DEBUG === 'true') {
     console.log(`Jogo marcado como ativo`);
   }
@@ -213,6 +217,8 @@ class Game {
     this.history = [];
     this.homeStretchAnnounced = [false, false, false, false];
     this.movesToFirstComplete = null;
+    this.gameEnded = false;
+    this.winningTeam = null;
     this.stats = {
       captures: [0, 0, 0, 0],
       roundsWithoutPlay: [0, 0, 0, 0],
@@ -226,6 +232,7 @@ class Game {
 
   endGame() {
     this.isActive = false;
+    this.gameEnded = true;
   }
 
   getCurrentPlayer() {
@@ -1361,6 +1368,10 @@ discardCard(cardIndex) {
 
   checkWinCondition() {
     // Verificar se alguma dupla venceu
+    if (this.gameEnded) {
+      return true;
+    }
+
     for (let teamIndex = 0; teamIndex < 2; teamIndex++) {
       const team = this.teams[teamIndex];
       const playerIds = team.map(p => p.position);
@@ -1372,6 +1383,9 @@ discardCard(cardIndex) {
         .every(p => p.completed);
 
       if (allComplete) {
+        this.gameEnded = true;
+        this.winningTeam = team;
+        this.isActive = false;
         return true;
       }
     }
@@ -1456,6 +1470,8 @@ discardCard(cardIndex) {
     clone.discardPile = JSON.parse(JSON.stringify(this.discardPile));
     clone.currentPlayerIndex = this.currentPlayerIndex;
     clone.isActive = this.isActive;
+    clone.gameEnded = this.gameEnded;
+    clone.winningTeam = JSON.parse(JSON.stringify(this.winningTeam));
     clone.board = JSON.parse(JSON.stringify(this.board));
     clone.pieces = JSON.parse(JSON.stringify(this.pieces));
     return clone;
@@ -1572,6 +1588,8 @@ discardCard(cardIndex) {
       deckCount: this.deck.length,
       discardCount: this.discardPile.length,
       isActive: this.isActive,
+      gameEnded: this.gameEnded,
+      winningTeam: this.winningTeam,
       lastMove: this.history.length > 0 ? this.history[this.history.length - 1] : null,
       stats: this.stats
     };
