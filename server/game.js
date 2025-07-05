@@ -1098,6 +1098,23 @@ discardCard(cardIndex) {
     return stretches[playerId];
   }
 
+  // Garantir que peças no final do corredor estejam marcadas como completas
+  syncCompletedPieces() {
+    for (const piece of this.pieces) {
+      const stretch = this.homeStretchForPlayer(piece.playerId);
+      if (!stretch) continue;
+      const last = stretch[stretch.length - 1];
+      if (
+        piece.position.row === last.row &&
+        piece.position.col === last.col &&
+        !piece.completed
+      ) {
+        piece.inHomeStretch = true;
+        piece.completed = true;
+      }
+    }
+  }
+
   // Verifica se o caminho no corredor de chegada está livre entre dois índices
   isHomeStretchPathClear(piece, startIndex, endIndex) {
     const stretch = this.homeStretchForPlayer(piece.playerId);
@@ -1368,6 +1385,7 @@ discardCard(cardIndex) {
 
   checkWinCondition() {
     // Verificar se alguma dupla venceu
+    this.syncCompletedPieces();
     if (this.gameEnded) {
       return true;
     }
@@ -1578,6 +1596,7 @@ discardCard(cardIndex) {
   }
 
   getGameState() {
+    this.syncCompletedPieces();
     return {
       roomId: this.roomId,
       players: this.getPlayersInfo(),
