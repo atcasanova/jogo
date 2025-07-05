@@ -1597,6 +1597,11 @@ discardCard(cardIndex) {
 
   getGameState() {
     this.syncCompletedPieces();
+    // Ensure the game state reflects any newly completed pieces
+    // before returning the snapshot. This guarantees callers see
+    // an accurate `gameEnded` flag even if they query the state
+    // outside of the normal move flow.
+    this.checkWinCondition();
     return {
       roomId: this.roomId,
       players: this.getPlayersInfo(),
