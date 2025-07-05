@@ -64,4 +64,28 @@ describe('GameWrapper win condition', () => {
     lastPiece.completed = true;
     expect(game.checkWinCondition()).toBe(true);
   });
+
+  test('win detection marks final square piece completed', () => {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+    wrapper.setupGame();
+
+    const game = wrapper.game;
+    for (const piece of game.pieces) {
+      if (piece.playerId === 0 || piece.playerId === 2) {
+        piece.inPenaltyZone = false;
+        piece.inHomeStretch = true;
+        piece.completed = true;
+      }
+    }
+
+    const piece = game.pieces.find(p => p.id === 'p0_1');
+    const finalPos = game.homeStretchForPlayer(0).slice(-1)[0];
+    piece.position = { ...finalPos };
+    piece.inHomeStretch = true;
+    piece.completed = false;
+
+    expect(game.checkWinCondition()).toBe(true);
+    expect(piece.completed).toBe(true);
+  });
 });

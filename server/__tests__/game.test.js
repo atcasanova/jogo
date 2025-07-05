@@ -754,4 +754,34 @@ describe('Game class', () => {
     expect(game.isActive).toBe(false);
   });
 
+  test('checkWinCondition handles pieces at final position without flag', () => {
+    const game = new Game('winCheck');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.setupTeams();
+
+    // Mark all pieces from players 1 and 3 as completed
+    game.pieces
+      .filter(p => p.playerId === 1 || p.playerId === 3)
+      .forEach(p => {
+        p.inPenaltyZone = false;
+        p.inHomeStretch = true;
+        p.completed = true;
+      });
+
+    // Move one piece to the final cell but leave completed as false
+    const piece = game.pieces.find(p => p.playerId === 1 && p.pieceId === 1);
+    const finalPos = game.homeStretchForPlayer(1).slice(-1)[0];
+    piece.position = { ...finalPos };
+    piece.inHomeStretch = true;
+    piece.inPenaltyZone = false;
+    piece.completed = false;
+
+    expect(game.checkWinCondition()).toBe(true);
+    expect(piece.completed).toBe(true);
+    expect(game.gameEnded).toBe(true);
+  });
+
 });

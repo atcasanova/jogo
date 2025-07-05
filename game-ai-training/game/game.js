@@ -1103,6 +1103,23 @@ class Game {
     return stretches[playerId];
   }
 
+  // Ensure pieces occupying the last home stretch square are marked completed
+  syncCompletedPieces() {
+    for (const piece of this.pieces) {
+      const stretch = this.homeStretchForPlayer(piece.playerId);
+      if (!stretch) continue;
+      const last = stretch[stretch.length - 1];
+      if (
+        piece.position.row === last.row &&
+        piece.position.col === last.col &&
+        !piece.completed
+      ) {
+        piece.inHomeStretch = true;
+        piece.completed = true;
+      }
+    }
+  }
+
   // Verifica se o caminho no corredor de chegada está livre entre dois índices
   isHomeStretchPathClear(piece, startIndex, endIndex) {
     const stretch = this.homeStretchForPlayer(piece.playerId);
@@ -1362,6 +1379,7 @@ class Game {
 
   checkWinCondition() {
     // Verificar se alguma dupla venceu
+    this.syncCompletedPieces();
     if (this.gameEnded) {
       return true;
     }
@@ -1574,6 +1592,7 @@ class Game {
   }
 
   getGameState() {
+    this.syncCompletedPieces();
     return {
       roomId: this.roomId,
       players: this.getPlayersInfo(),
