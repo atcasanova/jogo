@@ -1593,6 +1593,9 @@ class Game {
 
   getGameState() {
     this.syncCompletedPieces();
+    // Keep win status up to date whenever the state is requested
+    // so training code receives the correct `gameEnded` flag.
+    this.checkWinCondition();
     return {
       roomId: this.roomId,
       players: this.getPlayersInfo(),
