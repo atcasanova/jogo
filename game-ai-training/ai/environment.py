@@ -1255,7 +1255,7 @@ class GameEnvironment:
 
         target = self.pieces_per_player * 2
         for idx, team in enumerate(teams):
-            if completed[idx] == target:
+            if completed[idx] >= target:
                 self.game_state['gameEnded'] = True
                 self.game_state['winningTeam'] = team
                 return team
