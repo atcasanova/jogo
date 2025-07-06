@@ -738,6 +738,7 @@ class GameEnvironment:
             self.game_state = response['gameState']
             self.game_state['gameEnded'] = done
             self.game_state['winningTeam'] = response.get('winningTeam')
+            self.sync_local_completion_flags()
             if 'stats' in response:
                 self.game_state['stats'] = response['stats'].get('full', {})
                 summary = response['stats'].get('summary')
@@ -1231,6 +1232,27 @@ class GameEnvironment:
     def reseed(self, seed: int) -> None:
         """Reseed any environment RNGs."""
         np.random.seed(seed)
+
+    def sync_local_completion_flags(self) -> None:
+        """Ensure pieces on the final home-stretch cell are marked completed."""
+        for pid in range(4):
+            if pid >= len(self._home_stretches):
+                continue
+            stretch = self._home_stretches[pid]
+            if not stretch:
+                continue
+            last = stretch[-1]
+            for piece in self.game_state.get('pieces', []):
+                if piece.get('playerId') != pid:
+                    continue
+                pos = piece.get('position') or {}
+                if (
+                    pos.get('row') == last['row']
+                    and pos.get('col') == last['col']
+                    and not piece.get('completed')
+                ):
+                    piece['inHomeStretch'] = True
+                    piece['completed'] = True
 
     def count_completed_pieces(self, player_id: int) -> int:
         """Return how many pieces are fully completed for ``player_id``."""
