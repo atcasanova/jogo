@@ -14,7 +14,7 @@ function loadGameWrapper() {
 }
 
 describe('GameWrapper.isActionValid', () => {
-  test('returns true when final home square is occupied by a completed piece', () => {
+  test('returns false when final home square is occupied by a completed piece', () => {
     const GameWrapper = loadGameWrapper();
     const wrapper = new GameWrapper();
     wrapper.setupGame();
@@ -36,7 +36,7 @@ describe('GameWrapper.isActionValid', () => {
     game.players[0].cards = [{ value: 'A' }];
 
     const actionId = 0 * 10 + 2; // card index 0, piece number 2
-    expect(wrapper.isActionValid(0, actionId)).toBe(true);
+    expect(wrapper.isActionValid(0, actionId)).toBe(false);
   });
 
   test('returns false when final home square is occupied by an unfinished piece', () => {

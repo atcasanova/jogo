@@ -907,20 +907,19 @@ discardCard(cardIndex) {
     // Verificar se a casa está ocupada
     const occupyingPiece = this.pieces.find(p =>
       p.id !== piece.id &&
-      !p.completed &&
       p.position.row === targetPosition.row &&
-      p.position.col === targetPosition.col
+      p.position.col === targetPosition.col &&
+      !p.inPenaltyZone
     );
     
     if (occupyingPiece) {
       throw new Error("Casa de chegada já ocupada");
     }
     
+    const wasCompleted = piece.completed;
     piece.position = targetPosition;
-    
-    // Se chegou na última casa, marcar como completa
-    if (remainingSteps === homeStretch.length) {
-      piece.completed = true;
+    this.syncCompletedPieces();
+    if (!wasCompleted && piece.completed) {
       if (this.movesToFirstComplete === null) {
         this.movesToFirstComplete = this.history.length + 1;
       }
@@ -995,20 +994,19 @@ discardCard(cardIndex) {
     const targetPosition = homeStretch[newIndex];
     const occupyingPiece = this.pieces.find(p =>
       p.id !== piece.id &&
-      !p.completed &&
       p.position.row === targetPosition.row &&
-      p.position.col === targetPosition.col
+      p.position.col === targetPosition.col &&
+      !p.inPenaltyZone
     );
     
     if (occupyingPiece) {
       throw new Error("Casa de chegada já ocupada");
     }
     
+    const wasCompleted = piece.completed;
     piece.position = targetPosition;
-    
-    // Se chegou na última casa, marcar como completa
-    if (newIndex === homeStretch.length - 1) {
-      piece.completed = true;
+    this.syncCompletedPieces();
+    if (!wasCompleted && piece.completed) {
       if (this.movesToFirstComplete === null) {
         this.movesToFirstComplete = this.history.length + 1;
       }
@@ -1102,19 +1100,31 @@ discardCard(cardIndex) {
     return stretches[playerId];
   }
 
-  // Garantir que peças no final do corredor estejam marcadas como completas
+  // Marcar como completas as peças posicionadas no ponto mais distante
+  // disponível de cada corredor de chegada.
   syncCompletedPieces() {
-    for (const piece of this.pieces) {
-      const stretch = this.homeStretchForPlayer(piece.playerId);
+    for (let playerId = 0; playerId < 4; playerId++) {
+      const stretch = this.homeStretchForPlayer(playerId);
       if (!stretch) continue;
-      const last = stretch[stretch.length - 1];
-      if (
-        piece.position.row === last.row &&
-        piece.position.col === last.col &&
-        !piece.completed
-      ) {
-        piece.inHomeStretch = true;
-        piece.completed = true;
+
+      for (let i = stretch.length - 1; i >= 0; i--) {
+        const pos = stretch[i];
+        const piece = this.pieces.find(
+          p =>
+            p.playerId === playerId &&
+            !p.inPenaltyZone &&
+            p.position.row === pos.row &&
+            p.position.col === pos.col
+        );
+
+        if (piece) {
+          if (!piece.completed) {
+            piece.inHomeStretch = true;
+            piece.completed = true;
+          }
+        } else {
+          break;
+        }
       }
     }
   }
@@ -1128,7 +1138,6 @@ discardCard(cardIndex) {
       const pos = stretch[i];
       const occupyingPiece = this.pieces.find(p =>
         p.id !== piece.id &&
-        !p.completed &&
         !p.inPenaltyZone &&
         p.position.row === pos.row &&
         p.position.col === pos.col
