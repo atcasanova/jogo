@@ -784,4 +784,34 @@ describe('Game class', () => {
     expect(game.gameEnded).toBe(true);
   });
 
+  test('piece completion triggers win inside moveInHomeStretch', () => {
+    const game = new Game('autoWin');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.setupTeams();
+
+    for (const p of game.pieces) {
+      if ((p.playerId === 0 || p.playerId === 2) && p.id !== 'p2_2') {
+        p.inPenaltyZone = false;
+        p.inHomeStretch = true;
+        const last = game.homeStretchForPlayer(p.playerId).slice(-1)[0];
+        p.position = { ...last };
+        p.completed = true;
+      }
+    }
+
+    const target = game.pieces.find(p => p.id === 'p2_2');
+    target.inPenaltyZone = false;
+    target.inHomeStretch = true;
+    target.position = { row: 14, col: 14 };
+
+    game.moveInHomeStretch(target, 1);
+
+    expect(target.completed).toBe(true);
+    expect(game.gameEnded).toBe(true);
+    expect(game.winningTeam).toEqual(game.teams[0]);
+  });
+
 });

@@ -905,9 +905,10 @@ discardCard(cardIndex) {
     const targetPosition = homeStretch[remainingSteps - 1];
     
     // Verificar se a casa está ocupada
-    const occupyingPiece = this.pieces.find(p => 
-      p.id !== piece.id && 
-      p.position.row === targetPosition.row && 
+    const occupyingPiece = this.pieces.find(p =>
+      p.id !== piece.id &&
+      !p.completed &&
+      p.position.row === targetPosition.row &&
       p.position.col === targetPosition.col
     );
     
@@ -923,6 +924,7 @@ discardCard(cardIndex) {
       if (this.movesToFirstComplete === null) {
         this.movesToFirstComplete = this.history.length + 1;
       }
+      this.checkWinCondition();
     }
     
     return { success: true, action: 'enterHomeStretch' };
@@ -993,6 +995,7 @@ discardCard(cardIndex) {
     const targetPosition = homeStretch[newIndex];
     const occupyingPiece = this.pieces.find(p =>
       p.id !== piece.id &&
+      !p.completed &&
       p.position.row === targetPosition.row &&
       p.position.col === targetPosition.col
     );
@@ -1009,6 +1012,7 @@ discardCard(cardIndex) {
       if (this.movesToFirstComplete === null) {
         this.movesToFirstComplete = this.history.length + 1;
       }
+      this.checkWinCondition();
     }
     
     return { success: true, action: 'moveInHomeStretch' };
