@@ -639,13 +639,24 @@ class TrainingManager:
         if has_loss_plots:
             axs[1, 0].legend()
         
-        # Completed pieces per episode
+        # Completed pieces per episode shown as stacked bars
         if self.training_stats['completed_pieces']:
             episodes = range(len(self.training_stats['completed_pieces']))
+            pieces_array = np.array(self.training_stats['completed_pieces'])
+            bottom = np.zeros(len(episodes))
+
             for bot_idx in range(len(self.bots)):
-                values = [c[bot_idx] for c in self.training_stats['completed_pieces']]
+                values = pieces_array[:, bot_idx]
                 color = colors[bot_idx % len(colors)]
-                axs[1, 1].plot(episodes, values, label=f'Bot {bot_idx}', color=color)
+                axs[1, 1].bar(
+                    episodes,
+                    values,
+                    bottom=bottom,
+                    label=f'Bot {bot_idx}',
+                    color=color,
+                )
+                bottom += values
+
             axs[1, 1].set_xlabel('Episode')
             axs[1, 1].set_ylabel('Completed Pieces')
             axs[1, 1].set_title('Completed Pieces per Bot')
