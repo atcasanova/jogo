@@ -928,6 +928,7 @@ class Game {
       if (this.movesToFirstComplete === null) {
         this.movesToFirstComplete = this.history.length + 1;
       }
+      this.checkWinCondition();
     }
     
     return { success: true, action: 'enterHomeStretch' };
@@ -998,6 +999,7 @@ class Game {
     const targetPosition = homeStretch[newIndex];
     const occupyingPiece = this.pieces.find(p =>
       p.id !== piece.id &&
+      !p.completed &&
       p.position.row === targetPosition.row &&
       p.position.col === targetPosition.col
     );
@@ -1014,6 +1016,7 @@ class Game {
       if (this.movesToFirstComplete === null) {
         this.movesToFirstComplete = this.history.length + 1;
       }
+      this.checkWinCondition();
     }
     
     return { success: true, action: 'moveInHomeStretch' };

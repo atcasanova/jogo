@@ -14,7 +14,7 @@ function loadGameWrapper() {
 }
 
 describe('GameWrapper.isActionValid', () => {
-  test('returns false when final home square is occupied', () => {
+  test('returns true when final home square is occupied by a completed piece', () => {
     const GameWrapper = loadGameWrapper();
     const wrapper = new GameWrapper();
     wrapper.setupGame();
@@ -36,6 +36,31 @@ describe('GameWrapper.isActionValid', () => {
     game.players[0].cards = [{ value: 'A' }];
 
     const actionId = 0 * 10 + 2; // card index 0, piece number 2
+    expect(wrapper.isActionValid(0, actionId)).toBe(true);
+  });
+
+  test('returns false when final home square is occupied by an unfinished piece', () => {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+    wrapper.setupGame();
+
+    const game = wrapper.game;
+    const finalPos = { row: 5, col: 4 };
+
+    const blocking = game.pieces.find(p => p.id === 'p0_1');
+    blocking.inPenaltyZone = false;
+    blocking.inHomeStretch = true;
+    blocking.completed = false;
+    blocking.position = finalPos;
+
+    const moving = game.pieces.find(p => p.id === 'p0_2');
+    moving.inPenaltyZone = false;
+    moving.inHomeStretch = true;
+    moving.position = { row: 4, col: 4 };
+
+    game.players[0].cards = [{ value: 'A' }];
+
+    const actionId = 0 * 10 + 2;
     expect(wrapper.isActionValid(0, actionId)).toBe(false);
   });
 });

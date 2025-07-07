@@ -1092,6 +1092,15 @@ class GameEnvironment:
             self.reward_event_totals['completion_delay'] += decay
 
         teams_now = self.game_state.get('teams', [])
+
+        # Rebuild the player->team map in case a reset changed team layouts
+        self.player_team_map = {}
+        for idx, team in enumerate(teams_now):
+            for pl in team:
+                pos = pl.get('position')
+                if pos is not None:
+                    self.player_team_map[int(pos)] = idx
+
         new_completed = [0] * max(len(teams_now), 2)
         new_completed_players = self.get_completed_counts()
         for pid, count in enumerate(new_completed_players):
