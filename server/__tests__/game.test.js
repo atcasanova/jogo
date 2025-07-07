@@ -792,12 +792,20 @@ describe('Game class', () => {
     game.addPlayer('4', 'D');
     game.setupTeams();
 
+    const idx0 = [4, 3, 2, 1, 0];
+    const idx2 = [3, 2, 1, 0];
     for (const p of game.pieces) {
-      if ((p.playerId === 0 || p.playerId === 2) && p.id !== 'p2_2') {
+      if (p.playerId === 0) {
+        const index = idx0.shift();
         p.inPenaltyZone = false;
         p.inHomeStretch = true;
-        const last = game.homeStretchForPlayer(p.playerId).slice(-1)[0];
-        p.position = { ...last };
+        p.position = { ...game.homeStretchForPlayer(0)[index] };
+        p.completed = true;
+      } else if (p.playerId === 2 && p.id !== 'p2_2') {
+        const index = idx2.shift();
+        p.inPenaltyZone = false;
+        p.inHomeStretch = true;
+        p.position = { ...game.homeStretchForPlayer(2)[index] };
         p.completed = true;
       }
     }
