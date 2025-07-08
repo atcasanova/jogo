@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import torch
 from concurrent.futures import ThreadPoolExecutor
+from collections import deque
 from ai.environment import (
     GameEnvironment,
     TIMEOUT_PENALTY,
@@ -19,7 +20,7 @@ import random
 class TrainingManager:
     def __init__(self, num_envs: int = 1):
         self.pieces_per_player = 1
-        self.turn_limit = 250
+        self.turn_limit = 100 * self.pieces_per_player
         self.env = GameEnvironment(env_id=0, pieces_per_player=self.pieces_per_player, turn_limit=self.turn_limit)
         # Additional environments for parallel execution
         self.envs = [GameEnvironment(env_id=i, pieces_per_player=self.pieces_per_player, turn_limit=self.turn_limit) for i in range(max(1, num_envs))]
@@ -78,6 +79,7 @@ class TrainingManager:
         # Curriculum tracking
         self.stage_games = 0
         self.stage_winning_games = 0
+        self.recent_outcomes = deque(maxlen=500)
 
     
     def create_bots(self, num_bots=4):
@@ -378,17 +380,20 @@ class TrainingManager:
             winning_team = env.game_state.get('winningTeam', [])
             if winning_team:
                 self.stage_winning_games += 1
+            self.recent_outcomes.append(1 if winning_team else 0)
             for player in winning_team:
                 player_pos = player.get('position', -1)
                 if 0 <= player_pos < len(self.bots):
                     self.bots[player_pos].wins += 1
+        else:
+            self.recent_outcomes.append(0)
 
         # Update curriculum tracking
         self.stage_games += 1
-        # Win rate is based on the portion of games that ended with a winner
+        # Win rate based on the last 500 games only
         win_rate = (
-            self.stage_winning_games / self.stage_games
-            if self.stage_games > 0
+            sum(self.recent_outcomes) / len(self.recent_outcomes)
+            if self.recent_outcomes
             else 0.0
         )
         info(
@@ -403,7 +408,7 @@ class TrainingManager:
             and self.pieces_per_player < 5
         ):
             self.pieces_per_player += 1
-            self.turn_limit = 250 + 75 * (self.pieces_per_player - 1)
+            self.turn_limit = 100 * self.pieces_per_player
             for env in [self.env] + self.envs:
                 env.set_piece_count(self.pieces_per_player)
                 env.set_turn_limit(self.turn_limit)
@@ -411,6 +416,7 @@ class TrainingManager:
             self.stage_start_games = [bot.games_played for bot in self.bots]
             self.stage_games = 0
             self.stage_winning_games = 0
+            self.recent_outcomes.clear()
             info(
                 "Increased difficulty",
                 pieces=self.pieces_per_player,
