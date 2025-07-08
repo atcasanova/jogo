@@ -2,6 +2,7 @@ import os
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from datetime import datetime
 import torch
 from concurrent.futures import ThreadPoolExecutor
@@ -451,7 +452,7 @@ class TrainingManager:
         )
         if (
             self.stage_games >= 5000
-            and win_rate >= 0.7
+            and win_rate >= 0.55
             and self.pieces_per_player < 5
         ):
             self.pieces_per_player += 1
@@ -673,6 +674,7 @@ class TrainingManager:
         # Win rates
         sorted_bots = sorted(self.bots, key=lambda b: getattr(b, 'bot_id', 0))
         colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        bot_colors = ['#3498db', '#000000', '#e74c3c', '#2ecc71']
 
         win_rates = []
         for bot in sorted_bots:
@@ -713,12 +715,12 @@ class TrainingManager:
         # Completed pieces per episode shown as stacked bars
         if self.training_stats['completed_pieces']:
             episodes = range(len(self.training_stats['completed_pieces']))
-            pieces_array = np.array(self.training_stats['completed_pieces'])
+            pieces_array = np.array(self.training_stats['completed_pieces'], dtype=int)
             bottom = np.zeros(len(episodes))
 
-            for bot_idx in range(len(self.bots)):
+            for bot_idx in range(pieces_array.shape[1]):
                 values = pieces_array[:, bot_idx]
-                color = colors[bot_idx % len(colors)]
+                color = bot_colors[bot_idx % len(bot_colors)]
                 axs[1, 1].bar(
                     episodes,
                     values,
@@ -728,6 +730,7 @@ class TrainingManager:
                 )
                 bottom += values
 
+            axs[1, 1].yaxis.set_major_locator(MaxNLocator(integer=True))
             axs[1, 1].set_xlabel('Episode')
             axs[1, 1].set_ylabel('Completed Pieces')
             axs[1, 1].set_title('Completed Pieces per Bot')
