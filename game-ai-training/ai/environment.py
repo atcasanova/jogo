@@ -48,7 +48,7 @@ LATE_STAGNATION_PENALTY = -25.0
 
 
 class GameEnvironment:
-    def __init__(self, env_id: int = 0, pieces_per_player: int = 5, turn_limit: int = 550):
+    def __init__(self, env_id: int = 0, pieces_per_player: int = 5, turn_limit: int = 500):
         self.node_process = None
         self.game_state = None
         self.action_space_size = 80
@@ -836,7 +836,7 @@ class GameEnvironment:
                             and forward > prev_steps
                             and not p.get('inHomeStretch')
                         ):
-                            reward -= 0.6
+                            reward -= 1.8
 
                 if owner == player_id:
                     if prev_info and not prev_info['in_penalty'] and now_penalty:
@@ -885,7 +885,7 @@ class GameEnvironment:
                         progress_made = True
                     if not prev_info['completed'] and p.get('completed'):
                         base = HOME_ENTRY_REWARDS[home_idx]
-                        bonus = base * 0.2
+                        bonus = base
                         if home_idx == farthest_before:
                             bonus *= 1.5
                         home_reward_sum += bonus
@@ -1066,9 +1066,9 @@ class GameEnvironment:
                 before = prev['dist']
                 after = self._steps_to_entrance(new.get('position'), player_id)
                 if 0 < before <= 3 and (after == -1 or after > before):
-                    reward -= 60.0
+                    reward -= 180.0
                     self.reward_event_counts['avoid_home_penalty'] += 1
-                    self.reward_event_totals['avoid_home_penalty'] += -60.0
+                    self.reward_event_totals['avoid_home_penalty'] += -180.0
                     break
 
             # Apply team-level penalty every 60 turns if no piece reached home
@@ -1083,7 +1083,7 @@ class GameEnvironment:
                     if not home_present:
                         for pid in team_players:
                             if pid is not None and 0 <= pid < len(self.pending_penalties):
-                                self.pending_penalties[pid] -= 60.0
+                                self.pending_penalties[pid] -= 180.0
                 self.next_penalty_check += 60
 
         if not skip_decay and 0 <= team_idx < len(self.completion_delay_turns):
@@ -1125,9 +1125,17 @@ class GameEnvironment:
         if done:
             winners = response.get('winningTeam') or []
             self.last_step_info = {}
-            if winners and any(
+            player_won = any(
                 pl.get('position') == player_id for pl in winners
-            ):
+            )
+            if not player_won and teams_now:
+                target = self.pieces_per_player * 2
+                if (
+                    new_completed[team_idx] >= target
+                    and new_completed_players[player_id] == self.pieces_per_player
+                ):
+                    player_won = True
+            if player_won:
                 self.last_step_info['win_bonus'] = self.win_bonus
                 self.last_step_info['final_move_bonus'] = FINAL_MOVE_BONUS
                 self.last_step_info['was_final'] = True
