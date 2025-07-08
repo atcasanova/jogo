@@ -75,8 +75,8 @@ analysis.
 ### Dynamic Reward Adjustment
 
 The trainer watches the win rate for the current number of pieces. If it drops
-below 0.6 the heavy reward and win bonus are increased by a small multiplier.
-Once the win rate rises above roughly 0.75 the multiplier decays back toward the
+below 0.75 the heavy reward and win bonus are increased by a small multiplier.
+Once the win rate rises above roughly 0.9 the multiplier decays back toward the
 scheduled values. This automatic tuning helps the curriculum progress without
 needing to manually edit the reward configuration.
 
