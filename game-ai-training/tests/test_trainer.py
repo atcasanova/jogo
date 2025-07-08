@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+import pytest
 from unittest.mock import patch, MagicMock
 
 
@@ -30,6 +31,7 @@ class MockGameEnvironment:
             'win_bonus': 0.0,
             'final_move_bonus': 0.0,
         }
+        self.heavy_reward = 1.0
 
     def reset(self, bot_names=None):
         self.game_state = {'currentPlayerIndex': 0, 'gameEnded': False, 'winningTeam': None}
@@ -60,6 +62,9 @@ class MockGameEnvironment:
 
     def set_heavy_reward(self, value):
         self.heavy_reward = value
+
+    def set_win_bonus(self, value):
+        self.win_bonus = value
 
 
 class DummyGameBot:
@@ -148,3 +153,17 @@ def test_apply_reward_schedule_sets_weight():
     env.set_heavy_reward(0.5)
     manager._apply_reward_schedule(0, env)
     assert env.heavy_reward == HEAVY_REWARD_BASE
+
+
+def test_adjust_reward_multiplier_updates_env():
+    from ai.trainer import TrainingManager
+    from config import HEAVY_REWARD_BASE, REWARD_TUNE_STEP
+
+    manager = TrainingManager()
+    env = MockGameEnvironment()
+    env.set_heavy_reward(HEAVY_REWARD_BASE)
+
+    manager._adjust_reward_multiplier(0.2, env)
+    expected = HEAVY_REWARD_BASE * (1 + REWARD_TUNE_STEP)
+    assert pytest.approx(env.heavy_reward, rel=1e-6) == expected
+    assert manager.level_reward_multiplier[manager.pieces_per_player] == 1 + REWARD_TUNE_STEP
