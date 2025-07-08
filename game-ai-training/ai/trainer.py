@@ -107,6 +107,10 @@ class TrainingManager:
         # Reward multiplier per difficulty level
         self.level_reward_multiplier = {}
 
+    def _stats_interval(self) -> int:
+        """Return plotting interval based on current piece count."""
+        return 500 if self.pieces_per_player < 4 else 100
+
     
     def create_bots(self, num_bots=4):
         self.bots = []
@@ -558,7 +562,8 @@ class TrainingManager:
                     if (episode + 1) % self.snapshot_freq == 0:
                         self.save_snapshot(episode + 1)
 
-                    if (episode + 1) % stats_freq == 0:
+                    interval = self._stats_interval()
+                    if (episode + 1) % interval == 0:
                         self.print_statistics(episode + 1)
                         self.plot_training_progress()
 
@@ -602,7 +607,8 @@ class TrainingManager:
                     if (episode + 1) % self.snapshot_freq == 0:
                         self.save_snapshot((episode + 1) * num_envs)
 
-                    if (episode + 1) % stats_freq == 0:
+                    interval = self._stats_interval()
+                    if (episode + 1) % interval == 0:
                         self.print_statistics((episode + 1) * num_envs)
                         self.plot_training_progress()
 
