@@ -4,7 +4,10 @@ This directory contains the Python training scripts and utilities used to train 
 
 ## JSON Logging
 
-Set the environment variable `JSON_LOGGING=1` before running the training scripts to output logs in machine readable JSON format. When enabled, each log message is emitted as a single JSON object on a separate line. Without this variable the logs remain human friendly text.
+Set the environment variable `JSON_LOGGING=1` before running the training
+scripts to output logs in machine readable JSON format. When enabled, each log
+message is emitted as a single JSON object on a separate line. Without this
+variable the logs remain human friendly text.
 
 ## Running Tests
 
@@ -68,6 +71,14 @@ Heavy reward tracking from earlier versions has been removed.
 Every 100 episodes the trainer now logs the cumulative reward totals for each
 event type. These summaries are useful when sharing progress logs for further
 analysis.
+
+### Dynamic Reward Adjustment
+
+The trainer watches the win rate for the current number of pieces. If it drops
+below 0.6 the heavy reward and win bonus are increased by a small multiplier.
+Once the win rate rises above roughly 0.75 the multiplier decays back toward the
+scheduled values. This automatic tuning helps the curriculum progress without
+needing to manually edit the reward configuration.
 
 ## Match Logging
 

@@ -13,7 +13,18 @@ from ai.environment import (
     FINAL_MOVE_BONUS,
 )
 from ai.bot import GameBot
-from config import TRAINING_CONFIG, MODEL_DIR, PLOT_DIR, LOG_DIR, REWARD_SCHEDULE
+from config import (
+    TRAINING_CONFIG,
+    MODEL_DIR,
+    PLOT_DIR,
+    LOG_DIR,
+    REWARD_SCHEDULE,
+    HEAVY_REWARD_BASE,
+    WINRATE_TARGET,
+    MAX_REWARD_MULTIPLIER,
+    MIN_REWARD_MULTIPLIER,
+    REWARD_TUNE_STEP,
+)
 from json_logger import info, warning
 import random
 
@@ -21,9 +32,20 @@ class TrainingManager:
     def __init__(self, num_envs: int = 1):
         self.pieces_per_player = 1
         self.turn_limit = 100 * self.pieces_per_player
-        self.env = GameEnvironment(env_id=0, pieces_per_player=self.pieces_per_player, turn_limit=self.turn_limit)
+        self.env = GameEnvironment(
+            env_id=0,
+            pieces_per_player=self.pieces_per_player,
+            turn_limit=self.turn_limit,
+        )
         # Additional environments for parallel execution
-        self.envs = [GameEnvironment(env_id=i, pieces_per_player=self.pieces_per_player, turn_limit=self.turn_limit) for i in range(max(1, num_envs))]
+        self.envs = [
+            GameEnvironment(
+                env_id=i,
+                pieces_per_player=self.pieces_per_player,
+                turn_limit=self.turn_limit,
+            )
+            for i in range(max(1, num_envs))
+        ]
         self.bots = []
         self.training_stats = {
             'episode_rewards': [],
@@ -80,6 +102,9 @@ class TrainingManager:
         self.stage_games = 0
         self.stage_winning_games = 0
         self.recent_outcomes = deque(maxlen=500)
+
+        # Reward multiplier per difficulty level
+        self.level_reward_multiplier = {}
 
     
     def create_bots(self, num_bots=4):
@@ -203,12 +228,28 @@ class TrainingManager:
             group['lr'] = max(lr, self.lr_final)
 
     def _apply_reward_schedule(self, episode: int, env: GameEnvironment) -> None:
-        """Update environment reward weight according to the configured schedule."""
+        """Update environment reward weight according to the schedule and
+        per-level multiplier."""
         weight = env.heavy_reward
         for start, value in REWARD_SCHEDULE:
             if episode >= start:
                 weight = value
-        env.set_heavy_reward(weight)
+        multiplier = self.level_reward_multiplier.get(self.pieces_per_player, 1.0)
+        env.set_heavy_reward(weight * multiplier)
+        env.set_win_bonus(WIN_BONUS * multiplier)
+
+    def _adjust_reward_multiplier(self, win_rate: float, env: GameEnvironment) -> None:
+        """Update the reward multiplier based on the observed win rate."""
+        level = self.pieces_per_player
+        factor = self.level_reward_multiplier.get(level, 1.0)
+        if win_rate < WINRATE_TARGET:
+            factor = min(factor + REWARD_TUNE_STEP, MAX_REWARD_MULTIPLIER)
+        elif win_rate > WINRATE_TARGET + 0.15:
+            factor = max(factor - REWARD_TUNE_STEP, MIN_REWARD_MULTIPLIER)
+        self.level_reward_multiplier[level] = factor
+        # Immediately apply the updated multiplier so the next episode reflects
+        # the change.
+        self._apply_reward_schedule(self.training_stats['games_played'], env)
 
     def _log_reward_summary(self, interval: int = 100) -> None:
         """Aggregate reward totals for the last ``interval`` episodes and log them."""
@@ -364,8 +405,13 @@ class TrainingManager:
         if not env.game_state.get('gameEnded', False):
             for i in range(len(episode_rewards)):
                 episode_rewards[i] += TIMEOUT_PENALTY
-            env.reward_event_counts['timeout'] = env.reward_event_counts.get('timeout', 0) + 1
-            env.reward_event_totals['timeout'] = env.reward_event_totals.get('timeout', 0.0) + TIMEOUT_PENALTY * len(episode_rewards)
+            env.reward_event_counts['timeout'] = (
+                env.reward_event_counts.get('timeout', 0) + 1
+            )
+            env.reward_event_totals['timeout'] = (
+                env.reward_event_totals.get('timeout', 0.0)
+                + TIMEOUT_PENALTY * len(episode_rewards)
+            )
 
         # Update statistics
         for i, bot in enumerate(self.bots):
@@ -396,6 +442,7 @@ class TrainingManager:
             if self.recent_outcomes
             else 0.0
         )
+        self._adjust_reward_multiplier(win_rate, env)
         info(
             "Curriculum progress",
             pieces=self.pieces_per_player,
@@ -481,7 +528,14 @@ class TrainingManager:
 
         return episode_rewards
     
-    def train(self, num_episodes=None, save_freq=None, stats_freq=None, num_envs: int = 1, save_match_log: bool = False):
+    def train(
+        self,
+        num_episodes=None,
+        save_freq=None,
+        stats_freq=None,
+        num_envs: int = 1,
+        save_match_log: bool = False,
+    ):
         """Train using one or more environments in parallel."""
         num_episodes = num_episodes or TRAINING_CONFIG['num_episodes']
         save_freq = save_freq or TRAINING_CONFIG['save_frequency']
@@ -524,7 +578,14 @@ class TrainingManager:
                 self.env.close()
         else:
             # Initialize and start multiple environments
-            self.envs = [GameEnvironment(env_id=i, pieces_per_player=self.pieces_per_player, turn_limit=self.turn_limit) for i in range(num_envs)]
+            self.envs = [
+                GameEnvironment(
+                    env_id=i,
+                    pieces_per_player=self.pieces_per_player,
+                    turn_limit=self.turn_limit,
+                )
+                for i in range(num_envs)
+            ]
             for env in self.envs:
                 if not env.start_node_game():
                     warning("Failed to start Node.js game process")
@@ -586,7 +647,11 @@ class TrainingManager:
 
         if self.training_stats['kl_divergences']:
             avg_kl = np.mean(self.training_stats['kl_divergences'][-10:])
-            avg_clip = np.mean(self.training_stats['clip_fractions'][-10:]) if self.training_stats['clip_fractions'] else 0
+            avg_clip = (
+                np.mean(self.training_stats['clip_fractions'][-10:])
+                if self.training_stats['clip_fractions']
+                else 0
+            )
             avg_ent = np.mean(self.training_stats['entropy_avgs'][-10:]) if self.training_stats['entropy_avgs'] else 0
             info(
                 "PPO stats",

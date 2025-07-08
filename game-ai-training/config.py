@@ -46,3 +46,15 @@ REWARD_SCHEDULE = [
     (3000, HEAVY_REWARD_BASE * 0.5),
 ]
 
+# Dynamic reward tuning
+# If the win rate for the current difficulty drops below this threshold the
+# trainer gradually increases bonus rewards. When it climbs well above the
+# target the bonuses decay back toward the base schedule.
+WINRATE_TARGET = 0.6
+# Maximum multiplier applied to ``HEAVY_REWARD_BASE`` and ``WIN_BONUS``
+MAX_REWARD_MULTIPLIER = 2.0
+# Minimum multiplier applied to keep rewards from shrinking too far
+MIN_REWARD_MULTIPLIER = 0.5
+# Step size used when adjusting the reward multiplier up or down
+REWARD_TUNE_STEP = 0.1
+
