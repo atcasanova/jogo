@@ -31,6 +31,12 @@ python3 game-ai-training/main.py --continue
 
 The trainer will load the models from `models/final` if they exist.
 
+## Training with Fixed Opponents
+
+Pass the `--fixed-model-dir` option to `main.py` to load old models as
+unchanging opponents. When set, two trainable bots rotate as partners while the
+remaining seats use the models from the provided directory.
+
 ## Training Configuration
 
 `config.py` defines hyperparameters for PPO training. A new `kl_target` value

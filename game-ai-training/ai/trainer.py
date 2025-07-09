@@ -29,10 +29,16 @@ from config import (
 from json_logger import info, warning
 import random
 
+from typing import Optional
+
+
 class TrainingManager:
-    def __init__(self, num_envs: int = 1):
+    def __init__(self, num_envs: int = 1, *, num_trainable_bots: int = 4,
+                 fixed_model_dir: Optional[str] = None):
         self.pieces_per_player = 1
         self.turn_limit = 100 * self.pieces_per_player
+        self.num_trainable_bots = num_trainable_bots
+        self.fixed_model_dir = fixed_model_dir
         self.env = GameEnvironment(
             env_id=0,
             pieces_per_player=self.pieces_per_player,
@@ -92,6 +98,7 @@ class TrainingManager:
         os.makedirs(self.snapshot_dir, exist_ok=True)
         self.snapshot_freq = 2000
         self.focus_interval = 500
+        self._train_focus_pointer = 0
         self.train_focus_idx = 0
         self.latest_snapshot = None
 
@@ -114,6 +121,8 @@ class TrainingManager:
     
     def create_bots(self, num_bots=4):
         self.bots = []
+        self.trainable_bots = []
+        self.fixed_bots = []
 
         # Determine how many GPUs are available. When torch is mocked in tests
         # these calls may not return integers, so fall back to CPU in that case.
@@ -141,14 +150,28 @@ class TrainingManager:
                     bot_id=i
                 )
             except TypeError:
-                # For backward compatibility or when GameBot is mocked without
-                # a device parameter
                 bot = GameBot(
                     player_id=i,
                     state_size=self.env.state_size,
                     action_size=self.env.action_space_size,
                     bot_id=i
                 )
+
+            if i < self.num_trainable_bots:
+                bot.trainable = True
+                self.trainable_bots.append(bot)
+            else:
+                bot.trainable = False
+                if self.fixed_model_dir:
+                    path = os.path.join(self.fixed_model_dir, f"bot_{i}.pth")
+                    if os.path.exists(path):
+                        try:
+                            bot.load_model(path, reset_stats=False)
+                            info("Loaded fixed bot", bot=i, path=path)
+                        except Exception:
+                            warning("Failed to load fixed bot", bot=i)
+                self.fixed_bots.append(bot)
+
             self.bots.append(bot)
 
         info("Created bots for training", count=num_bots, gpus=num_gpus)
@@ -164,6 +187,9 @@ class TrainingManager:
         random.shuffle(self.bots)
         for idx, bot in enumerate(self.bots):
             bot.player_id = idx
+        trainable_indices = [i for i, b in enumerate(self.bots) if getattr(b, 'trainable', True)]
+        if trainable_indices:
+            self.train_focus_idx = trainable_indices[self._train_focus_pointer % len(trainable_indices)]
 
     def _check_kl_warning(self, kl_value: float) -> None:
         """Warn if KL divergence remains below the threshold for many updates."""
@@ -284,7 +310,8 @@ class TrainingManager:
 
         episode_num = self.training_stats['games_played']
         if episode_num > 0 and episode_num % self.focus_interval == 0:
-            self.train_focus_idx = (self.train_focus_idx + 1) % len(self.bots)
+            trainable_count = max(1, len(self.trainable_bots))
+            self._train_focus_pointer = (self._train_focus_pointer + 1) % trainable_count
 
         if (
             episode_num > 0
