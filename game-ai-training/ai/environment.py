@@ -9,7 +9,7 @@ import threading
 from typing import List, Tuple, Dict, Any, Optional
 
 from json_logger import info, error, warning
-from config import HEAVY_REWARD_BASE
+from config import HEAVY_REWARD_BASE, POSITIVE_REWARD_MULTIPLIERS
 
 # Normalised reward weights used throughout the environment
 INVALID_MOVE_PENALTY = -0.05
@@ -120,6 +120,10 @@ class GameEnvironment:
         self.heavy_reward = HEAVY_REWARD_BASE
         # Configurable win bonus applied when a team wins
         self.win_bonus = WIN_BONUS
+        # Scale factor for positive rewards based on difficulty level
+        self.positive_reward_scale = POSITIVE_REWARD_MULTIPLIERS.get(
+            self.pieces_per_player, 1.0
+        )
 
         # Track how often each reward type occurs for analysis
         self.reward_event_counts = {
@@ -759,7 +763,10 @@ class GameEnvironment:
                 if 0 <= pid < len(self.pending_penalties):
                     self.pending_penalties[pid] += -penalty
 
-        reward += piece_reward
+        if piece_reward > 0:
+            reward += piece_reward * self.positive_reward_scale
+        else:
+            reward += piece_reward
 
         if not capture_occurred and 0 <= team_idx < len(self.completion_delay_turns):
             reward += decay
@@ -858,6 +865,9 @@ class GameEnvironment:
     def set_piece_count(self, pieces: int) -> None:
         """Update the number of pieces per player for new games."""
         self.pieces_per_player = max(1, min(5, int(pieces)))
+        self.positive_reward_scale = POSITIVE_REWARD_MULTIPLIERS.get(
+            self.pieces_per_player, 1.0
+        )
 
     def reseed(self, seed: int) -> None:
         """Reseed any environment RNGs."""

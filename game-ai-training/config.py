@@ -58,3 +58,15 @@ MIN_REWARD_MULTIPLIER = 0.5
 # Step size used when adjusting the reward multiplier up or down
 REWARD_TUNE_STEP = 0.1
 
+# Multiplier applied to positive rewards based on the current
+# number of pieces per player. The curriculum increases the
+# difficulty by adding more pieces, so rewards must scale up to
+# remain meaningful. Levels correspond to piece counts from 1 to 5.
+POSITIVE_REWARD_MULTIPLIERS = {
+    1: 1250.0,
+    2: 1000.0,
+    3: 500.0,
+    4: 450.0,
+    5: 100.0,
+}
+
