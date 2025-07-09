@@ -19,6 +19,12 @@ def main():
         help="Number of parallel environments to run",
     )
     parser.add_argument(
+        "--fixed-model-dir",
+        type=str,
+        default=None,
+        help="Directory containing old opponent models",
+    )
+    parser.add_argument(
         "--save-match-log",
         dest="save_match_log",
         action="store_true",
@@ -30,8 +36,12 @@ def main():
     info("Initializing training environment")
 
     # Create training manager
-    trainer = TrainingManager(num_envs=args.num_envs)
-    
+    trainer = TrainingManager(
+        num_envs=args.num_envs,
+        num_trainable_bots=2 if args.fixed_model_dir else 4,
+        fixed_model_dir=args.fixed_model_dir,
+    )
+
     # Create bots
     trainer.create_bots(num_bots=4)
     
