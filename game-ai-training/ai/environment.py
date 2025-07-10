@@ -15,15 +15,16 @@ from config import HEAVY_REWARD_BASE, POSITIVE_REWARD_MULTIPLIERS
 HOME_ENTRY_REWARD = 1.0
 DIRECT_COMPLETE_REWARD = 3.0
 HOME_COMPLETION_REWARD = 1.0
-SKIP_HOME_PENALTY = -5.0
-ENEMY_HOME_ENTRY_PENALTY = -0.5
+# Increase penalties for stronger negative feedback during training
+SKIP_HOME_PENALTY = -20.0
+ENEMY_HOME_ENTRY_PENALTY = -2.0
 
 # Normalised reward weights used throughout the environment
-INVALID_MOVE_PENALTY = -0.05
+INVALID_MOVE_PENALTY = -0.2
 WIN_BONUS = 10.0
 # Timeout penalty per bot scaled with ``WIN_BONUS`` so the value remains
 # proportional if the bonus is adjusted.
-TIMEOUT_PENALTY = -WIN_BONUS / 12
+TIMEOUT_PENALTY = -WIN_BONUS / 3
 
 # Reward scale for the nth piece entering the home stretch for a team
 # Values kept small to avoid runaway rewards
@@ -37,11 +38,11 @@ COMPLETION_BONUS = 5.0
 # Penalty applied each turn a team goes without completing a piece.
 # Starts at ``COMPLETION_DELAY_BASE`` and is multiplied by
 # ``COMPLETION_DELAY_GROWTH`` every subsequent turn until reset.
-COMPLETION_DELAY_BASE = -1.0
+COMPLETION_DELAY_BASE = -4.0
 # Slower growth prevents runaway negative rewards
 COMPLETION_DELAY_GROWTH = 1.02
 # Cap the exponential delay penalty to avoid overly harsh negatives
-COMPLETION_DELAY_CAP = -3.0
+COMPLETION_DELAY_CAP = -12.0
 # Apply the same decay logic to positive rewards using the
 # ``POSITIVE_REWARD_DECAY`` factor.
 POSITIVE_REWARD_DECAY = 1.01
@@ -49,9 +50,9 @@ POSITIVE_REWARD_DECAY = 1.01
 # Additional sparse reward bonuses and penalties
 # Final move bonus kept small for stable gradients
 FINAL_MOVE_BONUS = 5.0
-STAGNATION_PENALTY = -10.0
+STAGNATION_PENALTY = -40.0
 # Additional penalty when two pieces are complete but progress stalls
-LATE_STAGNATION_PENALTY = -25.0
+LATE_STAGNATION_PENALTY = -100.0
 
 
 class GameEnvironment:
