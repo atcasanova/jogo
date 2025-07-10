@@ -46,26 +46,17 @@ than 100 update steps.
 
 ### Reward Monitoring
 
-Training logs now record the reward *contribution* of each event type in the
-current simplified system:
+Training logs record how many times each of the following events occurs:
 
-- Valid moves that do not enter the home stretch (−0.1 each)
-- Invalid moves (−0.2 each)
-- Team pieces entering the home stretch receive a bonus starting at +20 and
-  an extra +25 if the entry occurs within the first 50 turns.
-- Opponent pieces entering the home stretch (−5 each)
-- Game wins award a large bonus of around 100k points depending on how quickly
-  the match ends.
-- Episodes that end due to the 550 step limit apply a timeout penalty of
-  roughly −8k per bot so the total deduction stays near −30k.
+- A piece enters the homestretch (+1 point).
+- A piece moves from the track directly to completion (+3 points).
+- A piece already in the homestretch moves to completion (+1 point).
+- Choosing to skip a possible homestretch entry (−5 points).
+- An opponent piece enters the homestretch (−0.5 points).
 
-Completion delay penalties now shrink as a team finishes more pieces, so
-early progress reduces the negative reward for later turns. The trainer also
-records how many pieces each bot has in the home stretch and how many are
-fully completed after every episode. These metrics appear in the training
-progress plots.
-To avoid extremely large negatives, the decay penalty is clamped so it never
-drops below roughly 30k points even after very long games.
+All other rewards and penalties from earlier revisions have been removed to
+keep the signal easy to interpret. The per‑episode breakdown plot still shows
+the contribution of each event type.
 
 The entropy of the event counts is plotted to help detect reward starvation. A
 per‑episode breakdown subplot shows the reward contribution of **every** event

@@ -14,17 +14,16 @@ class MockGameEnvironment:
         self.saved_file = None
         self.reward_event_counts = {
             'home_entry': 0,
-            'penalty_exit': 0,
-            'capture': 0,
-            'game_win': 0
+            'direct_complete': 0,
+            'home_completion': 0,
+            'skip_home': 0,
+            'enemy_home_entry': 0,
         }
         self.reward_event_totals = {
             'home_entry': 0.0,
-            'penalty_exit': 0.0,
-            'capture': 0.0,
-            'game_win': 0.0,
-            'valid_move': 0.0,
-            'invalid_move': 0.0,
+            'direct_complete': 0.0,
+            'home_completion': 0.0,
+            'skip_home': 0.0,
             'enemy_home_entry': 0.0,
         }
         self.reward_bonus_totals = {
@@ -138,7 +137,13 @@ def test_train_episode_breaks_on_no_actions():
 def test_reward_entropy_computation():
     from ai.trainer import TrainingManager
     manager = TrainingManager()
-    counts = {'home_entry': 2, 'penalty_exit': 1, 'capture': 1, 'game_win': 0}
+    counts = {
+        'home_entry': 2,
+        'direct_complete': 1,
+        'home_completion': 1,
+        'skip_home': 0,
+        'enemy_home_entry': 0,
+    }
     entropy = manager._reward_entropy(counts)
     assert entropy > 0
 
