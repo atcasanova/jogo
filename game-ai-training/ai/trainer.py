@@ -535,9 +535,10 @@ class TrainingManager:
         info(
             "Reward events",
             home_entries=env.reward_event_counts['home_entry'],
-            penalty_exits=env.reward_event_counts['penalty_exit'],
-            captures=env.reward_event_counts['capture'],
-            wins=env.reward_event_counts['game_win'],
+            direct_completions=env.reward_event_counts['direct_complete'],
+            home_completions=env.reward_event_counts['home_completion'],
+            skips=env.reward_event_counts['skip_home'],
+            enemy_entries=env.reward_event_counts['enemy_home_entry'],
             entropy=f"{entropy:.3f}"
         )
 
@@ -806,11 +807,10 @@ class TrainingManager:
 
             predefined_colors = {
                 'home_entry': 'red',
-                'penalty_exit': 'blue',
-                'capture': 'green',
-                'game_win': 'purple',
-                'completion': 'yellow',
-                'timeout': 'orange',
+                'direct_complete': 'blue',
+                'home_completion': 'green',
+                'skip_home': 'orange',
+                'enemy_home_entry': 'purple',
             }
 
             color_map = {}
