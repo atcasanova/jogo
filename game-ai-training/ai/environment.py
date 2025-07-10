@@ -16,7 +16,10 @@ HOME_ENTRY_REWARD = 1.0
 DIRECT_COMPLETE_REWARD = 3.0
 HOME_COMPLETION_REWARD = 1.0
 # Increase penalties for stronger negative feedback during training
-SKIP_HOME_PENALTY = -20.0
+# Increase the cost of skipping a homestretch entry so
+# the negative reward better counterbalances the scaled
+# positive rewards used during training.
+SKIP_HOME_PENALTY = -50.0
 ENEMY_HOME_ENTRY_PENALTY = -2.0
 
 # Normalised reward weights used throughout the environment

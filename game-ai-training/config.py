@@ -62,11 +62,13 @@ REWARD_TUNE_STEP = 0.1
 # number of pieces per player. The curriculum increases the
 # difficulty by adding more pieces, so rewards must scale up to
 # remain meaningful. Levels correspond to piece counts from 1 to 5.
+# Scale down positive reward multipliers so penalties remain
+# meaningful relative to the bonuses awarded for successful plays.
 POSITIVE_REWARD_MULTIPLIERS = {
-    1: 1250.0,
-    2: 1000.0,
-    3: 500.0,
-    4: 450.0,
-    5: 100.0,
+    1: 600.0,
+    2: 500.0,
+    3: 250.0,
+    4: 225.0,
+    5: 50.0,
 }
 
