@@ -158,6 +158,10 @@ class GameBot:
         returns_t = torch.FloatTensor(returns).to(self.device)
         advantages = returns_t - values_t.detach()
         advantages += extra_advs_t
+        # Normalise advantages per batch to stabilise updates
+        adv_mean = advantages.mean()
+        adv_std = advantages.std(unbiased=False)
+        advantages = (advantages - adv_mean) / (adv_std + 1e-6)
 
         logits, new_values = self.model(states_t)
         logit_mask = torch.full_like(logits, float('-inf'))

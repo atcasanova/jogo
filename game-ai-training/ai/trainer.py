@@ -91,7 +91,8 @@ class TrainingManager:
         # Running statistics for reward normalisation
         self.reward_mean = 0.0
         self.reward_var = 1.0
-        self.reward_alpha = 0.99
+        # Faster adaptation to changing reward scales
+        self.reward_alpha = 0.95
 
         # Snapshot training setup
         self.snapshot_dir = 'snapshots'
