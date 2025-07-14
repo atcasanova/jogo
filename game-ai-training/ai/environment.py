@@ -601,6 +601,8 @@ class GameEnvironment:
             decay *= max(0.0, 1.0 - fraction)
             if decay < COMPLETION_DELAY_CAP:
                 decay = COMPLETION_DELAY_CAP
+            decay *= self.positive_reward_scale
+            reward += decay
 
         while True:
             if not self.is_action_valid(player_id, action):
