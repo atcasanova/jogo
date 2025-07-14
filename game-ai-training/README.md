@@ -77,6 +77,13 @@ Once the win rate rises above roughly 0.9 the multiplier decays back toward the
 scheduled values. This automatic tuning helps the curriculum progress without
 needing to manually edit the reward configuration.
 
+### Advantage Normalization
+
+During PPO updates the advantages are now normalised per batch. After adding any
+extra advantages, the mean is subtracted and the result is divided by its
+standard deviation. This keeps gradients well scaled when reward magnitudes
+shift during training.
+
 ## Match Logging
 
 Passing the `--save-match-log` flag to `main.py` writes the move history of
