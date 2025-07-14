@@ -735,9 +735,10 @@ class GameEnvironment:
                 ):
                     forward = (track_idx - prev_idx) % len(self._track)
                     if forward >= prev_steps and forward <= 12:
-                        piece_reward += SKIP_HOME_PENALTY
+                        scaled_penalty = SKIP_HOME_PENALTY * self.positive_reward_scale
+                        piece_reward += scaled_penalty
                         self.reward_event_counts['skip_home'] += 1
-                        self.reward_event_totals['skip_home'] += SKIP_HOME_PENALTY
+                        self.reward_event_totals['skip_home'] += scaled_penalty
 
         for p in self.game_state.get('pieces', []):
             pid = p.get('id')
@@ -748,9 +749,10 @@ class GameEnvironment:
             if owner in my_team:
                 continue
             if not prev['in_home'] and p.get('inHomeStretch'):
-                piece_reward += ENEMY_HOME_ENTRY_PENALTY
+                scaled_penalty = ENEMY_HOME_ENTRY_PENALTY * self.positive_reward_scale
+                piece_reward += scaled_penalty
                 self.reward_event_counts['enemy_home_entry'] += 1
-                self.reward_event_totals['enemy_home_entry'] += ENEMY_HOME_ENTRY_PENALTY
+                self.reward_event_totals['enemy_home_entry'] += scaled_penalty
 
         reward += piece_reward
 
