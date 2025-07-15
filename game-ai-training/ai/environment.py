@@ -9,7 +9,7 @@ import threading
 from typing import List, Tuple, Dict, Any, Optional
 
 from json_logger import info, error, warning
-from config import HEAVY_REWARD_BASE, POSITIVE_REWARD_MULTIPLIERS
+from config import HEAVY_REWARD_BASE
 
 # Simplified reward system
 HOME_ENTRY_REWARD = 10.0
@@ -131,10 +131,9 @@ class GameEnvironment:
         self.heavy_reward = HEAVY_REWARD_BASE
         # Configurable win bonus applied when a team wins
         self.win_bonus = WIN_BONUS
-        # Scale factor for positive rewards based on difficulty level
-        self.positive_reward_scale = POSITIVE_REWARD_MULTIPLIERS.get(
-            self.pieces_per_player, 1.0
-        )
+        # Reward scale no longer depends on piece count
+        # Use a constant factor of ``1.0`` for all situations
+        self.positive_reward_scale = 1.0
 
         # Track how often each reward type occurs for analysis
         self.reward_event_counts = {
@@ -592,19 +591,7 @@ class GameEnvironment:
             self.reward_event_totals['no_home_penalty'] += self.pending_penalties[player_id]
             self.pending_penalties[player_id] = 0.0
 
-        decay = 0.0
-        if 0 <= team_idx < len(self.completion_delay_turns):
-            decay = (
-                COMPLETION_DELAY_BASE
-                * (self.completion_delay_growth[team_idx] ** self.completion_delay_turns[team_idx])
-            )
-            completed_so_far = prev_completed[team_idx] if 0 <= team_idx < len(prev_completed) else 0
-            fraction = min(completed_so_far / 10.0, 1.0)
-            decay *= max(0.0, 1.0 - fraction)
-            if decay < COMPLETION_DELAY_CAP:
-                decay = COMPLETION_DELAY_CAP
-            decay *= self.positive_reward_scale
-            reward += decay
+
 
         while True:
             if not self.is_action_valid(player_id, action):
@@ -737,10 +724,9 @@ class GameEnvironment:
                 ):
                     forward = (track_idx - prev_idx) % len(self._track)
                     if forward >= prev_steps and forward <= 12:
-                        scaled_penalty = SKIP_HOME_PENALTY * self.positive_reward_scale
-                        piece_reward += scaled_penalty
+                        piece_reward += SKIP_HOME_PENALTY
                         self.reward_event_counts['skip_home'] += 1
-                        self.reward_event_totals['skip_home'] += scaled_penalty
+                        self.reward_event_totals['skip_home'] += SKIP_HOME_PENALTY
 
         for p in self.game_state.get('pieces', []):
             pid = p.get('id')
@@ -751,10 +737,9 @@ class GameEnvironment:
             if owner in my_team:
                 continue
             if not prev['in_home'] and p.get('inHomeStretch'):
-                scaled_penalty = ENEMY_HOME_ENTRY_PENALTY * self.positive_reward_scale
-                piece_reward += scaled_penalty
+                piece_reward += ENEMY_HOME_ENTRY_PENALTY
                 self.reward_event_counts['enemy_home_entry'] += 1
-                self.reward_event_totals['enemy_home_entry'] += scaled_penalty
+                self.reward_event_totals['enemy_home_entry'] += ENEMY_HOME_ENTRY_PENALTY
 
         reward += piece_reward
 
@@ -791,12 +776,7 @@ class GameEnvironment:
                 self.reward_bonus_totals['win_bonus'] += self.win_bonus
                 self.last_step_info['win_bonus'] = self.win_bonus
 
-        if 0 <= team_idx < len(self.completion_delay_turns):
-            if new_completed[team_idx] > prev_completed[team_idx]:
-                self.completion_delay_turns[team_idx] = 0
-                self.completion_delay_growth[team_idx] *= 0.99
-            elif not capture_occurred:
-                self.completion_delay_turns[team_idx] += 1
+
 
         next_state = self.get_state(player_id)
         return next_state, reward, done
@@ -863,9 +843,8 @@ class GameEnvironment:
     def set_piece_count(self, pieces: int) -> None:
         """Update the number of pieces per player for new games."""
         self.pieces_per_player = max(1, min(5, int(pieces)))
-        self.positive_reward_scale = POSITIVE_REWARD_MULTIPLIERS.get(
-            self.pieces_per_player, 1.0
-        )
+        # Positive reward scale remains constant under the simplified rules
+        self.positive_reward_scale = 1.0
 
     def reseed(self, seed: int) -> None:
         """Reseed any environment RNGs."""
