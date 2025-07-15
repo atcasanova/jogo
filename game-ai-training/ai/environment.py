@@ -143,6 +143,7 @@ class GameEnvironment:
             'home_completion': 0,
             'skip_home': 0,
             'enemy_home_entry': 0,
+            'no_home_penalty': 0,
         }
 
         # Track the total reward contributed by each event type
@@ -152,6 +153,7 @@ class GameEnvironment:
             'home_completion': 0.0,
             'skip_home': 0.0,
             'enemy_home_entry': 0.0,
+            'no_home_penalty': 0.0,
         }
         # Bonus rewards tracked separately so graphs only show base returns
         self.reward_bonus_totals: Dict[str, float] = {
