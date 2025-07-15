@@ -20,7 +20,6 @@ from config import (
     PLOT_DIR,
     LOG_DIR,
     REWARD_SCHEDULE,
-    HEAVY_REWARD_BASE,
     WINRATE_TARGET,
     MAX_REWARD_MULTIPLIER,
     MIN_REWARD_MULTIPLIER,
@@ -56,8 +55,6 @@ class TrainingManager:
         self.bots = []
         self.training_stats = {
             'episode_rewards': [],
-            'win_rates': [],
-            'average_losses': [],
             'kl_divergences': [],
             'clip_fractions': [],
             'entropy_avgs': [],
@@ -533,15 +530,9 @@ class TrainingManager:
         self.training_stats['episode_rewards'].append(ep_total)
         entropy = self._reward_entropy(env.reward_event_counts)
         self.training_stats['reward_entropies'].append(entropy)
-        info(
-            "Reward events",
-            home_entries=env.reward_event_counts['home_entry'],
-            direct_completions=env.reward_event_counts['direct_complete'],
-            home_completions=env.reward_event_counts['home_completion'],
-            skips=env.reward_event_counts['skip_home'],
-            enemy_entries=env.reward_event_counts['enemy_home_entry'],
-            entropy=f"{entropy:.3f}"
-        )
+        event_details = {k: v for k, v in env.reward_event_counts.items()}
+        event_details['entropy'] = f"{entropy:.3f}"
+        info("Reward events", **event_details)
 
         # Store per-episode reward totals to allow plotting breakdowns later
         self.reward_breakdown_history.append(dict(env.reward_event_totals))
@@ -812,6 +803,7 @@ class TrainingManager:
                 'home_completion': 'green',
                 'skip_home': 'orange',
                 'enemy_home_entry': 'purple',
+                'no_home_penalty': 'brown',
             }
 
             color_map = {}
