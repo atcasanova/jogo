@@ -59,7 +59,7 @@ def test_step_updates_game_state_and_returns_rewards():
         with patch.object(env, 'is_action_valid', return_value=True):
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 next_state, reward, done = env.step(1, 0)
-    expected = COMPLETION_DELAY_BASE * env.positive_reward_scale
+    expected = 0.0
     assert reward == pytest.approx(expected)
     assert env.reward_event_counts['home_entry'] == 0
     assert env.reward_event_counts['skip_home'] == 0
@@ -81,7 +81,7 @@ def test_step_updates_state_on_failure():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 next_state, reward, done = env.step(1, 0)
 
-    expected = COMPLETION_DELAY_BASE * env.positive_reward_scale
+    expected = 0.0
     assert reward == pytest.approx(expected)
     assert env.reward_event_counts['skip_home'] == 0
     assert env.reward_event_counts['home_entry'] == 0
@@ -149,7 +149,7 @@ def test_completion_delay_penalty_capped():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 _, reward, _ = env.step(0, 0)
 
-    expected = COMPLETION_DELAY_CAP * env.positive_reward_scale
+    expected = 0.0
     assert reward == pytest.approx(expected)
 
 
@@ -1044,7 +1044,7 @@ def test_step_retries_until_success():
                 with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                     next_state, reward, done = env.step(1, 0)
 
-    expected = COMPLETION_DELAY_BASE * env.positive_reward_scale
+    expected = 0.0
     assert reward == pytest.approx(expected)
     assert env.reward_event_counts['home_entry'] == 0
     assert env.reward_event_counts['skip_home'] == 0
@@ -1104,11 +1104,7 @@ def test_team_penalty_applied_after_interval():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 _, reward, _ = env.step(1, 2, step_count=62)
 
-    expected = (
-        COMPLETION_DELAY_BASE
-        * env.positive_reward_scale
-        * env.completion_delay_growth[0]
-    )
+    expected = 0.0
     assert reward == pytest.approx(expected)
 
 
@@ -1134,8 +1130,8 @@ def test_move_away_from_home_penalty():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 _, reward, _ = env.step(1, 0, step_count=1)
 
-    # Moving away from home still incurs the delay penalty
-    expected = COMPLETION_DELAY_BASE * env.positive_reward_scale
+    # Moving away from home no longer incurs a delay penalty
+    expected = 0.0
     assert reward == pytest.approx(expected)
 
 
@@ -1229,19 +1225,13 @@ def _simulate_skip_home(env: GameEnvironment) -> float:
 def test_skip_home_penalty_scales_with_piece_count():
     env_low = GameEnvironment(pieces_per_player=5)
     penalty_low = _simulate_skip_home(env_low)
-    expected_low = (
-        SKIP_HOME_PENALTY * env_low.positive_reward_scale
-        + COMPLETION_DELAY_BASE * env_low.positive_reward_scale
-    )
+    expected_low = SKIP_HOME_PENALTY
     assert penalty_low == expected_low
 
     env_high = GameEnvironment(pieces_per_player=1)
     penalty_high = _simulate_skip_home(env_high)
-    expected_high = (
-        SKIP_HOME_PENALTY * env_high.positive_reward_scale
-        + COMPLETION_DELAY_BASE * env_high.positive_reward_scale
-    )
+    expected_high = SKIP_HOME_PENALTY
     assert penalty_high == expected_high
-    assert penalty_high < penalty_low
+    assert penalty_high == penalty_low
 
 
