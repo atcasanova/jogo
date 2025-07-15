@@ -12,19 +12,19 @@ from json_logger import info, error, warning
 from config import HEAVY_REWARD_BASE, POSITIVE_REWARD_MULTIPLIERS
 
 # Simplified reward system
-HOME_ENTRY_REWARD = 1.0
-DIRECT_COMPLETE_REWARD = 3.0
-HOME_COMPLETION_REWARD = 1.0
+HOME_ENTRY_REWARD = 10.0
+DIRECT_COMPLETE_REWARD = 50.0
+HOME_COMPLETION_REWARD = 30.0
 # Increase penalties for stronger negative feedback during training
 # Increase the cost of skipping a homestretch entry so
 # the negative reward better counterbalances the scaled
 # positive rewards used during training.
-SKIP_HOME_PENALTY = -50.0
-ENEMY_HOME_ENTRY_PENALTY = -2.0
+SKIP_HOME_PENALTY = -20.0
+ENEMY_HOME_ENTRY_PENALTY = 0.0
 
 # Normalised reward weights used throughout the environment
 INVALID_MOVE_PENALTY = -0.2
-WIN_BONUS = 10.0
+WIN_BONUS = 200.0
 # Timeout penalty per bot scaled with ``WIN_BONUS`` so the value remains
 # proportional if the bonus is adjusted.
 TIMEOUT_PENALTY = -WIN_BONUS / 3
@@ -775,6 +775,19 @@ class GameEnvironment:
             if winner is not None:
                 done = True
                 self.game_state['winningTeam'] = winner
+
+        if done and self.game_state.get('winningTeam'):
+            winning_positions = [pl.get('position') for pl in self.game_state.get('winningTeam', [])]
+            winning_idx = None
+            for idx, team in enumerate(teams_now):
+                team_pos = [pl.get('position') for pl in team if 'position' in pl]
+                if set(team_pos) == set(winning_positions):
+                    winning_idx = idx
+                    break
+            if winning_idx is not None and winning_idx == team_idx:
+                reward += self.win_bonus
+                self.reward_bonus_totals['win_bonus'] += self.win_bonus
+                self.last_step_info['win_bonus'] = self.win_bonus
 
         if 0 <= team_idx < len(self.completion_delay_turns):
             if new_completed[team_idx] > prev_completed[team_idx]:
