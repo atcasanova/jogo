@@ -38,12 +38,11 @@ JSON_LOGGING = os.getenv('JSON_LOGGING', '0').lower() in ('1', 'true', 'yes')
 # different points during training to implement a simple curriculum. Each tuple
 # in the list is ``(episode_start, heavy_reward)``.
 # Increase heavy reward to give stronger incentives for impactful plays
-HEAVY_REWARD_BASE = 6000.0
-# The heavy reward decreases over time so early training emphasises key moves
+# With the simplified reward system heavy rewards are disabled.
+HEAVY_REWARD_BASE = 0.0
+# Curriculum stages can still adjust the weight but default to zero.
 REWARD_SCHEDULE = [
     (0, HEAVY_REWARD_BASE),
-    (1000, HEAVY_REWARD_BASE * 0.75),
-    (3000, HEAVY_REWARD_BASE * 0.5),
 ]
 
 # Dynamic reward tuning

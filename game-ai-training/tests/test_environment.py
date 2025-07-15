@@ -9,7 +9,8 @@ from ai.environment import (
     GameEnvironment,
     COMPLETION_DELAY_BASE,
     COMPLETION_DELAY_CAP,
-    SKIP_HOME_PENALTY
+    SKIP_HOME_PENALTY,
+    WIN_BONUS
 )
 
 
@@ -1184,7 +1185,7 @@ def test_win_bonus_awarded_to_final_player():
                 _, reward, done = env.step(0, 0)
 
     assert done is True
-    assert 'win_bonus' not in env.last_step_info
+    assert env.last_step_info.get('win_bonus') == WIN_BONUS
 
 
 def _simulate_skip_home(env: GameEnvironment) -> float:
@@ -1228,12 +1229,18 @@ def _simulate_skip_home(env: GameEnvironment) -> float:
 def test_skip_home_penalty_scales_with_piece_count():
     env_low = GameEnvironment(pieces_per_player=5)
     penalty_low = _simulate_skip_home(env_low)
-    expected_low = SKIP_HOME_PENALTY * env_low.positive_reward_scale
+    expected_low = (
+        SKIP_HOME_PENALTY * env_low.positive_reward_scale
+        + COMPLETION_DELAY_BASE * env_low.positive_reward_scale
+    )
     assert penalty_low == expected_low
 
     env_high = GameEnvironment(pieces_per_player=1)
     penalty_high = _simulate_skip_home(env_high)
-    expected_high = SKIP_HOME_PENALTY * env_high.positive_reward_scale
+    expected_high = (
+        SKIP_HOME_PENALTY * env_high.positive_reward_scale
+        + COMPLETION_DELAY_BASE * env_high.positive_reward_scale
+    )
     assert penalty_high == expected_high
     assert penalty_high < penalty_low
 
