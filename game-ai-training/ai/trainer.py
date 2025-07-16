@@ -531,6 +531,11 @@ class TrainingManager:
         entropy = self._reward_entropy(env.reward_event_counts)
         self.training_stats['reward_entropies'].append(entropy)
         event_details = {k: v for k, v in env.reward_event_counts.items()}
+        for k, v in env.reward_event_totals.items():
+            event_details[f"{k}_reward"] = round(v, 2)
+        for k, v in env.reward_bonus_totals.items():
+            event_details[f"{k}_bonus"] = round(v, 2)
+        event_details['heavy_reward_events'] = getattr(env, 'heavy_reward_events', 0)
         event_details['entropy'] = f"{entropy:.3f}"
         info("Reward events", **event_details)
 

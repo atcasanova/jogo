@@ -15,11 +15,10 @@ from config import HEAVY_REWARD_BASE
 HOME_ENTRY_REWARD = 10.0
 DIRECT_COMPLETE_REWARD = 50.0
 HOME_COMPLETION_REWARD = 30.0
-# Increase penalties for stronger negative feedback during training
-# Increase the cost of skipping a homestretch entry so
-# the negative reward better counterbalances the scaled
-# positive rewards used during training.
-SKIP_HOME_PENALTY = -20.0
+# Increase penalties for stronger negative feedback during training.
+# Skipping a homestretch entry now carries a smaller cost so it does not
+# overwhelm the positive heavy rewards applied elsewhere.
+SKIP_HOME_PENALTY = -10.0
 ENEMY_HOME_ENTRY_PENALTY = 0.0
 
 # Normalised reward weights used throughout the environment
