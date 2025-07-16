@@ -51,7 +51,7 @@ Training logs record how many times each of the following events occurs:
 - A piece enters the homestretch (+1 point).
 - A piece moves from the track directly to completion (+3 points).
 - A piece already in the homestretch moves to completion (+1 point).
-- Choosing to skip a possible homestretch entry (−50 points).
+- Choosing to skip a possible homestretch entry (−10 points).
 - An opponent piece enters the homestretch (−2 points).
 
 All other rewards and penalties from earlier revisions have been removed to
@@ -63,7 +63,7 @@ per‑episode breakdown subplot shows the reward contribution of **every** event
 type. Positive values stack upward while negative values stack below zero. Each
 reward type uses a distinct color from Matplotlib's `tab20` palette so negative
 events are no longer lumped into a single “other” category.
-Heavy reward tracking from earlier versions has been removed.
+A small heavy reward now boosts impactful plays to help guide the bots.
 
 Every 100 episodes the trainer now logs the cumulative reward totals for each
 event type. These summaries are useful when sharing progress logs for further
