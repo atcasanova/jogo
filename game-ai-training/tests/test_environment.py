@@ -10,6 +10,8 @@ from ai.environment import (
     COMPLETION_DELAY_BASE,
     COMPLETION_DELAY_CAP,
     SKIP_HOME_PENALTY,
+    HOME_ENTRY_REWARD,
+    INVALID_MOVE_PENALTY,
     WIN_BONUS
 )
 
@@ -81,7 +83,7 @@ def test_step_updates_state_on_failure():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 next_state, reward, done = env.step(1, 0)
 
-    expected = 0.0
+    expected = INVALID_MOVE_PENALTY * 11
     assert reward == pytest.approx(expected)
     assert env.reward_event_counts['skip_home'] == 0
     assert env.reward_event_counts['home_entry'] == 0
@@ -1044,7 +1046,7 @@ def test_step_retries_until_success():
                 with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                     next_state, reward, done = env.step(1, 0)
 
-    expected = 0.0
+    expected = INVALID_MOVE_PENALTY * 2
     assert reward == pytest.approx(expected)
     assert env.reward_event_counts['home_entry'] == 0
     assert env.reward_event_counts['skip_home'] == 0
@@ -1214,11 +1216,67 @@ def _simulate_skip_home(env: GameEnvironment) -> float:
         ],
         'teams': env.game_state['teams'],
     }
-    response = {'success': True, 'gameState': new_state, 'gameEnded': False, 'winningTeam': None}
-    with patch.object(env, 'send_command', return_value=response):
+
+    calls = []
+
+    def _send(cmd):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return {'success': False, 'action': 'homeEntryChoice'}
+        return {'success': True, 'gameState': new_state, 'gameEnded': False, 'winningTeam': None}
+
+    with patch.object(env, 'send_command', side_effect=_send):
         with patch.object(env, 'is_action_valid', return_value=True):
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
-                _, reward, _ = env.step(0, 0)
+                _, reward, _ = env.step(0, 0, enter_home=False)
+    assert len(calls) == 2
+    return reward
+
+
+def _simulate_home_entry(env: GameEnvironment) -> float:
+    env.game_state = {
+        'currentPlayerIndex': 0,
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'position': {'row': 0, 'col': 0},
+                'inHomeStretch': False,
+                'inPenaltyZone': False,
+                'completed': False,
+            }
+        ],
+    }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
+
+    new_state = {
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'position': {'row': 1, 'col': 4},
+                'inHomeStretch': True,
+                'inPenaltyZone': False,
+                'completed': False,
+            }
+        ],
+        'teams': env.game_state['teams'],
+    }
+
+    calls: list = []
+
+    def _send(cmd):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return {'success': False, 'action': 'homeEntryChoice'}
+        return {'success': True, 'gameState': new_state, 'gameEnded': False, 'winningTeam': None}
+
+    with patch.object(env, 'send_command', side_effect=_send):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, _ = env.step(0, 0, enter_home=True)
+    assert len(calls) == 2
     return reward
 
 
@@ -1233,5 +1291,35 @@ def test_skip_home_penalty_scales_with_piece_count():
     expected_high = SKIP_HOME_PENALTY
     assert penalty_high == expected_high
     assert penalty_high == penalty_low
+
+
+def test_home_entry_reward_on_choice():
+    env = GameEnvironment()
+    reward = _simulate_home_entry(env)
+    expected = HOME_ENTRY_REWARD
+    assert reward == expected
+    assert env.reward_event_counts['home_entry'] == 1
+    assert env.reward_event_counts['skip_home'] == 0
+
+
+def test_invalid_move_penalty_applied():
+    env = GameEnvironment()
+
+    call = {'count': 0}
+
+    def fake_send(cmd):
+        call['count'] += 1
+        if call['count'] == 1:
+            return {'success': False}
+        return {'success': True, 'gameState': {}, 'gameEnded': False, 'winningTeam': None}
+
+    with patch.object(env, 'send_command', side_effect=fake_send):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_valid_actions', return_value=[0]):
+                with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                    _, reward, _ = env.step(0, 0)
+
+    assert reward == pytest.approx(INVALID_MOVE_PENALTY)
+    assert env.reward_event_counts['invalid_move'] == 1
 
 
