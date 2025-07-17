@@ -142,6 +142,7 @@ class GameEnvironment:
             'skip_home': 0,
             'enemy_home_entry': 0,
             'no_home_penalty': 0,
+            'invalid_move': 0,
         }
 
         # Track the total reward contributed by each event type
@@ -152,6 +153,7 @@ class GameEnvironment:
             'skip_home': 0.0,
             'enemy_home_entry': 0.0,
             'no_home_penalty': 0.0,
+            'invalid_move': 0.0,
         }
         # Bonus rewards tracked separately so graphs only show base returns
         self.reward_bonus_totals: Dict[str, float] = {
@@ -555,8 +557,18 @@ class GameEnvironment:
         return bool(response.get("valid"))
     
     
-    def step(self, action: int, player_id: int, step_count: int = 0) -> Tuple[np.ndarray, float, bool]:
-        """Execute action and return next state, reward and done flag."""
+    def step(
+        self,
+        action: int,
+        player_id: int,
+        step_count: int = 0,
+        enter_home: bool = True,
+    ) -> Tuple[np.ndarray, float, bool]:
+        """Execute action and return next state, reward and done flag.
+
+        If the game offers a choice to enter the home stretch, ``enter_home``
+        controls whether the environment confirms the entry or skips it.
+        """
         self.last_step_info = {}
         invalid_attempts = 0
         tried_actions: set = set()
@@ -625,6 +637,14 @@ class GameEnvironment:
 
             response = self.send_command(cmd)
             tried_actions.add(action)
+            if response.get('action') == 'homeEntryChoice':
+                cmd['enterHome'] = enter_home
+                response = self.send_command(cmd)
+                if not enter_home:
+                    reward += SKIP_HOME_PENALTY
+                    self.reward_event_counts['skip_home'] += 1
+                    self.reward_event_totals['skip_home'] += SKIP_HOME_PENALTY
+
             if response.get('success'):
                 break
 
@@ -651,6 +671,12 @@ class GameEnvironment:
             action = alt_actions[0]
 
         done = response.get('gameEnded', False)
+
+        if invalid_attempts > 0:
+            penalty = INVALID_MOVE_PENALTY * invalid_attempts
+            reward += penalty
+            self.reward_event_counts['invalid_move'] += invalid_attempts
+            self.reward_event_totals['invalid_move'] += penalty
 
         if 'gameState' in response:
             self.game_state = response['gameState']
@@ -708,24 +734,6 @@ class GameEnvironment:
                 self.reward_event_counts['home_completion'] += 1
                 self.reward_event_totals['home_completion'] += HOME_COMPLETION_REWARD
 
-            if (
-                not prev['in_home']
-                and not new.get('inHomeStretch')
-                and not new.get('completed')
-            ):
-                prev_idx = self._track_index(prev['pos'])
-                track_idx = self._track_index(new.get('position'))
-                prev_steps = self._steps_to_entrance(prev['pos'], owner)
-                if (
-                    prev_idx != -1
-                    and track_idx != -1
-                    and 0 <= prev_steps <= 12
-                ):
-                    forward = (track_idx - prev_idx) % len(self._track)
-                    if forward >= prev_steps and forward <= 12:
-                        piece_reward += SKIP_HOME_PENALTY
-                        self.reward_event_counts['skip_home'] += 1
-                        self.reward_event_totals['skip_home'] += SKIP_HOME_PENALTY
 
         for p in self.game_state.get('pieces', []):
             pid = p.get('id')
