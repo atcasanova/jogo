@@ -11,50 +11,30 @@ from typing import List, Tuple, Dict, Any, Optional
 from json_logger import info, error, warning
 from config import HEAVY_REWARD_BASE
 
-# Simplified reward system
-HOME_ENTRY_REWARD = 10.0
-DIRECT_COMPLETE_REWARD = 50.0
-HOME_COMPLETION_REWARD = 30.0
-# Increase penalties for stronger negative feedback during training.
-# Skipping a homestretch entry now carries a smaller cost so it does not
-# overwhelm the positive heavy rewards applied elsewhere.
-SKIP_HOME_PENALTY = -10.0
+# Simplified reward system used for initial curriculum training
+PIECE_COMPLETION_REWARD = 1.0
+# Only penalty currently applied when a bot rejects a homestretch entry
+SKIP_HOME_PENALTY = -1.0
+
+# The following constants remain for compatibility but do not affect rewards
+HOME_ENTRY_REWARD = 0.0
+DIRECT_COMPLETE_REWARD = 0.0
+HOME_COMPLETION_REWARD = PIECE_COMPLETION_REWARD
 ENEMY_HOME_ENTRY_PENALTY = 0.0
+INVALID_MOVE_PENALTY = 0.0
+WIN_BONUS = 0.0
+TIMEOUT_PENALTY = 0.0
 
-# Normalised reward weights used throughout the environment
-INVALID_MOVE_PENALTY = -0.2
-WIN_BONUS = 200.0
-# Timeout penalty per bot scaled with ``WIN_BONUS`` so the value remains
-# proportional if the bonus is adjusted.
-TIMEOUT_PENALTY = -WIN_BONUS / 3
-
-# Reward scale for the nth piece entering the home stretch for a team
-# Values kept small to avoid runaway rewards
-HOME_ENTRY_REWARDS = [
-    0.6, 1.8, 3.6, 6.0, 9.0,
-    12.6, 16.8, 21.6, 27.0, 33.0
-]
-# Extra reward when a player finishes all pieces
-COMPLETION_BONUS = 5.0
-
-# Penalty applied each turn a team goes without completing a piece.
-# Starts at ``COMPLETION_DELAY_BASE`` and is multiplied by
-# ``COMPLETION_DELAY_GROWTH`` every subsequent turn until reset.
-COMPLETION_DELAY_BASE = -4.0
-# Slower growth prevents runaway negative rewards
-COMPLETION_DELAY_GROWTH = 1.02
-# Cap the exponential delay penalty to avoid overly harsh negatives
-COMPLETION_DELAY_CAP = -12.0
-# Apply the same decay logic to positive rewards using the
-# ``POSITIVE_REWARD_DECAY`` factor.
-POSITIVE_REWARD_DECAY = 1.01
-
-# Additional sparse reward bonuses and penalties
-# Final move bonus kept small for stable gradients
-FINAL_MOVE_BONUS = 5.0
-STAGNATION_PENALTY = -40.0
-# Additional penalty when two pieces are complete but progress stalls
-LATE_STAGNATION_PENALTY = -100.0
+# Deprecated reward configuration retained for backward compatibility
+HOME_ENTRY_REWARDS = []
+COMPLETION_BONUS = 0.0
+COMPLETION_DELAY_BASE = 0.0
+COMPLETION_DELAY_GROWTH = 1.0
+COMPLETION_DELAY_CAP = 0.0
+POSITIVE_REWARD_DECAY = 1.0
+FINAL_MOVE_BONUS = 0.0
+STAGNATION_PENALTY = 0.0
+LATE_STAGNATION_PENALTY = 0.0
 
 
 class GameEnvironment:
@@ -136,26 +116,16 @@ class GameEnvironment:
 
         # Track how often each reward type occurs for analysis
         self.reward_event_counts = {
-            'home_entry': 0,
-            'direct_complete': 0,
             'home_completion': 0,
             'skip_home': 0,
-            'enemy_home_entry': 0,
-            'no_home_penalty': 0,
-            'invalid_move': 0,
         }
 
         # Track the total reward contributed by each event type
         self.reward_event_totals = {
-            'home_entry': 0.0,
-            'direct_complete': 0.0,
             'home_completion': 0.0,
             'skip_home': 0.0,
-            'enemy_home_entry': 0.0,
-            'no_home_penalty': 0.0,
-            'invalid_move': 0.0,
         }
-        # Bonus rewards tracked separately so graphs only show base returns
+        # Bonus rewards retained for compatibility with the trainer
         self.reward_bonus_totals: Dict[str, float] = {
             'win_bonus': 0.0,
             'final_move_bonus': 0.0,
@@ -596,11 +566,6 @@ class GameEnvironment:
                 prev_completed[t_idx] += count
 
         reward = 0.0
-        if 0 <= player_id < len(self.pending_penalties) and self.pending_penalties[player_id] != 0:
-            reward += self.pending_penalties[player_id]
-            self.reward_event_counts['no_home_penalty'] += 1
-            self.reward_event_totals['no_home_penalty'] += self.pending_penalties[player_id]
-            self.pending_penalties[player_id] = 0.0
 
 
 
@@ -672,11 +637,7 @@ class GameEnvironment:
 
         done = response.get('gameEnded', False)
 
-        if invalid_attempts > 0:
-            penalty = INVALID_MOVE_PENALTY * invalid_attempts
-            reward += penalty
-            self.reward_event_counts['invalid_move'] += invalid_attempts
-            self.reward_event_totals['invalid_move'] += penalty
+        # Invalid moves no longer incur a penalty
 
         if 'gameState' in response:
             self.game_state = response['gameState']
@@ -717,22 +678,10 @@ class GameEnvironment:
             owner = new.get('playerId')
             if owner not in my_team:
                 continue
-            if (
-                not prev['in_home']
-                and new.get('inHomeStretch')
-                and new.get('completed')
-            ):
-                piece_reward += DIRECT_COMPLETE_REWARD
-                self.reward_event_counts['direct_complete'] += 1
-                self.reward_event_totals['direct_complete'] += DIRECT_COMPLETE_REWARD
-            elif not prev['in_home'] and new.get('inHomeStretch'):
-                piece_reward += HOME_ENTRY_REWARD
-                self.reward_event_counts['home_entry'] += 1
-                self.reward_event_totals['home_entry'] += HOME_ENTRY_REWARD
-            elif prev['in_home'] and not prev['completed'] and new.get('completed'):
-                piece_reward += HOME_COMPLETION_REWARD
+            if not prev.get('completed') and new.get('completed'):
+                piece_reward += PIECE_COMPLETION_REWARD
                 self.reward_event_counts['home_completion'] += 1
-                self.reward_event_totals['home_completion'] += HOME_COMPLETION_REWARD
+                self.reward_event_totals['home_completion'] += PIECE_COMPLETION_REWARD
 
 
         for p in self.game_state.get('pieces', []):
@@ -743,10 +692,6 @@ class GameEnvironment:
             owner = p.get('playerId')
             if owner in my_team:
                 continue
-            if not prev['in_home'] and p.get('inHomeStretch'):
-                piece_reward += ENEMY_HOME_ENTRY_PENALTY
-                self.reward_event_counts['enemy_home_entry'] += 1
-                self.reward_event_totals['enemy_home_entry'] += ENEMY_HOME_ENTRY_PENALTY
 
         reward += piece_reward
 
@@ -778,10 +723,7 @@ class GameEnvironment:
                 if set(team_pos) == set(winning_positions):
                     winning_idx = idx
                     break
-            if winning_idx is not None and winning_idx == team_idx:
-                reward += self.win_bonus
-                self.reward_bonus_totals['win_bonus'] += self.win_bonus
-                self.last_step_info['win_bonus'] = self.win_bonus
+
 
 
 
