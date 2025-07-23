@@ -48,11 +48,8 @@ than 100 update steps.
 
 Training logs record how many times each of the following events occurs:
 
-- A piece enters the homestretch (+1 point).
-- A piece moves from the track directly to completion (+3 points).
-- A piece already in the homestretch moves to completion (+1 point).
-- Choosing to skip a possible homestretch entry (−10 points).
-- An opponent piece enters the homestretch (−2 points).
+- Completing a piece (+50 points).
+- Choosing to skip a possible homestretch entry (−1 point).
 
 All other rewards and penalties from earlier revisions have been removed to
 keep the signal easy to interpret. The per‑episode breakdown plot still shows
