@@ -107,7 +107,9 @@ class TrainingManager:
         # Curriculum tracking
         self.stage_games = 0
         self.stage_winning_games = 0
-        self.recent_outcomes = deque(maxlen=500)
+        # Track recent outcomes to compute win rates over a longer window
+        # to reduce short-term variance when the difficulty changes.
+        self.recent_outcomes = deque(maxlen=1000)
 
         # Reward multiplier per difficulty level
         self.level_reward_multiplier = {}
@@ -173,8 +175,8 @@ class TrainingManager:
             self.bots.append(bot)
 
         info("Created bots for training", count=num_bots, gpus=num_gpus)
-        self.stage_start_wins = [0 for _ in range(num_bots)]
-        self.stage_start_games = [0 for _ in range(num_bots)]
+        self.stage_start_wins = {bot.bot_id: 0 for bot in self.bots}
+        self.stage_start_games = {bot.bot_id: 0 for bot in self.bots}
         # Track how many games have been played in the current curriculum stage
         self.stage_games = 0
         # Track how many of those games ended with a winner
@@ -279,6 +281,13 @@ class TrainingManager:
         # Immediately apply the updated multiplier so the next episode reflects
         # the change.
         self._apply_reward_schedule(self.training_stats['games_played'], env)
+        info(
+            "Reward multiplier adjusted",
+            difficulty=level,
+            multiplier=f"{factor:.2f}",
+            heavy_reward=env.heavy_reward,
+            win_bonus=env.win_bonus,
+        )
 
     def _log_reward_summary(self, interval: int = 100) -> None:
         """Aggregate reward totals for the last ``interval`` episodes and log them."""
@@ -489,8 +498,13 @@ class TrainingManager:
             for env in [self.env] + self.envs:
                 env.set_piece_count(self.pieces_per_player)
                 env.set_turn_limit(self.turn_limit)
-            self.stage_start_wins = [bot.wins for bot in self.bots]
-            self.stage_start_games = [bot.games_played for bot in self.bots]
+                seed = np.random.randint(0, 2**32 - 1)
+                env.reseed(seed)
+                info("Environment reseeded", env=env.env_id, seed=seed)
+            self.stage_start_wins = {bot.bot_id: bot.wins for bot in self.bots}
+            self.stage_start_games = {
+                bot.bot_id: bot.games_played for bot in self.bots
+            }
             self.stage_games = 0
             self.stage_winning_games = 0
             self.recent_outcomes.clear()
@@ -664,6 +678,11 @@ class TrainingManager:
 
         for bot in sorted_bots:
             win_rate = (bot.wins / bot.games_played * 100) if bot.games_played > 0 else 0
+            start_wins = self.stage_start_wins.get(bot.bot_id, 0)
+            start_games = self.stage_start_games.get(bot.bot_id, 0)
+            stage_wins = bot.wins - start_wins
+            stage_games = bot.games_played - start_games
+            stage_rate = (stage_wins / stage_games * 100) if stage_games > 0 else 0
             avg_reward = bot.total_reward / bot.games_played if bot.games_played > 0 else 0
             avg_loss = np.mean(bot.losses[-100:]) if bot.losses else 0
 
@@ -671,6 +690,7 @@ class TrainingManager:
                 "Bot stats",
                 bot=bot.bot_id,
                 win_rate=f"{win_rate:.1f}",
+                stage_rate=f"{stage_rate:.1f}",
                 avg_reward=f"{avg_reward:.2f}",
                 avg_loss=f"{avg_loss:.4f}"
             )

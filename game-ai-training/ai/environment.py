@@ -12,7 +12,7 @@ from json_logger import info, error, warning
 from config import HEAVY_REWARD_BASE
 
 # Simplified reward system used for initial curriculum training
-PIECE_COMPLETION_REWARD = 1.0
+PIECE_COMPLETION_REWARD = 50.0
 # Only penalty currently applied when a bot rejects a homestretch entry
 SKIP_HOME_PENALTY = -1.0
 
