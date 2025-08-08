@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let secondPieceId = null;
     let awaitingSecondPiece = false;
     let validSplits = [];
+    let splitSwapAttempted = false;
     let pendingSpecialMove = null;
     const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
     const homeStretches = [
@@ -519,10 +520,25 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
 
     function handleValidSplits(data) {
         validSplits = data.splits || [];
+        if (validSplits.length === 0 && !splitSwapAttempted) {
+            [selectedPieceId, secondPieceId] = [secondPieceId, selectedPieceId];
+            const p1 = gameState.pieces.find(p => p.id === selectedPieceId);
+            const p2 = gameState.pieces.find(p => p.id === secondPieceId);
+            pieceLeft.textContent = `Peça ${p1.pieceId}`;
+            pieceRight.textContent = `Peça ${p2.pieceId}`;
+            splitSwapAttempted = true;
+            socket.emit('getValidSplits', {
+                roomId,
+                pieceAId: selectedPieceId,
+                pieceBId: secondPieceId
+            });
+            return;
+        }
         if (validSplits.length === 0) {
             showStatusMessage('Nenhuma divisão válida disponível', 'error');
             return;
         }
+        splitSwapAttempted = false;
         splitSlider.min = Math.min(...validSplits);
         splitSlider.max = Math.max(...validSplits);
         const mid = validSplits[Math.floor(validSplits.length / 2)];
@@ -1279,6 +1295,7 @@ function makeMove() {
         const p2 = gameState.pieces.find(p => p.id === secondPieceId);
         pieceLeft.textContent = `Peça ${p1.pieceId}`;
         pieceRight.textContent = `Peça ${p2.pieceId}`;
+        splitSwapAttempted = false;
         socket.emit('getValidSplits', {
             roomId,
             pieceAId: selectedPieceId,
