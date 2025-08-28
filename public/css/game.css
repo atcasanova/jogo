@@ -205,6 +205,19 @@
     overflow-x: auto;
 }
 
+.player-hand.floating {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    cursor: grab;
+}
+
+.player-hand.floating.dragging {
+    cursor: grabbing;
+}
+
 #cards-container {
     display: flex;
     justify-content: center;
