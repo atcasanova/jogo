@@ -172,7 +172,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!el) {
         el = document.createElement('div');
         el.className = `piece player${piece.playerId}`;
-        el.textContent = piece.pieceId;
         pieceElements[piece.id] = el;
       }
       cell.appendChild(el);

@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const deckCountSpan = document.getElementById('deck-count');
   const discardCountSpan = document.getElementById('discard-count');
   const topDiscard = document.getElementById('top-discard');
+  const playerHand = document.querySelector('.player-hand');
 
   const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
 
@@ -61,6 +62,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let playerPosition = 0;
   const pieceElements = {};
+
+  let isDraggingHand = false;
+  let handOffsetX = 0;
+  let handOffsetY = 0;
+
+  if (playerHand) {
+    playerHand.addEventListener('mousedown', e => {
+      if (!playerHand.classList.contains('floating')) return;
+      isDraggingHand = true;
+      const rect = playerHand.getBoundingClientRect();
+      handOffsetX = e.clientX - rect.left;
+      handOffsetY = e.clientY - rect.top;
+      playerHand.style.bottom = '';
+      playerHand.style.transform = '';
+      playerHand.style.left = `${rect.left}px`;
+      playerHand.style.top = `${rect.top}px`;
+      playerHand.classList.add('dragging');
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!isDraggingHand) return;
+      playerHand.style.left = `${e.clientX - handOffsetX}px`;
+      playerHand.style.top = `${e.clientY - handOffsetY}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!isDraggingHand) return;
+      isDraggingHand = false;
+      playerHand.classList.remove('dragging');
+    });
+  }
 
   createBoard();
   markSpecialCells();
@@ -218,7 +250,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!el) {
         el = document.createElement('div');
         el.className = `piece player${piece.playerId}`;
-        el.textContent = piece.pieceId;
         pieceElements[piece.id] = el;
         cell.appendChild(el);
       } else {
@@ -332,12 +363,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function adjustBoardSize() {
     const info = document.querySelector('.game-info');
-    const hand = document.querySelector('.player-hand');
+    const hand = playerHand;
     const cssMax = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.65);
     let size = cssMax;
     if (info && hand) {
-      const available = window.innerHeight - info.offsetHeight - hand.offsetHeight - 32;
-      size = Math.min(cssMax, available);
+      const availableWithHand = window.innerHeight - info.offsetHeight - hand.offsetHeight - 32;
+      if (availableWithHand < 0) {
+        hand.classList.add('floating');
+        hand.style.bottom = '10px';
+        hand.style.left = '50%';
+        hand.style.transform = 'translateX(-50%)';
+        const available = window.innerHeight - info.offsetHeight - 16;
+        size = Math.min(cssMax, available);
+      } else {
+        hand.classList.remove('floating');
+        hand.style.left = '';
+        hand.style.top = '';
+        hand.style.bottom = '';
+        hand.style.transform = '';
+        size = Math.min(cssMax, availableWithHand);
+      }
     }
     board.style.width = `${size}px`;
     board.style.height = `${size}px`;
