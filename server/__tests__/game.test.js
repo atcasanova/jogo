@@ -676,6 +676,40 @@ describe('Game class', () => {
     expect(partner.position).toEqual({ row: 0, col: 14 });
   });
 
+  test('special 7 move reorders to free home stretch entry', () => {
+    const game = new Game('sevenReorder');
+    game.addPlayer('1', 'A');
+    game.addPlayer('2', 'B');
+    game.addPlayer('3', 'C');
+    game.addPlayer('4', 'D');
+    game.setupTeams();
+
+    const inside = game.pieces.find(p => p.id === 'p0_1');
+    const outside = game.pieces.find(p => p.id === 'p0_2');
+
+    inside.inPenaltyZone = false;
+    inside.inHomeStretch = true;
+    inside.position = { row: 1, col: 4 };
+
+    outside.inPenaltyZone = false;
+    outside.position = { row: 1, col: 0 };
+
+    game.players[0].cards.push({ suit: '♠', value: '7' });
+
+    const result = game.makeSpecialMove([
+      { pieceId: outside.id, steps: 6, enterHome: true },
+      { pieceId: inside.id, steps: 1 }
+    ]);
+
+    const updatedInside = game.pieces.find(p => p.id === inside.id);
+    const updatedOutside = game.pieces.find(p => p.id === outside.id);
+
+    expect(result.success).toBe(true);
+    expect(updatedInside.position).toEqual({ row: 2, col: 4 });
+    expect(updatedOutside.inHomeStretch).toBe(true);
+    expect(updatedOutside.position).toEqual({ row: 1, col: 4 });
+  });
+
   test('control uses currentPlayerIndex when player position is incorrect', () => {
     const game = new Game('positionMismatch');
     game.addPlayer('1', 'A');
