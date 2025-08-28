@@ -386,11 +386,11 @@ discardCard(cardIndex) {
     const player = this.getCurrentPlayer();
     const cardIndex = player.cards.findIndex(c => c.value === '7');
     const card = player.cards[cardIndex];
-    
+
     if (!card) {
       throw new Error("Você não tem uma carta 7");
     }
-    
+
     let totalMoves = 0;
     for (const move of moves) {
       totalMoves += move.steps;
@@ -399,10 +399,7 @@ discardCard(cardIndex) {
     if (totalMoves !== 7) {
       throw new Error("Total de movimentos deve ser exatamente 7");
     }
-    
-    const moveResults = [];
 
-    // Salvar estado antes de executar os movimentos
     const snapshot = {
       pieces: JSON.parse(JSON.stringify(this.pieces)),
       players: JSON.parse(JSON.stringify(this.players)),
@@ -411,10 +408,10 @@ discardCard(cardIndex) {
       pendingSpecialMove: this.pendingSpecialMove ? JSON.parse(JSON.stringify(this.pendingSpecialMove)) : null
     };
 
-    try {
-      // Executar cada movimento
-      for (let i = 0; i < moves.length; i++) {
-        const move = moves[i];
+    const executeSequence = (seq) => {
+      const results = [];
+      for (let i = 0; i < seq.length; i++) {
+        const move = seq[i];
         const piece = this.pieces.find(p => p.id === move.pieceId);
 
         const oldPosition = { ...piece.position };
@@ -433,7 +430,7 @@ discardCard(cardIndex) {
           Object.prototype.hasOwnProperty.call(move, 'enterHome') ? move.enterHome : null
         );
 
-        moveResults.push({
+        results.push({
           pieceId: piece.id,
           oldPosition,
           newPosition: { ...piece.position },
@@ -442,37 +439,62 @@ discardCard(cardIndex) {
 
         if (result && result.action === 'homeEntryChoice') {
           this.pendingSpecialMove = {
-            moves,
-            moveResults,
+            moves: seq,
+            moveResults: results,
             nextIndex: i,
             cardIndex
           };
-          return { ...result, moveIndex: i, moves: moveResults };
+          return { pending: { ...result, moveIndex: i, moves: results } };
         }
       }
+      return { moveResults: results };
+    };
+
+    let outcome;
+    try {
+      outcome = executeSequence(moves);
     } catch (err) {
-      // Reverter para o estado salvo
+      // Reverter e tentar com ordem invertida se houver dois movimentos
       this.pieces = snapshot.pieces;
       this.players = snapshot.players;
       this.relinkTeams();
       this.discardPile = snapshot.discardPile;
       this.stats = snapshot.stats;
       this.pendingSpecialMove = snapshot.pendingSpecialMove;
-      throw err;
+
+      if (moves.length === 2) {
+        try {
+          outcome = executeSequence([moves[1], moves[0]]);
+        } catch (err2) {
+          this.pieces = snapshot.pieces;
+          this.players = snapshot.players;
+          this.relinkTeams();
+          this.discardPile = snapshot.discardPile;
+          this.stats = snapshot.stats;
+          this.pendingSpecialMove = snapshot.pendingSpecialMove;
+          throw err2;
+        }
+      } else {
+        throw err;
+      }
     }
-    
+
+    if (outcome.pending) {
+      return outcome.pending;
+    }
+
     // Remover a carta 7 da mão do jogador
     this.discardPile.push(player.cards[cardIndex]);
     player.cards.splice(cardIndex, 1);
-    
+
     // NÃO comprar nova carta aqui - a carta já foi comprada no início do turno
-    
+
     // Passar para o próximo jogador
     this.nextTurn();
 
     this.pendingSpecialMove = null;
 
-    return { success: true, moves: moveResults };
+    return { success: true, moves: outcome.moveResults };
   }
 
   resumeSpecialMove(enterHome) {
@@ -668,6 +690,9 @@ discardCard(cardIndex) {
         };
       }
       // Se enterHome for false, continua movimentação normal
+    } else if (enterHome === true) {
+      // Jogador tentou entrar no corredor de chegada, mas não havia opção válida
+      throw new Error('Não pode entrar no corredor de chegada');
     }
 
     // Calcular nova posição na pista principal
