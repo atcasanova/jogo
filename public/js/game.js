@@ -1296,15 +1296,15 @@ function makeMove() {
         const movable = gameState.pieces.filter(p => {
             if (!canControlPiece(playerPosition, p.playerId)) return false;
             if (p.inPenaltyZone || p.completed) return false;
-            // Allow pieces already in the home stretch to be considered for
-            // splitting the movement. The server will validate whether the
-            // desired move is legal.
+            // Pieces in the home stretch must have at least one legal move
+            // available to be considered for the split.
+            if (p.inHomeStretch) {
+                return canMoveInHomeStretch(p);
+            }
             return true;
         });
 
-        const movableTrack = movable.filter(p => !p.inHomeStretch);
-
-        if (movableTrack.length <= 1) {
+        if (movable.length <= 1) {
             socket.emit('makeSpecialMove', {
                 roomId,
                 moves: [{ pieceId: selectedPieceId, steps: 7 }],
