@@ -18,12 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const finalStatsDiv = document.getElementById('final-stats');
     const lastMoveDiv = document.getElementById('last-move');
     const playerHand = document.querySelector('.player-hand');
-
-    const queueBoardResize = () => {
-      requestAnimationFrame(() => {
-        adjustBoardSize();
-      });
-    };
     
     // Elementos do diálogo de movimento especial (carta 7)
     const specialMoveChoice = document.getElementById('special-move-choice');
@@ -41,6 +35,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelJokerMoveBtn = document.getElementById('cancel-joker-move');
 
     const statsPanel = document.getElementById('stats-panel');
+
+    let isDraggingHand = false;
+    let handOffsetX = 0;
+    let handOffsetY = 0;
+
+    if (playerHand) {
+      playerHand.addEventListener('mousedown', e => {
+        if (!playerHand.classList.contains('floating')) return;
+        isDraggingHand = true;
+        const rect = playerHand.getBoundingClientRect();
+        handOffsetX = e.clientX - rect.left;
+        handOffsetY = e.clientY - rect.top;
+        playerHand.style.bottom = '';
+        playerHand.style.transform = '';
+        playerHand.style.left = `${rect.left}px`;
+        playerHand.style.top = `${rect.top}px`;
+        playerHand.classList.add('dragging');
+      });
+
+      document.addEventListener('mousemove', e => {
+        if (!isDraggingHand) return;
+        playerHand.style.left = `${e.clientX - handOffsetX}px`;
+        playerHand.style.top = `${e.clientY - handOffsetY}px`;
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!isDraggingHand) return;
+        isDraggingHand = false;
+        playerHand.classList.remove('dragging');
+      });
+    }
 
     // Botões do diálogo de fim de jogo
     const rematchBtn = document.getElementById('rematch-btn');
@@ -117,8 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function adjustBoardSize() {
-      if (!board) return;
-
       const info = document.querySelector('.game-info');
       const hand = playerHand;
       const boardContainer = board.parentElement;
@@ -133,26 +156,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const infoHeight = info ? info.getBoundingClientRect().height : 0;
       const handHeight = hand ? hand.getBoundingClientRect().height : 0;
-      const verticalSpacing = 120;
+      const stackSpacing = 32;
+      const floatingSpacing = 16;
 
-      const availableHeight = window.innerHeight - infoHeight - handHeight - verticalSpacing;
-      const safeWidth = Math.max(0, containerWidth);
-      const safeHeight = Math.max(0, availableHeight);
+      let sizeWithHand = Math.min(
+        containerWidth,
+        window.innerHeight - infoHeight - handHeight - stackSpacing
+      );
+      let sizeFloating = Math.min(
+        containerWidth,
+        window.innerHeight - infoHeight - floatingSpacing
+      );
 
-      let size;
-      if (safeWidth > 0 && safeHeight > 0) {
-        size = Math.min(safeWidth, safeHeight);
-      } else if (safeWidth > 0) {
-        size = safeWidth;
-      } else if (safeHeight > 0) {
-        size = safeHeight;
-      } else {
-        size = Math.min(window.innerWidth, window.innerHeight) - 40;
+      if (!Number.isFinite(sizeWithHand)) sizeWithHand = 0;
+      if (!Number.isFinite(sizeFloating)) sizeFloating = 0;
+
+      let shouldFloat = false;
+
+      if (hand) {
+        if (sizeWithHand < 0 || sizeFloating > sizeWithHand) {
+          shouldFloat = true;
+        }
       }
 
-      if (!Number.isFinite(size) || size <= 0) {
-        size = 300;
+      if (hand) {
+        if (shouldFloat) {
+          hand.classList.add('floating');
+          if (!hand.classList.contains('dragging')) {
+            hand.style.bottom = '10px';
+            hand.style.left = '50%';
+            hand.style.transform = 'translateX(-50%)';
+            hand.style.top = '';
+          }
+        } else {
+          hand.classList.remove('floating');
+          if (!hand.classList.contains('dragging')) {
+            hand.style.left = '';
+            hand.style.top = '';
+            hand.style.bottom = '';
+            hand.style.transform = '';
+          }
+        }
       }
+
+      const targetSize = shouldFloat ? sizeFloating : sizeWithHand;
+      const size = Math.max(0, targetSize);
 
       board.style.width = `${size}px`;
       board.style.height = `${size}px`;
@@ -216,9 +264,7 @@ function init() {
 
       // Criar tabuleiro
       createBoard();
-      if (playerHand) {
-        adjustBoardSize();
-      }
+      adjustBoardSize();
 
       // Inicializar Socket.io com os dados recuperados
       initSocketWithPlayerData(playerData);
@@ -1044,7 +1090,6 @@ function updateCards(cards) {
   
   if (!cards || cards.length === 0) {
     console.error('Nenhuma carta para exibir');
-    queueBoardResize();
     return;
   }
   
@@ -1073,7 +1118,6 @@ function updateCards(cards) {
   }
 
   console.log('Cartas atualizadas no DOM:', cardsContainer.children.length);
-  queueBoardResize();
 }
    
 
@@ -1470,8 +1514,8 @@ function makeMove() {
             window.location.href = '/';
         });
 
-        window.addEventListener('resize', queueBoardResize);
-        window.addEventListener('orientationchange', queueBoardResize);
+        window.addEventListener('resize', adjustBoardSize);
+        window.addEventListener('orientationchange', adjustBoardSize);
     }
 
     function updateSliderValues() {
