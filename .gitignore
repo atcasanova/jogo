@@ -3,3 +3,5 @@ package-lock.json
 replays/
 
 __pycache__/
+game-ai-training/models/
+last_version
