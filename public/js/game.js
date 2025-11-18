@@ -18,6 +18,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const finalStatsDiv = document.getElementById('final-stats');
     const lastMoveDiv = document.getElementById('last-move');
     const playerHand = document.querySelector('.player-hand');
+
+    const queueBoardResize = () => {
+      if (!playerHand) return;
+      requestAnimationFrame(() => {
+        if (playerHand) {
+          adjustBoardSize();
+        }
+      });
+    };
     
     // Elementos do diálogo de movimento especial (carta 7)
     const specialMoveChoice = document.getElementById('special-move-choice');
@@ -264,7 +273,9 @@ function init() {
 
       // Criar tabuleiro
       createBoard();
-      adjustBoardSize();
+      if (playerHand) {
+        adjustBoardSize();
+      }
 
       // Inicializar Socket.io com os dados recuperados
       initSocketWithPlayerData(playerData);
@@ -1090,6 +1101,7 @@ function updateCards(cards) {
   
   if (!cards || cards.length === 0) {
     console.error('Nenhuma carta para exibir');
+    queueBoardResize();
     return;
   }
   
@@ -1118,6 +1130,7 @@ function updateCards(cards) {
   }
 
   console.log('Cartas atualizadas no DOM:', cardsContainer.children.length);
+  queueBoardResize();
 }
    
 
@@ -1514,8 +1527,8 @@ function makeMove() {
             window.location.href = '/';
         });
 
-        window.addEventListener('resize', adjustBoardSize);
-        window.addEventListener('orientationchange', adjustBoardSize);
+        window.addEventListener('resize', queueBoardResize);
+        window.addEventListener('orientationchange', queueBoardResize);
     }
 
     function updateSliderValues() {
