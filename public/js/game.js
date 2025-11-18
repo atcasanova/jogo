@@ -144,63 +144,28 @@ document.addEventListener('DOMContentLoaded', () => {
     function adjustBoardSize() {
       const info = document.querySelector('.game-info');
       const hand = playerHand;
-      const boardContainer = board.parentElement;
-      const layoutContainer = boardContainer ? boardContainer.parentElement : null;
 
-      let containerWidth = window.innerWidth;
-      if (layoutContainer) {
-        const layoutStyles = window.getComputedStyle(layoutContainer);
-        const paddingX = parseFloat(layoutStyles.paddingLeft || '0') + parseFloat(layoutStyles.paddingRight || '0');
-        containerWidth = Math.max(0, layoutContainer.clientWidth - paddingX);
-      }
+      const cssMax = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.65);
+      let size = cssMax;
 
-      const infoHeight = info ? info.getBoundingClientRect().height : 0;
-      const handHeight = hand ? hand.getBoundingClientRect().height : 0;
-      const stackSpacing = 32;
-      const floatingSpacing = 16;
-
-      let sizeWithHand = Math.min(
-        containerWidth,
-        window.innerHeight - infoHeight - handHeight - stackSpacing
-      );
-      let sizeFloating = Math.min(
-        containerWidth,
-        window.innerHeight - infoHeight - floatingSpacing
-      );
-
-      if (!Number.isFinite(sizeWithHand)) sizeWithHand = 0;
-      if (!Number.isFinite(sizeFloating)) sizeFloating = 0;
-
-      let shouldFloat = false;
-
-      if (hand) {
-        if (sizeWithHand < 0 || sizeFloating > sizeWithHand) {
-          shouldFloat = true;
-        }
-      }
-
-      if (hand) {
-        if (shouldFloat) {
+      if (info && hand) {
+        const availableWithHand = window.innerHeight - info.offsetHeight - hand.offsetHeight - 32;
+        if (availableWithHand < 0) {
           hand.classList.add('floating');
-          if (!hand.classList.contains('dragging')) {
-            hand.style.bottom = '10px';
-            hand.style.left = '50%';
-            hand.style.transform = 'translateX(-50%)';
-            hand.style.top = '';
-          }
+          hand.style.bottom = '10px';
+          hand.style.left = '50%';
+          hand.style.transform = 'translateX(-50%)';
+          const available = window.innerHeight - info.offsetHeight - 16;
+          size = Math.min(cssMax, available);
         } else {
           hand.classList.remove('floating');
-          if (!hand.classList.contains('dragging')) {
-            hand.style.left = '';
-            hand.style.top = '';
-            hand.style.bottom = '';
-            hand.style.transform = '';
-          }
+          hand.style.left = '';
+          hand.style.top = '';
+          hand.style.bottom = '';
+          hand.style.transform = '';
+          size = Math.min(cssMax, availableWithHand);
         }
       }
-
-      const targetSize = shouldFloat ? sizeFloating : sizeWithHand;
-      const size = Math.max(0, targetSize);
 
       board.style.width = `${size}px`;
       board.style.height = `${size}px`;

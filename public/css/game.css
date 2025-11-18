@@ -1,12 +1,13 @@
 .game-container {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
     gap: 1rem;
     max-width: 100%;
     padding: 1rem;
-    min-height: 100vh;
-    min-height: 100dvh; /* garante a altura correta em navegadores mobile */
-    box-sizing: border-box;
+    height: 100vh;
+    height: 100dvh; /* garante a altura correta em navegadores mobile */
+    overflow-y: auto;
 }
 
 .game-info {
@@ -76,13 +77,12 @@
 
 .board-container {
     display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: center;
     gap: 1rem;
     position: relative;
-    width: 100%;
-    max-width: 900px;
+    width: fit-content;
+    height: fit-content;
     margin: 0 auto;
 }
 
@@ -121,9 +121,9 @@
     gap: 0;
     background-color: white;
     aspect-ratio: 1/1;
-    max-width: 100%;
-    max-height: 100%;
-    width: min(90vw, 90vh);
+    /* Limit the board so there is always room for the hand */
+    width: min(80vmin, 65vh);
+    height: min(80vmin, 65vh);
     margin: 0 auto;
 }
 
@@ -202,18 +202,29 @@
     background-color: white;
     border-radius: 4px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    width: 100%;
-    max-width: 1100px;
-    margin: 0 auto 1rem;
+    overflow-x: auto;
+}
+
+.player-hand.floating {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    cursor: grab;
+}
+
+.player-hand.floating.dragging {
+    cursor: grabbing;
 }
 
 #cards-container {
     display: flex;
     justify-content: center;
     gap: 1rem;
-    flex-wrap: wrap;
-    overflow-x: visible;
-    margin-top: 0.5rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-top: 1rem;
 }
 
 /* Usado quando a mão precisa encolher para caber em telas menores */
@@ -286,16 +297,15 @@
 /* Modifique no game.css */
 .deck-area {
   display: flex;
-  gap: 1.5rem;
-  position: static;
-  transform: none;
-  z-index: auto;
-  background-color: transparent;
-  padding: 0.5rem 0;
-  border-radius: 0;
-  width: 100%;
-  justify-content: center;
-  flex-wrap: wrap;
+  gap: 2rem;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 10px;
+  border-radius: 8px;
 }
 
 .discard-pile {
