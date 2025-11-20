@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const cardsContainer = document.getElementById('cards-container');
   const playerHand = document.querySelector('.player-hand');
 
-  const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
+  const playerColors = ['#3498db', '#f2f2f2', '#e74c3c', '#2ecc71'];
   let replayData = [];
   let idx = 0;
   let pieceElements = {};

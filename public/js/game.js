@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let awaitingSecondPiece = false;
     let validSplits = [];
     let pendingSpecialMove = null;
-    const playerColors = ['#3498db', '#000000', '#e74c3c', '#2ecc71'];
+    const playerColors = ['#3498db', '#f2f2f2', '#e74c3c', '#2ecc71'];
     const homeStretches = [
       [
         { row: 1, col: 4 },
