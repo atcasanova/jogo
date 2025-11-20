@@ -840,6 +840,11 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     try {
       const currentPlayer = game.getCurrentPlayer();
       const moveResult = game.makeSpecialMove(moves);
+
+      // Atualizar a mão do jogador imediatamente após jogar a carta 7
+      socket.emit('updateCards', {
+        cards: currentPlayer.cards
+      });
       if (moveResult.moves) {
         const msgs = [];
         moveResult.moves.forEach(m => {
@@ -946,6 +951,11 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
     try {
       const moveResult = game.resumeSpecialMove(enterHome);
+
+      // Garantir que a mão seja atualizada após concluir o movimento especial
+      socket.emit('updateCards', {
+        cards: currentPlayer.cards
+      });
 
       if (moveResult.moves) {
         const msgs = [];

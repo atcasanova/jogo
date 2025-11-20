@@ -1093,10 +1093,9 @@ function updateCards(cards) {
   });
 
   // Ajusta o tamanho das cartas conforme o espaço disponível
-  cardsContainer.classList.remove('compact');
-  if (cardsContainer.scrollWidth > cardsContainer.clientWidth) {
-    cardsContainer.classList.add('compact');
-  }
+  const shouldCompact =
+    cards.length >= 6 || cardsContainer.scrollWidth > cardsContainer.clientWidth;
+  cardsContainer.classList.toggle('compact', shouldCompact);
 
   // Recalcula o tamanho do tabuleiro após renderizar a mão,
   // garantindo que haja espaço para visualizar as cartas
