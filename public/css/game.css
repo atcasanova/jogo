@@ -618,6 +618,63 @@
   background-color: rgba(255, 142, 162, 0.15);
 }
 
+.discard-pile .card {
+    margin: 0;
+}
+
+/* Ajustes para telas pequenas */
+@media (max-width: 900px) {
+    .player-hand {
+        position: sticky;
+        bottom: 0;
+        padding: 0.9rem 0.75rem;
+    }
+
+    #cards-container {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+        max-width: 100%;
+        padding-bottom: 0.5rem;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #cards-container::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    #cards-container::-webkit-scrollbar-thumb {
+        background: rgba(140, 246, 255, 0.35);
+        border-radius: 999px;
+    }
+
+    .deck-area {
+        gap: 1rem;
+        padding: 10px 12px;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+
+    .card {
+        margin: 0.35rem;
+    }
+}
+
+@media (max-width: 560px) {
+    .player-hand {
+        padding: 0.75rem 0.5rem;
+    }
+
+    .deck-area {
+        transform: translate(-50%, -50%) scale(0.82);
+        gap: 0.75rem;
+    }
+
+    .card {
+        margin: 0.25rem;
+    }
+}
+
 .stats-panel {
   background: rgba(10, 12, 22, 0.92);
   padding: 0.75rem;
