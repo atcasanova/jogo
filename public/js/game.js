@@ -1082,6 +1082,10 @@ function updateCards(cards) {
     cardsContainer.classList.add('compact');
   }
 
+  // Recalcula o tamanho do tabuleiro após renderizar a mão,
+  // garantindo que haja espaço para visualizar as cartas
+  adjustBoardSize();
+
   console.log('Cartas atualizadas no DOM:', cardsContainer.children.length);
 }
    
