@@ -121,6 +121,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const pieceElements = {};
 
+    function setPieceNumbersVisible(visible) {
+      board?.classList.toggle('show-piece-numbers', visible);
+    }
+
+    function ensurePieceLabel(pieceElement, piece) {
+      let label = pieceElement.querySelector('.piece-text');
+      if (!label) {
+        label = document.createElement('span');
+        label.className = 'piece-text';
+        pieceElement.appendChild(label);
+      }
+      label.textContent = piece.pieceId;
+    }
+
     function getDisplayValue(card) {
       return card.value === 'JOKER' ? 'C' : card.value;
     }
@@ -895,6 +909,7 @@ function updatePlayerLabels() {
         e.stopPropagation();
         handlePieceClick(piece.id);
       });
+      ensurePieceLabel(pieceElement, piece);
       pieceElements[piece.id] = pieceElement;
       cell.appendChild(pieceElement);
       return;
@@ -904,6 +919,7 @@ function updatePlayerLabels() {
     if (shouldHighlight) {
       pieceElement.classList.add('my-piece');
     }
+    ensurePieceLabel(pieceElement, piece);
     
     const first = pieceElement.getBoundingClientRect();
     cell.appendChild(pieceElement);
@@ -1285,6 +1301,7 @@ function makeMove() {
 
     function finalizeSpecialMove() {
         specialMoveDialog.classList.add('hidden');
+        setPieceNumbersVisible(false);
         awaitingSecondPiece = false;
         secondPieceId = null;
         specialMoveCard = null;
@@ -1296,6 +1313,13 @@ function makeMove() {
     }
 
     function initiateSpecialMove() {
+        const selectedCard = playerCards[selectedCardIndex];
+
+        if (!selectedCard || selectedCard.value !== '7') {
+            setPieceNumbersVisible(false);
+            return;
+        }
+
         specialMoveCard = selectedCardIndex;
         const movable = gameState.pieces.filter(p => {
             if (!canControlPiece(playerPosition, p.playerId)) return false;
@@ -1321,6 +1345,7 @@ function makeMove() {
         specialMoveChoice.classList.remove('hidden');
         specialMoveSlider.classList.add('hidden');
         specialMoveDialog.classList.remove('hidden');
+        setPieceNumbersVisible(true);
     }
 
     function showSliderDialog() {
