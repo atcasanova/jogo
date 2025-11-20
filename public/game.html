@@ -48,20 +48,47 @@
             <div id="cards-container"></div>
         </div>
         
-        <div id="special-move-dialog" class="dialog hidden">
-            <div id="special-move-choice" class="hidden">
-                <p>Usar uma peça ou dividir entre duas?</p>
-                <button id="same-piece-btn">Uma peça</button>
-                <button id="other-piece-btn">Duas peças</button>
+        <div id="special-move-dialog" class="dialog hidden card7-dialog">
+            <div class="dialog-header">
+                <div class="card7-badge">
+                    <span class="card7-number">7</span>
+                    <span class="card7-label">Carta especial</span>
+                </div>
+                <h3>Movimento da carta 7</h3>
+                <p class="dialog-subtitle">Divida os passos entre duas peças ou avance tudo com uma só.</p>
             </div>
-            <div id="special-move-slider" class="hidden">
-                <div class="slider-labels">
-                    <span id="piece-left"></span>
-                    <span id="piece-right"></span>
+
+            <div id="special-move-choice" class="card7-options hidden">
+                <button id="same-piece-btn" class="card7-option btn primary">
+                    <span class="option-title">Mover uma peça</span>
+                    <span class="option-helper">Usar todos os 7 passos na peça selecionada.</span>
+                </button>
+                <button id="other-piece-btn" class="card7-option btn secondary">
+                    <span class="option-title">Dividir entre duas</span>
+                    <span class="option-helper">Escolher outra peça e distribuir os passos.</span>
+                </button>
+            </div>
+
+            <div id="special-move-slider" class="hidden card7-split">
+                <div class="card7-split-header">
+                    <div class="chip-outline">Distribua os 7 passos</div>
+                    <p class="dialog-subtitle">Arraste para ajustar quanto cada peça anda.</p>
+                </div>
+                <div class="split-values" aria-live="polite">
+                    <div class="split-pill">
+                        <span class="pill-label" id="piece-left"></span>
+                        <span class="pill-value" data-label="left">3 casas</span>
+                    </div>
+                    <div class="split-pill">
+                        <span class="pill-label" id="piece-right"></span>
+                        <span class="pill-value" data-label="right">4 casas</span>
+                    </div>
                 </div>
                 <input type="range" id="split-slider" min="1" max="6" value="3">
-                <div id="slider-values"></div>
-                <button id="confirm-split">OK</button>
+                <div id="slider-values" class="split-readout"></div>
+                <div class="button-group">
+                    <button id="confirm-split" class="btn primary">Confirmar divisão</button>
+                </div>
             </div>
         </div>
         
