@@ -520,8 +520,12 @@
 }
 
 .piece-text {
-  display: inline-block;
+  display: none;
   transform: none !important; /* Impede qualquer rotação do texto */
+}
+
+.show-piece-numbers .piece .piece-text {
+  display: inline-block;
 }
 
 /* Estilos para dialogo de movimento especial com slider */
