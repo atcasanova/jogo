@@ -1519,7 +1519,21 @@ function makeMove() {
             splitSlider.value = nearest;
             val = nearest;
         }
-        sliderValues.textContent = `${val}-${7 - val}`;
+        const leftValue = val;
+        const rightValue = 7 - val;
+
+        const leftPillValue = document.querySelector('.pill-value[data-label="left"]');
+        const rightPillValue = document.querySelector('.pill-value[data-label="right"]');
+
+        if (leftPillValue) {
+            leftPillValue.textContent = `${leftValue} casa${leftValue === 1 ? '' : 's'}`;
+        }
+
+        if (rightPillValue) {
+            rightPillValue.textContent = `${rightValue} casa${rightValue === 1 ? '' : 's'}`;
+        }
+
+        sliderValues.innerHTML = `<span class="readout-highlight">${leftValue}</span> / <span class="readout-highlight">${rightValue}</span> passos`;
     }
     
     // Inicializar o jogo

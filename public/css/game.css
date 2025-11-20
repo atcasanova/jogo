@@ -379,9 +379,87 @@
     color: #f5fbff;
 }
 
+.dialog-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1.2rem;
+}
+
+.dialog-subtitle {
+  margin: 0;
+  color: #c6d5ff;
+  line-height: 1.4;
+  font-size: 0.95rem;
+}
+
+.card7-dialog {
+  width: min(640px, 94vw);
+}
+
+.card7-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  background: rgba(140, 246, 255, 0.08);
+  border: 1px solid rgba(140, 246, 255, 0.35);
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+}
+
+.card7-number {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #7ef3ff, #7d7dff);
+  color: #05060c;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.card7-label {
+  color: #dfe6ff;
+}
+
 #special-move-dialog button {
   font-size: 1.2rem;
   padding: 1rem 1.5rem;
+}
+
+.card7-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.card7-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  text-align: left;
+  border-radius: 14px;
+}
+
+.card7-option .option-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.card7-option .option-helper {
+  color: #122b4a;
+  opacity: 0.8;
+  font-weight: 600;
+}
+
+.card7-option.secondary .option-helper {
+  color: #dfe6ff;
 }
 
 .dialog h3 {
@@ -593,11 +671,82 @@
 
 #split-slider {
   width: 100%;
+  accent-color: #7ef3ff;
 }
 
 #slider-values {
   text-align: center;
   font-weight: bold;
+}
+
+.card7-split {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.card7-split-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.chip-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(140, 246, 255, 0.3);
+  color: #cfe7ff;
+  background: rgba(255, 255, 255, 0.04);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.split-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem;
+}
+
+.split-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(140, 246, 255, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.pill-label {
+  font-weight: 700;
+  color: #dfe6ff;
+}
+
+.pill-value {
+  font-weight: 800;
+  color: #7ef3ff;
+  letter-spacing: 0.04em;
+}
+
+.split-readout {
+  text-align: center;
+  padding: 0.8rem;
+  background: rgba(140, 246, 255, 0.08);
+  border-radius: 12px;
+  border: 1px solid rgba(140, 246, 255, 0.2);
+  color: #dfe6ff;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.split-readout .readout-highlight {
+  color: #7ef3ff;
+  font-size: 1.2rem;
+  padding: 0 0.1rem;
 }
 
 /* Área para exibir os nomes dos jogadores ao redor do tabuleiro */
