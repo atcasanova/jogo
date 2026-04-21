@@ -1,4 +1,5 @@
 import sys
+import json
 import numpy as np
 import pytest
 from unittest.mock import patch, MagicMock
@@ -65,6 +66,12 @@ class MockGameEnvironment:
     def set_win_bonus(self, value):
         self.win_bonus = value
 
+    def set_piece_count(self, value):
+        self.pieces_per_player = value
+
+    def set_turn_limit(self, value):
+        self.turn_limit = value
+
 
 class DummyGameBot:
     def __init__(self, player_id, state_size, action_size, device=None, bot_id=None):
@@ -91,6 +98,14 @@ class DummyGameBot:
         pass
 
     def update_target_network(self):
+        pass
+
+    def load_model(self, filepath, reset_stats=False):
+        # Simulate persisted counters being restored with model weights.
+        self.wins = 3
+        self.games_played = 7
+
+    def save_model(self, filepath):
         pass
 
 
@@ -172,3 +187,45 @@ def test_adjust_reward_multiplier_updates_env():
     expected = HEAVY_REWARD_BASE * (1 + REWARD_TUNE_STEP)
     assert pytest.approx(env.heavy_reward, rel=1e-6) == expected
     assert manager.level_reward_multiplier[manager.pieces_per_player] == 1 + REWARD_TUNE_STEP
+
+
+def test_load_models_restores_training_state(tmp_path):
+    torch_mock = MagicMock()
+    sys.modules['torch'] = torch_mock
+    sys.modules['torch.nn'] = MagicMock()
+    sys.modules['torch.optim'] = MagicMock()
+
+    from ai.trainer import TrainingManager
+
+    model_dir = tmp_path / "final"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    for idx in range(4):
+        (model_dir / f"bot_{idx}.pth").write_text("stub", encoding="utf-8")
+
+    saved_stats = {
+        "episode_rewards": [1.0, 2.0, 3.0],
+        "reward_entropies": [0.1, 0.2, 0.3],
+        "pieces_per_player": [1, 1, 2],
+        "stage_games": [1, 2, 3],
+        "had_winner": [1, 0, 1],
+        "timed_out": [0, 1, 0],
+        "trainable_win": [1, 0, 1],
+        "reward_breakdown_history": [],
+        "bonus_breakdown_history": [],
+    }
+    (model_dir / "training_stats.json").write_text(
+        json.dumps(saved_stats), encoding="utf-8"
+    )
+
+    with patch('ai.trainer.GameBot', DummyGameBot):
+        manager = TrainingManager()
+        manager.env = MockGameEnvironment()
+        manager.envs = [manager.env]
+        manager.create_bots(num_bots=4)
+        manager.load_models(str(model_dir))
+
+        assert manager.training_stats["games_played"] == 3
+        assert manager.pieces_per_player == 2
+        assert manager.stage_games == 3
+        assert manager.turn_limit == 200
+        assert list(manager.recent_outcomes) == [1, 0, 1]

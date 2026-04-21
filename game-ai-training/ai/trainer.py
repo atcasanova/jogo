@@ -62,7 +62,13 @@ class TrainingManager:
             'reward_entropies': [],
             'reward_breakdown_history': [],
             'completed_pieces': [],
-            'homestretch_pieces': []
+            'homestretch_pieces': [],
+            # Episode-level curriculum telemetry for stage-aware analytics.
+            'pieces_per_player': [],
+            'stage_games': [],
+            'had_winner': [],
+            'timed_out': [],
+            'trainable_win': [],
         }
 
         # Optional external list storing per-episode reward contributions
@@ -458,6 +464,7 @@ class TrainingManager:
             bot.games_played += 1
         
         # Check for winners
+        winning_team = []
         if env.game_state.get('gameEnded', False):
             winning_team = env.game_state.get('winningTeam', [])
             if winning_team:
@@ -485,6 +492,7 @@ class TrainingManager:
             game=self.stage_games,
             win_rate=f"{win_rate:.2f}"
         )
+        promoted = False
         if (
             self.stage_games >= 5000
             and win_rate >= 0.55
@@ -505,6 +513,7 @@ class TrainingManager:
             self.stage_games = 0
             self.stage_winning_games = 0
             self.recent_outcomes.clear()
+            promoted = True
             info(
                 "Increased difficulty",
                 pieces=self.pieces_per_player,
@@ -539,6 +548,26 @@ class TrainingManager:
         if ep_total < -10000:
             ep_total = -10000
         self.training_stats['episode_rewards'].append(ep_total)
+        self.training_stats['pieces_per_player'].append(
+            self.pieces_per_player - 1 if promoted else self.pieces_per_player
+        )
+        self.training_stats['stage_games'].append(
+            5000 if promoted else self.stage_games
+        )
+        had_winner = bool(winning_team)
+        self.training_stats['had_winner'].append(int(had_winner))
+        self.training_stats['timed_out'].append(
+            int(not env.game_state.get('gameEnded', False))
+        )
+        trainable_won = 0
+        if had_winner:
+            for player in winning_team:
+                player_pos = player.get('position', -1)
+                if 0 <= player_pos < len(self.bots):
+                    if getattr(self.bots[player_pos], "trainable", True):
+                        trainable_won = 1
+                        break
+        self.training_stats['trainable_win'].append(trainable_won)
         entropy = self._reward_entropy(env.reward_event_counts)
         self.training_stats['reward_entropies'].append(entropy)
         event_details = {k: v for k, v in env.reward_event_counts.items()}
@@ -901,6 +930,81 @@ class TrainingManager:
             if os.path.exists(model_path):
                 bot.load_model(model_path)
                 info("Loaded model", bot=bot.bot_id)
+
+        stats_path = os.path.join(base_path, "training_stats.json")
+        if os.path.exists(stats_path):
+            try:
+                with open(stats_path, "r", encoding="utf-8") as fh:
+                    saved_stats = json.load(fh)
+
+                default_stats = {
+                    'episode_rewards': [],
+                    'kl_divergences': [],
+                    'clip_fractions': [],
+                    'entropy_avgs': [],
+                    'games_played': 0,
+                    'reward_entropies': [],
+                    'reward_breakdown_history': [],
+                    'completed_pieces': [],
+                    'homestretch_pieces': [],
+                    'pieces_per_player': [],
+                    'stage_games': [],
+                    'had_winner': [],
+                    'timed_out': [],
+                    'trainable_win': [],
+                    'bonus_breakdown_history': [],
+                }
+
+                merged_stats = dict(default_stats)
+                for key, value in saved_stats.items():
+                    merged_stats[key] = value
+
+                # Keep `games_played` consistent with per-episode arrays.
+                merged_stats['games_played'] = len(merged_stats.get('episode_rewards', []))
+                self.training_stats = merged_stats
+                self.reward_breakdown_history = self.training_stats['reward_breakdown_history']
+                self.bonus_breakdown_history = self.training_stats['bonus_breakdown_history']
+
+                pieces_series = self.training_stats.get('pieces_per_player', [])
+                if pieces_series:
+                    self.pieces_per_player = max(1, int(pieces_series[-1]))
+                else:
+                    # Best-effort fallback for older checkpoints without telemetry.
+                    total_games = self.training_stats['games_played']
+                    self.pieces_per_player = 1 + (total_games // 5000)
+                    if self.pieces_per_player > 5:
+                        self.pieces_per_player = 5
+
+                stage_series = self.training_stats.get('stage_games', [])
+                if stage_series:
+                    self.stage_games = max(0, int(stage_series[-1]))
+                else:
+                    self.stage_games = self.training_stats['games_played'] % 5000
+
+                self.turn_limit = 100 * self.pieces_per_player
+                for env in [self.env] + self.envs:
+                    env.set_piece_count(self.pieces_per_player)
+                    env.set_turn_limit(self.turn_limit)
+
+                self.recent_outcomes.clear()
+                had_winner_series = self.training_stats.get('had_winner', [])
+                if had_winner_series:
+                    for value in had_winner_series[-self.recent_outcomes.maxlen:]:
+                        self.recent_outcomes.append(1 if value else 0)
+
+                self.stage_start_wins = {bot.bot_id: bot.wins for bot in self.bots}
+                self.stage_start_games = {
+                    bot.bot_id: bot.games_played for bot in self.bots
+                }
+
+                info(
+                    "Restored training state",
+                    games=self.training_stats['games_played'],
+                    pieces=self.pieces_per_player,
+                    stage_games=self.stage_games,
+                )
+            except Exception:
+                warning("Failed to restore training_stats.json; resuming with fresh stats")
 
     def save_snapshot(self, episode: int) -> None:
         """Save the best-performing bot as a frozen snapshot."""
