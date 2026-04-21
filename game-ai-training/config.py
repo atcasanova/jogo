@@ -58,6 +58,25 @@ MIN_REWARD_MULTIPLIER = 0.5
 # Step size used when adjusting the reward multiplier up or down
 REWARD_TUNE_STEP = 0.1
 
+# Event-based reward weights used by ``GameEnvironment``. The environment
+# computes a weighted sum and then clips the total to reduce reward spikes.
+REWARD_WEIGHTS = {
+    # Completing a piece remains the core objective signal.
+    'home_completion': 50.0,
+    # Discourage skipping a valid home entry.
+    'skip_home': -1.0,
+    # Small tactical bonuses to improve credit assignment.
+    'home_entry_progress': 2.0,
+    'capture': 6.0,
+    'safe_move': 1.0,
+    # Team outcome signal.
+    'win': 20.0,
+    'loss': -10.0,
+}
+
+# Clip range for the per-step weighted reward sum.
+REWARD_CLIP_RANGE = (-100.0, 100.0)
+
 # Multiplier applied to positive rewards based on the current
 # number of pieces per player. The curriculum increases the
 # difficulty by adding more pieces, so rewards must scale up to
@@ -71,4 +90,3 @@ POSITIVE_REWARD_MULTIPLIERS = {
     4: 225.0,
     5: 50.0,
 }
-
