@@ -62,7 +62,13 @@ class TrainingManager:
             'reward_entropies': [],
             'reward_breakdown_history': [],
             'completed_pieces': [],
-            'homestretch_pieces': []
+            'homestretch_pieces': [],
+            # Episode-level curriculum telemetry for stage-aware analytics.
+            'pieces_per_player': [],
+            'stage_games': [],
+            'had_winner': [],
+            'timed_out': [],
+            'trainable_win': [],
         }
 
         # Optional external list storing per-episode reward contributions
@@ -458,6 +464,7 @@ class TrainingManager:
             bot.games_played += 1
         
         # Check for winners
+        winning_team = []
         if env.game_state.get('gameEnded', False):
             winning_team = env.game_state.get('winningTeam', [])
             if winning_team:
@@ -485,6 +492,7 @@ class TrainingManager:
             game=self.stage_games,
             win_rate=f"{win_rate:.2f}"
         )
+        promoted = False
         if (
             self.stage_games >= 5000
             and win_rate >= 0.55
@@ -505,6 +513,7 @@ class TrainingManager:
             self.stage_games = 0
             self.stage_winning_games = 0
             self.recent_outcomes.clear()
+            promoted = True
             info(
                 "Increased difficulty",
                 pieces=self.pieces_per_player,
@@ -539,6 +548,26 @@ class TrainingManager:
         if ep_total < -10000:
             ep_total = -10000
         self.training_stats['episode_rewards'].append(ep_total)
+        self.training_stats['pieces_per_player'].append(
+            self.pieces_per_player - 1 if promoted else self.pieces_per_player
+        )
+        self.training_stats['stage_games'].append(
+            5000 if promoted else self.stage_games
+        )
+        had_winner = bool(winning_team)
+        self.training_stats['had_winner'].append(int(had_winner))
+        self.training_stats['timed_out'].append(
+            int(not env.game_state.get('gameEnded', False))
+        )
+        trainable_won = 0
+        if had_winner:
+            for player in winning_team:
+                player_pos = player.get('position', -1)
+                if 0 <= player_pos < len(self.bots):
+                    if getattr(self.bots[player_pos], "trainable", True):
+                        trainable_won = 1
+                        break
+        self.training_stats['trainable_win'].append(trainable_won)
         entropy = self._reward_entropy(env.reward_event_counts)
         self.training_stats['reward_entropies'].append(entropy)
         event_details = {k: v for k, v in env.reward_event_counts.items()}
