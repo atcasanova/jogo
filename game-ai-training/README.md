@@ -30,6 +30,9 @@ python3 game-ai-training/main.py --continue
 ```
 
 The trainer will load the models from `models/final` if they exist.
+When `training_stats.json` exists in the same directory, the trainer also
+restores curriculum telemetry (including piece count and stage progress) so a
+continued run does not reset back to one piece.
 
 ## Training with Fixed Opponents
 
@@ -97,6 +100,21 @@ every game played at each save interval to the `logs/` directory. The log files
 follow the pattern `episode_<N>_env_<ID>.log` where `<N>` is the episode number
 and `<ID>` identifies the environment when multiple environments run in
 parallel.
+
+## Training Stats Analysis Helper
+
+Use `analyze_training_stats.py` to build a stage-aware summary from a saved
+`training_stats.json` file:
+
+```bash
+python3 game-ai-training/analyze_training_stats.py models/final/training_stats.json
+```
+
+You can change the tail window used for trend metrics:
+
+```bash
+python3 game-ai-training/analyze_training_stats.py training_stats.json --window 1000
+```
 
 ## Multi-GPU Support
 
