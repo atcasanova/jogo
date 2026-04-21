@@ -391,11 +391,8 @@ class TrainingManager:
             reward += 0.01 * getattr(current_bot, 'last_entropy', 0.0)
             norm_reward = self._normalize_reward(reward)
 
-            # Store experience only for the training focus bot
-            if (
-                current_player == self.train_focus_idx
-                and states[current_player] is not None
-            ):
+            # Store experience for every trainable bot.
+            if getattr(current_bot, "trainable", True) and states[current_player] is not None:
                 current_bot.remember(
                     states[current_player],
                     actions[current_player],
@@ -415,7 +412,7 @@ class TrainingManager:
             # Train bot
             current_bot.step_count += 1
             if (
-                current_player == self.train_focus_idx
+                getattr(current_bot, "trainable", True)
                 and current_bot.step_count % current_bot.train_freq == 0
             ):
                 result = current_bot.replay()
@@ -430,7 +427,7 @@ class TrainingManager:
                     self._update_lr_schedule(current_bot, progress)
 
             if (
-                current_player == self.train_focus_idx
+                getattr(current_bot, "trainable", True)
                 and current_bot.step_count % current_bot.update_target_freq == 0
             ):
                 current_bot.update_target_network()
@@ -921,4 +918,3 @@ class TrainingManager:
         best_bot.save_model(path)
         self.latest_snapshot = path
         info("Saved snapshot", bot=best_bot.bot_id, episode=episode, path=path)
-

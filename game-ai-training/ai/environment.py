@@ -9,7 +9,7 @@ import threading
 from typing import List, Tuple, Dict, Any, Optional
 
 from json_logger import info, error, warning
-from config import HEAVY_REWARD_BASE
+from config import HEAVY_REWARD_BASE, REWARD_WEIGHTS, REWARD_CLIP_RANGE
 
 # Simplified reward system used for initial curriculum training
 PIECE_COMPLETION_REWARD = 50.0
@@ -22,7 +22,7 @@ DIRECT_COMPLETE_REWARD = 0.0
 HOME_COMPLETION_REWARD = PIECE_COMPLETION_REWARD
 ENEMY_HOME_ENTRY_PENALTY = 0.0
 INVALID_MOVE_PENALTY = 0.0
-WIN_BONUS = 0.0
+WIN_BONUS = REWARD_WEIGHTS.get('win', 20.0)
 TIMEOUT_PENALTY = 0.0
 
 # Deprecated reward configuration retained for backward compatibility
@@ -42,7 +42,8 @@ class GameEnvironment:
         self.node_process = None
         self.game_state = None
         self.action_space_size = 80
-        self.state_size = 200
+        # Richer observation vector with full-board context and tactical hints.
+        self.state_size = 320
 
         self.pieces_per_player = pieces_per_player
         self.turn_limit = turn_limit
@@ -118,12 +119,22 @@ class GameEnvironment:
         self.reward_event_counts = {
             'home_completion': 0,
             'skip_home': 0,
+            'home_entry_progress': 0,
+            'capture': 0,
+            'safe_move': 0,
+            'win': 0,
+            'loss': 0,
         }
 
         # Track the total reward contributed by each event type
         self.reward_event_totals = {
             'home_completion': 0.0,
             'skip_home': 0.0,
+            'home_entry_progress': 0.0,
+            'capture': 0.0,
+            'safe_move': 0.0,
+            'win': 0.0,
+            'loss': 0.0,
         }
         # Bonus rewards retained for compatibility with the trainer
         self.reward_bonus_totals: Dict[str, float] = {
@@ -160,6 +171,8 @@ class GameEnvironment:
         ]
         # Store info for the most recent step such as final bonuses
         self.last_step_info: Dict[str, float] = {}
+        # Cache legal actions so state encoding can include action metadata.
+        self.last_valid_actions: Dict[int, List[int]] = {}
 
     def _generate_track(self) -> List[Dict[str, int]]:
         """Replicate the board track coordinates from the Node game."""
@@ -404,17 +417,20 @@ class GameEnvironment:
         return self.get_state(0)
     
     def get_state(self, player_id: int) -> np.ndarray:
-        """Convert game state to neural network input"""
+        """Convert game state to a richer neural network input."""
         state = np.zeros(self.state_size)
         
         if not self.game_state:
             return state
         
         try:
-            # Encode current player
+            # Core turn metadata
             current_player = self.game_state.get('currentPlayerIndex', 0)
             state[0] = current_player / 4.0
             state[1] = player_id / 4.0
+            state[2] = min(1.0, len(self.game_state.get('deck', [])) / 108.0)
+            state[3] = min(1.0, len(self.game_state.get('discardPile', [])) / 108.0)
+            state[4] = min(1.0, float(self.game_state.get('turnCount', 0)) / max(1, self.turn_limit))
             
             # Encode player's cards
             players = self.game_state.get('players', [])
@@ -422,42 +438,153 @@ class GameEnvironment:
                 player = players[player_id]
                 cards = player.get('cards', [])
                 
-                card_values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K']
+                card_values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'JOKER']
                 
                 for i, card in enumerate(cards[:5]):
                     if 'value' in card and i < 5:
                         try:
                             card_idx = card_values.index(card['value'])
-                            base_idx = 10 + i * len(card_values)
+                            base_idx = 12 + i * len(card_values)
                             if base_idx + card_idx < self.state_size:
                                 state[base_idx + card_idx] = 1
                         except (ValueError, IndexError):
                             pass
-            
-            # Encode pieces
+
+            # Encode complete board pieces (all players).
             pieces = self.game_state.get('pieces', [])
-            pieces_start = 80
-            
+            pieces_start = 100
             for piece in pieces:
-                if piece.get('playerId') == player_id:
-                    piece_id = piece.get('pieceId', 1)
-                    if 1 <= piece_id <= 5:
-                        piece_idx = pieces_start + (piece_id - 1) * 4
-                        
-                        if piece_idx + 3 < self.state_size:
-                            if piece.get('inPenaltyZone'):
-                                state[piece_idx] = 1
-                            elif piece.get('inHomeStretch'):
-                                state[piece_idx + 1] = 1
-                            elif piece.get('completed'):
-                                state[piece_idx + 2] = 1
-                            else:
-                                state[piece_idx + 3] = 1
+                owner = piece.get('playerId', -1)
+                piece_id = piece.get('pieceId', 1)
+                if not (0 <= owner <= 3 and 1 <= piece_id <= 5):
+                    continue
+                base = pieces_start + ((owner * 5 + (piece_id - 1)) * 8)
+                if base + 7 >= self.state_size:
+                    continue
+                pos = piece.get('position') or {}
+                track_idx = self._track_index(pos)
+                home_idx = self._home_index(pos, owner)
+                state[base] = 1.0 if piece.get('inPenaltyZone') else 0.0
+                state[base + 1] = 1.0 if piece.get('inHomeStretch') else 0.0
+                state[base + 2] = 1.0 if piece.get('completed') else 0.0
+                state[base + 3] = 1.0 if track_idx >= 0 else 0.0
+                state[base + 4] = (track_idx / max(1, len(self._track) - 1)) if track_idx >= 0 else 0.0
+                state[base + 5] = (home_idx / 4.0) if home_idx >= 0 else 0.0
+                state[base + 6] = 1.0 if self._piece_is_threatened(piece) else 0.0
+                state[base + 7] = 1.0 if self._piece_can_capture(piece) else 0.0
+
+            # Team progress + tactical action metadata.
+            counts = self.get_completed_counts()
+            my_team, opp_team = self._team_split(player_id)
+            state[260] = sum(counts[p] for p in my_team) / max(1, self.pieces_per_player * max(1, len(my_team)))
+            state[261] = sum(counts[p] for p in opp_team) / max(1, self.pieces_per_player * max(1, len(opp_team)))
+            action_summary = self._summarize_actions(player_id)
+            state[262] = action_summary['move_ratio']
+            state[263] = action_summary['special_ratio']
+            state[264] = action_summary['discard_ratio']
+            state[265] = action_summary['capture_ratio']
+            state[266] = action_summary['progress_ratio']
+            state[267] = action_summary['safe_ratio']
+            state[268] = min(1.0, action_summary['count'] / 40.0)
             
         except Exception as e:
             warning("Error encoding state", exception=str(e))
         
         return state
+
+    def _team_split(self, player_id: int) -> Tuple[List[int], List[int]]:
+        """Return seat ids for the acting player's team and opponents."""
+        teams = self.game_state.get('teams', []) if self.game_state else []
+        my_team: List[int] = []
+        for team in teams:
+            seats = [pl.get('position') for pl in team if pl.get('position') is not None]
+            if player_id in seats:
+                my_team = seats
+                break
+        if not my_team:
+            my_team = [player_id]
+        opp_team = [pid for pid in range(4) if pid not in my_team]
+        return my_team, opp_team
+
+    def _piece_is_threatened(self, piece: Dict[str, Any]) -> bool:
+        """Approximate whether an opponent can capture this piece soon."""
+        in_penalty = piece.get('inPenaltyZone', piece.get('in_penalty'))
+        in_home = piece.get('inHomeStretch', piece.get('in_home'))
+        if in_penalty or in_home or piece.get('completed'):
+            return False
+        pos = piece.get('position') or {}
+        idx = self._track_index(pos)
+        if idx < 0:
+            return False
+        my_team, opp_team = self._team_split(piece.get('playerId', -1))
+        _ = my_team
+        for other in self.game_state.get('pieces', []):
+            owner = other.get('playerId')
+            if owner not in opp_team:
+                continue
+            if other.get('inPenaltyZone') or other.get('inHomeStretch') or other.get('completed'):
+                continue
+            o_idx = self._track_index(other.get('position') or {})
+            if o_idx < 0:
+                continue
+            dist = (idx - o_idx + len(self._track)) % len(self._track)
+            if 1 <= dist <= 7:
+                return True
+        return False
+
+    def _piece_can_capture(self, piece: Dict[str, Any]) -> bool:
+        """Approximate whether this piece can capture an opponent soon."""
+        owner = piece.get('playerId', -1)
+        in_penalty = piece.get('inPenaltyZone', piece.get('in_penalty'))
+        in_home = piece.get('inHomeStretch', piece.get('in_home'))
+        if owner < 0 or in_penalty or in_home or piece.get('completed'):
+            return False
+        pos = piece.get('position') or {}
+        idx = self._track_index(pos)
+        if idx < 0:
+            return False
+        my_team, opp_team = self._team_split(owner)
+        _ = my_team
+        for other in self.game_state.get('pieces', []):
+            if other.get('playerId') not in opp_team:
+                continue
+            if other.get('inPenaltyZone') or other.get('inHomeStretch') or other.get('completed'):
+                continue
+            o_idx = self._track_index(other.get('position') or {})
+            if o_idx < 0:
+                continue
+            dist = (o_idx - idx + len(self._track)) % len(self._track)
+            if 1 <= dist <= 7:
+                return True
+        return False
+
+    def _summarize_actions(self, player_id: int) -> Dict[str, float]:
+        """Summarize legal actions into normalized metadata features."""
+        actions = list(self.last_valid_actions.get(player_id, []))
+        if not actions:
+            return {
+                'count': 0.0,
+                'move_ratio': 0.0,
+                'special_ratio': 0.0,
+                'discard_ratio': 0.0,
+                'capture_ratio': 0.0,
+                'progress_ratio': 0.0,
+                'safe_ratio': 0.0,
+            }
+        total = float(len(actions))
+        specials = sum(1 for a in actions if 60 <= a < 70)
+        discards = sum(1 for a in actions if a >= 70)
+        moves = len(actions) - specials - discards
+        return {
+            'count': total,
+            'move_ratio': moves / total,
+            'special_ratio': specials / total,
+            'discard_ratio': discards / total,
+            # proxies: special moves tend to include tactical captures/progress.
+            'capture_ratio': min(1.0, specials / max(1.0, total)),
+            'progress_ratio': min(1.0, moves / max(1.0, total)),
+            'safe_ratio': min(1.0, discards / max(1.0, total)),
+        }
 
     def _default_discards(self, player_id: int) -> List[int]:
         """Generate discard actions from the cached game state."""
@@ -477,7 +604,9 @@ class GameEnvironment:
         
         if 'error' in response:
             fallback = self._default_discards(player_id)
-            return [fallback[0]] if fallback else []
+            result = [fallback[0]] if fallback else []
+            self.last_valid_actions[player_id] = result
+            return result
 
         actions = response.get("validActions", [])
         # Ensure actions are within the defined action space and remain valid
@@ -493,9 +622,13 @@ class GameEnvironment:
         if not filtered:
             discard_actions = [a for a in actions if a >= 70]
             if discard_actions:
-                return [discard_actions[0]]
+                result = [discard_actions[0]]
+                self.last_valid_actions[player_id] = result
+                return result
             fallback = self._default_discards(player_id)
-            return [fallback[0]] if fallback else []
+            result = [fallback[0]] if fallback else []
+            self.last_valid_actions[player_id] = result
+            return result
 
         # Deduplicate while preserving order so the bot only evaluates unique
         # options.
@@ -508,6 +641,7 @@ class GameEnvironment:
 
         # Return the complete set of valid actions so the agent can evaluate
         # every option provided by the game wrapper.
+        self.last_valid_actions[player_id] = unique_actions
         return unique_actions
 
     def is_action_valid(self, player_id: int, action: int) -> bool:
@@ -565,7 +699,7 @@ class GameEnvironment:
             if t_idx is not None and 0 <= t_idx < len(prev_completed):
                 prev_completed[t_idx] += count
 
-        reward = 0.0
+        weighted_reward = 0.0
 
 
 
@@ -606,9 +740,9 @@ class GameEnvironment:
                 cmd['enterHome'] = enter_home
                 response = self.send_command(cmd)
                 if not enter_home:
-                    reward += SKIP_HOME_PENALTY
                     self.reward_event_counts['skip_home'] += 1
                     self.reward_event_totals['skip_home'] += SKIP_HOME_PENALTY
+                    weighted_reward += SKIP_HOME_PENALTY
 
             if response.get('success'):
                 break
@@ -670,6 +804,8 @@ class GameEnvironment:
 
         capture_occurred = bool(response.get('captures'))
         piece_reward = 0.0
+        progress_reward = 0.0
+        safe_reward = 0.0
         new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
         for pid, prev in prev_pieces.items():
             new = new_pieces.get(pid)
@@ -682,18 +818,31 @@ class GameEnvironment:
                 piece_reward += PIECE_COMPLETION_REWARD
                 self.reward_event_counts['home_completion'] += 1
                 self.reward_event_totals['home_completion'] += PIECE_COMPLETION_REWARD
+            prev_steps = self._steps_to_entrance(prev.get('pos') or {}, owner)
+            new_steps = self._steps_to_entrance(new.get('position') or {}, owner)
+            if prev_steps >= 0 and new_steps >= 0 and new_steps < prev_steps:
+                delta = REWARD_WEIGHTS.get('home_entry_progress', 2.0) * min(5, prev_steps - new_steps) / 5.0
+                progress_reward += delta
+            if self._piece_is_threatened({'playerId': owner, **prev}) and not self._piece_is_threatened(new):
+                safe_reward += REWARD_WEIGHTS.get('safe_move', 1.0)
 
+        if capture_occurred:
+            cap = REWARD_WEIGHTS.get('capture', 6.0)
+            self.reward_event_counts['capture'] += 1
+            self.reward_event_totals['capture'] += cap
+            weighted_reward += cap
 
-        for p in self.game_state.get('pieces', []):
-            pid = p.get('id')
-            prev = prev_pieces.get(pid)
-            if not prev:
-                continue
-            owner = p.get('playerId')
-            if owner in my_team:
-                continue
+        if progress_reward > 0:
+            self.reward_event_counts['home_entry_progress'] += 1
+            self.reward_event_totals['home_entry_progress'] += progress_reward
+            weighted_reward += progress_reward
 
-        reward += piece_reward
+        if safe_reward > 0:
+            self.reward_event_counts['safe_move'] += 1
+            self.reward_event_totals['safe_move'] += safe_reward
+            weighted_reward += safe_reward
+
+        weighted_reward += piece_reward
 
         self.player_team_map = {}
         for idx, team in enumerate(teams_now):
@@ -723,9 +872,23 @@ class GameEnvironment:
                 if set(team_pos) == set(winning_positions):
                     winning_idx = idx
                     break
+            if winning_idx is not None:
+                my_idx = self.player_team_map.get(player_id, 0)
+                if winning_idx == my_idx:
+                    win_reward = self.win_bonus if self.win_bonus != 0 else REWARD_WEIGHTS.get('win', 20.0)
+                    self.reward_event_counts['win'] += 1
+                    self.reward_event_totals['win'] += win_reward
+                    self.reward_bonus_totals['win_bonus'] += win_reward
+                    weighted_reward += win_reward
+                    self.last_step_info['win_bonus'] = win_reward
+                else:
+                    loss_penalty = REWARD_WEIGHTS.get('loss', -10.0)
+                    self.reward_event_counts['loss'] += 1
+                    self.reward_event_totals['loss'] += loss_penalty
+                    weighted_reward += loss_penalty
 
-
-
+        low, high = REWARD_CLIP_RANGE
+        reward = float(np.clip(weighted_reward, low, high))
 
         next_state = self.get_state(player_id)
         return next_state, reward, done
@@ -848,4 +1011,3 @@ class GameEnvironment:
                 self.game_state['winningTeam'] = team
                 return team
         return None
-
