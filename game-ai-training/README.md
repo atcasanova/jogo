@@ -66,6 +66,15 @@ Every 100 episodes the trainer now logs the cumulative reward totals for each
 event type. These summaries are useful when sharing progress logs for further
 analysis.
 
+The saved `training_stats.json` file now also includes per-episode curriculum
+telemetry fields that are useful for stage-aware analysis:
+
+- `pieces_per_player`
+- `stage_games`
+- `had_winner`
+- `timed_out`
+- `trainable_win`
+
 ### Dynamic Reward Adjustment
 
 The trainer watches the win rate for the current number of pieces. If it drops
