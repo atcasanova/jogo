@@ -14,6 +14,9 @@ from config import (
     REWARD_WEIGHTS,
     REWARD_CLIP_RANGE,
     STEP_PENALTY_BASE,
+    LONG_GAME_PENALTY_START,
+    LONG_GAME_PENALTY_INTERVAL,
+    LONG_GAME_PENALTY_BASE,
     FAST_FINISH_BONUS_SCALE,
 )
 
@@ -130,6 +133,7 @@ class GameEnvironment:
             'home_entry_progress': 0,
             'capture': 0,
             'safe_move': 0,
+            'long_game': 0,
             'win': 0,
             'loss': 0,
         }
@@ -141,6 +145,7 @@ class GameEnvironment:
             'home_entry_progress': 0.0,
             'capture': 0.0,
             'safe_move': 0.0,
+            'long_game': 0.0,
             'win': 0.0,
             'loss': 0.0,
         }
@@ -715,6 +720,21 @@ class GameEnvironment:
         self.reward_event_totals['step_cost'] = (
             self.reward_event_totals.get('step_cost', 0.0) + step_cost
         )
+        # Escalating anti-stall penalty for long games. This starts after a
+        # realistic match length and increases in fixed turn buckets.
+        turn_index = int(step_count)
+        if self.game_state:
+            turn_index = max(turn_index, int(self.game_state.get('turnCount', turn_index)))
+        if turn_index >= LONG_GAME_PENALTY_START:
+            tiers = ((turn_index - LONG_GAME_PENALTY_START) // LONG_GAME_PENALTY_INTERVAL) + 1
+            long_game_penalty = (
+                LONG_GAME_PENALTY_BASE
+                * float(tiers)
+                * max(1.0, self.pieces_per_player / 2.0)
+            )
+            weighted_reward += long_game_penalty
+            self.reward_event_counts['long_game'] += 1
+            self.reward_event_totals['long_game'] += long_game_penalty
 
 
 
