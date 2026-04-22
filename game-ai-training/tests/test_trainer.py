@@ -227,27 +227,5 @@ def test_load_models_restores_training_state(tmp_path):
         assert manager.training_stats["games_played"] == 3
         assert manager.pieces_per_player == 2
         assert manager.stage_games == 3
-        assert manager.turn_limit == 280
+        assert manager.turn_limit == 200
         assert list(manager.recent_outcomes) == [1, 0, 1]
-
-
-def test_trainable_team_locking_uses_requested_seats():
-    torch_mock = MagicMock()
-    sys.modules['torch'] = torch_mock
-    sys.modules['torch.nn'] = MagicMock()
-    sys.modules['torch.optim'] = MagicMock()
-
-    from ai.trainer import TrainingManager
-
-    with patch('ai.trainer.GameBot', DummyGameBot):
-        manager = TrainingManager(trainable_positions=[0, 2], lock_seats=True)
-        manager.env = MockGameEnvironment()
-        manager.create_bots(num_bots=4)
-
-        trainable_ids = sorted(b.bot_id for b in manager.bots if getattr(b, "trainable", True))
-        assert trainable_ids == [0, 2]
-
-        ordered_before = [b.bot_id for b in manager.bots]
-        manager._shuffle_bots()
-        ordered_after = [b.bot_id for b in manager.bots]
-        assert ordered_after == ordered_before

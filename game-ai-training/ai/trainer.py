@@ -1003,7 +1003,7 @@ class TrainingManager:
                 else:
                     self.stage_games = self.training_stats['games_played'] % 5000
 
-                self.turn_limit = self._turn_limit_for_pieces(self.pieces_per_player)
+                self.turn_limit = 100 * self.pieces_per_player
                 for env in [self.env] + self.envs:
                     env.set_piece_count(self.pieces_per_player)
                     env.set_turn_limit(self.turn_limit)
