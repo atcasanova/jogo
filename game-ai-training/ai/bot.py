@@ -98,99 +98,102 @@ class GameBot:
         self.last_value = None
 
     def act(self, state: np.ndarray, valid_actions: List[int]) -> int:
-        state_t = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-        logits, value = self.model(state_t)
+        with self.lock:
+            state_t = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            logits, value = self.model(state_t)
 
-        mask = torch.full_like(logits, float('-inf'))
-        for a in valid_actions:
-            if a < self.action_size:
-                mask[0, a] = 0.0
-        logits = logits + mask
-        probs = torch.softmax(logits, dim=-1)
-        dist = torch.distributions.Categorical(probs)
-        action = dist.sample()
+            mask = torch.full_like(logits, float('-inf'))
+            for a in valid_actions:
+                if a < self.action_size:
+                    mask[0, a] = 0.0
+            logits = logits + mask
+            probs = torch.softmax(logits, dim=-1)
+            dist = torch.distributions.Categorical(probs)
+            action = dist.sample()
 
-        self.last_log_prob = dist.log_prob(action)
-        self.last_entropy = dist.entropy().item()
-        self.last_value = value.squeeze(0)
-        return int(action.item())
+            self.last_log_prob = dist.log_prob(action)
+            self.last_entropy = dist.entropy().item()
+            self.last_value = value.squeeze(0)
+            return int(action.item())
 
     def remember(self, state, action, reward, next_state, done, game_won=False, extra_advantage: float = 0.0):
         """Store a transition in memory."""
-        self.memory.append(
-            (
-                state,
-                action,
-                reward,
-                done,
-                self.last_log_prob,
-                self.last_value,
-                self.last_entropy,
-                game_won,
-                extra_advantage,
+        with self.lock:
+            self.memory.append(
+                (
+                    state,
+                    action,
+                    reward,
+                    done,
+                    self.last_log_prob,
+                    self.last_value,
+                    self.last_entropy,
+                    game_won,
+                    extra_advantage,
+                )
             )
-        )
 
     def replay(self):
-        if len(self.memory) < self.batch_size:
-            return None
+        with self.lock:
+            if len(self.memory) < self.batch_size:
+                return None
 
-        states, actions, rewards, dones, log_probs, values, entropies, game_wons, extra_advs = zip(*self.memory)
-        self.memory = []
+            states, actions, rewards, dones, log_probs, values, entropies, game_wons, extra_advs = zip(*self.memory)
+            self.memory = []
 
-        states_t = torch.FloatTensor(np.array(states)).to(self.device)
-        actions_t = torch.LongTensor(actions).to(self.device)
-        rewards_t = torch.FloatTensor(rewards).to(self.device)
-        dones_t = torch.FloatTensor(dones).to(self.device)
-        entropies_t = torch.FloatTensor(entropies).to(self.device)
-        game_wons_t = torch.FloatTensor(game_wons).to(self.device)
-        extra_advs_t = torch.FloatTensor(extra_advs).to(self.device)
-        old_log_probs_t = torch.stack(log_probs).to(self.device)
-        values_t = torch.stack(values).to(self.device)
+            states_t = torch.FloatTensor(np.array(states)).to(self.device)
+            actions_t = torch.LongTensor(actions).to(self.device)
+            rewards_t = torch.FloatTensor(rewards).to(self.device)
+            dones_t = torch.FloatTensor(dones).to(self.device)
+            entropies_t = torch.FloatTensor(entropies).to(self.device)
+            game_wons_t = torch.FloatTensor(game_wons).to(self.device)
+            extra_advs_t = torch.FloatTensor(extra_advs).to(self.device)
+            old_log_probs_t = torch.stack(log_probs).to(self.device)
+            values_t = torch.stack(values).to(self.device)
 
-        returns = []
-        R = 0.0
-        for r, d in zip(reversed(rewards_t.tolist()), reversed(dones_t.tolist())):
-            if d:
-                R = 0.0
-            R = r + self.gamma * R
-            returns.insert(0, R)
-        returns_t = torch.FloatTensor(returns).to(self.device)
-        advantages = returns_t - values_t.detach()
-        advantages += extra_advs_t
-        # Normalise advantages per batch to stabilise updates
-        adv_mean = advantages.mean()
-        adv_std = advantages.std(unbiased=False)
-        advantages = (advantages - adv_mean) / (adv_std + 1e-6)
+            returns = []
+            R = 0.0
+            for r, d in zip(reversed(rewards_t.tolist()), reversed(dones_t.tolist())):
+                if d:
+                    R = 0.0
+                R = r + self.gamma * R
+                returns.insert(0, R)
+            returns_t = torch.FloatTensor(returns).to(self.device)
+            advantages = returns_t - values_t.detach()
+            advantages += extra_advs_t
+            # Normalise advantages per batch to stabilise updates
+            adv_mean = advantages.mean()
+            adv_std = advantages.std(unbiased=False)
+            advantages = (advantages - adv_mean) / (adv_std + 1e-6)
 
-        logits, new_values = self.model(states_t)
-        logit_mask = torch.full_like(logits, float('-inf'))
-        for idx, acts in enumerate([list(range(self.action_size))] * len(states_t)):
-            for a in acts:
-                logit_mask[idx, a] = 0.0
-        logits = logits + logit_mask
-        probs = torch.softmax(logits, dim=-1)
-        dist = torch.distributions.Categorical(probs)
-        new_log_probs = dist.log_prob(actions_t)
-        entropy = dist.entropy().mean()
-        approx_kl = (old_log_probs_t.detach() - new_log_probs).mean().item()
+            logits, new_values = self.model(states_t)
+            logit_mask = torch.full_like(logits, float('-inf'))
+            for idx, acts in enumerate([list(range(self.action_size))] * len(states_t)):
+                for a in acts:
+                    logit_mask[idx, a] = 0.0
+            logits = logits + logit_mask
+            probs = torch.softmax(logits, dim=-1)
+            dist = torch.distributions.Categorical(probs)
+            new_log_probs = dist.log_prob(actions_t)
+            entropy = dist.entropy().mean()
+            approx_kl = (old_log_probs_t.detach() - new_log_probs).mean().item()
 
-        ratio = (new_log_probs - old_log_probs_t.detach()).exp()
-        surr1 = ratio * advantages
-        surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * advantages
-        mask = (ratio > 1.0 + self.clip_eps) | (ratio < 1.0 - self.clip_eps)
-        clipfrac = mask.float().mean().item()
-        actor_loss = -torch.min(surr1, surr2).mean()
-        critic_loss = nn.functional.mse_loss(new_values.squeeze(-1), returns_t)
-        loss = actor_loss + 0.5 * critic_loss - self.entropy_weight * entropy
+            ratio = (new_log_probs - old_log_probs_t.detach()).exp()
+            surr1 = ratio * advantages
+            surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * advantages
+            mask = (ratio > 1.0 + self.clip_eps) | (ratio < 1.0 - self.clip_eps)
+            clipfrac = mask.float().mean().item()
+            actor_loss = -torch.min(surr1, surr2).mean()
+            critic_loss = nn.functional.mse_loss(new_values.squeeze(-1), returns_t)
+            loss = actor_loss + 0.5 * critic_loss - self.entropy_weight * entropy
 
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
-        self.losses.append(float(loss.item()))
+            self.losses.append(float(loss.item()))
 
-        return approx_kl, clipfrac, float(entropies_t.mean().item())
+            return approx_kl, clipfrac, float(entropies_t.mean().item())
 
     def update_target_network(self):
         pass

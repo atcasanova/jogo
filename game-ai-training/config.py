@@ -74,6 +74,12 @@ REWARD_WEIGHTS = {
     'loss': -10.0,
 }
 
+# Small per-step penalty to encourage faster game resolution.
+STEP_PENALTY_BASE = -0.01
+
+# Extra bonus awarded on wins that finish well before the turn limit.
+FAST_FINISH_BONUS_SCALE = 15.0
+
 # Clip range for the per-step weighted reward sum.
 REWARD_CLIP_RANGE = (-100.0, 100.0)
 
@@ -89,4 +95,14 @@ POSITIVE_REWARD_MULTIPLIERS = {
     3: 250.0,
     4: 225.0,
     5: 50.0,
+}
+
+# Turn budget per piece count. Higher stages need more moves to finish
+# reliably; a too-small limit can artificially inflate timeout rates.
+TURN_LIMIT_SCHEDULE = {
+    1: 120,
+    2: 280,
+    3: 520,
+    4: 760,
+    5: 1000,
 }
