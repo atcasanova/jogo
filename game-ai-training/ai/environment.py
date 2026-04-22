@@ -713,6 +713,10 @@ class GameEnvironment:
                 prev_completed[t_idx] += count
 
         weighted_reward = 0.0
+        # Keep late-game scaling neutral by default. Capture/progress rewards
+        # are multiplied by this value below, and defining it here prevents
+        # runtime NameError when stepping environments.
+        late_game_factor = 1.0
         # Apply a small per-step time cost so policies are encouraged to finish
         # games efficiently instead of only avoiding hard penalties.
         step_cost = STEP_PENALTY_BASE * max(1.0, self.pieces_per_player / 2.0)
