@@ -25,6 +25,13 @@ def main():
         help="Directory containing old opponent models",
     )
     parser.add_argument(
+        "--trainable-team",
+        type=str,
+        choices=["all", "team1", "team2"],
+        default="all",
+        help="Which team is trainable (team1=seats 0/2, team2=seats 1/3)",
+    )
+    parser.add_argument(
         "--save-match-log",
         dest="save_match_log",
         action="store_true",
@@ -36,10 +43,21 @@ def main():
     info("Initializing training environment")
 
     # Create training manager
+    trainable_positions = None
+    lock_seats = False
+    if args.trainable_team == "team1":
+        trainable_positions = [0, 2]
+        lock_seats = True
+    elif args.trainable_team == "team2":
+        trainable_positions = [1, 3]
+        lock_seats = True
+
     trainer = TrainingManager(
         num_envs=args.num_envs,
         num_trainable_bots=2 if args.fixed_model_dir else 4,
         fixed_model_dir=args.fixed_model_dir,
+        trainable_positions=trainable_positions,
+        lock_seats=lock_seats,
     )
 
     # Create bots
@@ -69,4 +87,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

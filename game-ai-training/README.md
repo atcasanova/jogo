@@ -40,6 +40,11 @@ Pass the `--fixed-model-dir` option to `main.py` to load old models as
 unchanging opponents. When set, two trainable bots rotate as partners while the
 remaining seats use the models from the provided directory.
 
+To train only one fixed team while keeping seats stable, use
+`--trainable-team team1` (seats 0/2 trainable) or `--trainable-team team2`
+(seats 1/3 trainable). In this mode seat shuffling is disabled so you can track
+whether one side improves against the other across checkpoints.
+
 ## Training Configuration
 
 `config.py` defines hyperparameters for PPO training. A new `kl_target` value

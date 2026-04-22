@@ -29,16 +29,24 @@ from config import (
 from json_logger import info, warning
 import random
 
-from typing import Optional
+from typing import Optional, Iterable
 
 
 class TrainingManager:
     def __init__(self, num_envs: int = 1, *, num_trainable_bots: int = 4,
-                 fixed_model_dir: Optional[str] = None):
+                 fixed_model_dir: Optional[str] = None,
+                 trainable_positions: Optional[Iterable[int]] = None,
+                 lock_seats: bool = False):
         self.pieces_per_player = 1
         self.turn_limit = self._turn_limit_for_pieces(self.pieces_per_player)
         self.num_trainable_bots = num_trainable_bots
         self.fixed_model_dir = fixed_model_dir
+        self.trainable_positions = (
+            set(int(p) for p in trainable_positions)
+            if trainable_positions is not None
+            else None
+        )
+        self.lock_seats = lock_seats
         self.env = GameEnvironment(
             env_id=0,
             pieces_per_player=self.pieces_per_player,
@@ -169,7 +177,13 @@ class TrainingManager:
                     bot_id=i
                 )
 
-            if i < self.num_trainable_bots:
+            is_trainable = (
+                i in self.trainable_positions
+                if self.trainable_positions is not None
+                else i < self.num_trainable_bots
+            )
+
+            if is_trainable:
                 bot.trainable = True
                 self.trainable_bots.append(bot)
             else:
@@ -195,8 +209,9 @@ class TrainingManager:
         self.stage_winning_games = 0
 
     def _shuffle_bots(self) -> None:
-        """Randomize bot seating positions for the next episode."""
-        random.shuffle(self.bots)
+        """Randomize bot seating positions unless seat locking is enabled."""
+        if not self.lock_seats:
+            random.shuffle(self.bots)
         for idx, bot in enumerate(self.bots):
             bot.player_id = idx
         trainable_indices = [i for i, b in enumerate(self.bots) if getattr(b, 'trainable', True)]
