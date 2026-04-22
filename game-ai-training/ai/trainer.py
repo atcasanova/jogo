@@ -78,6 +78,8 @@ class TrainingManager:
             'had_winner': [],
             'timed_out': [],
             'trainable_win': [],
+            'terminal_turns': [],
+            'near_finish_any_team': [],
         }
 
         # Optional external list storing per-episode reward contributions
@@ -514,6 +516,18 @@ class TrainingManager:
             if self.recent_timeouts
             else 0.0
         )
+        recent_terminal_turns = self.training_stats.get('terminal_turns', [])[-1000:]
+        median_terminal_turns = (
+            float(np.median(recent_terminal_turns))
+            if recent_terminal_turns
+            else 0.0
+        )
+        recent_near_finish = self.training_stats.get('near_finish_any_team', [])[-1000:]
+        near_finish_rate = (
+            float(sum(recent_near_finish) / len(recent_near_finish))
+            if recent_near_finish
+            else 0.0
+        )
         decisive_trainable_window = [
             win for win, had_winner in zip(self.recent_trainable_wins, self.recent_outcomes) if had_winner
         ]
@@ -533,6 +547,8 @@ class TrainingManager:
             decisive_rate=f"{decisive_rate:.2f}",
             timeout_rate=f"{timeout_rate:.2f}",
             trainable_win_rate_decisive=f"{trainable_win_rate_decisive:.2f}",
+            median_terminal_turns=f"{median_terminal_turns:.1f}",
+            near_finish_rate=f"{near_finish_rate:.2f}",
         )
         promoted = False
         if (
@@ -611,6 +627,30 @@ class TrainingManager:
                         trainable_won = 1
                         break
         self.training_stats['trainable_win'].append(trainable_won)
+        turn_count = int(env.game_state.get('turnCount', step_count))
+        if had_winner:
+            self.training_stats['terminal_turns'].append(turn_count)
+        team_completed = []
+        teams_now = env.game_state.get('teams', []) if env.game_state else []
+        player_to_team = {}
+        for idx, team in enumerate(teams_now):
+            for pl in team:
+                pos = pl.get('position')
+                if pos is not None:
+                    player_to_team[int(pos)] = idx
+        if teams_now:
+            team_completed = [0] * len(teams_now)
+            for pid, count in enumerate(completed_counts):
+                t_idx = player_to_team.get(pid)
+                if t_idx is not None and 0 <= t_idx < len(team_completed):
+                    team_completed[t_idx] += int(count)
+        near_finish_any = 0
+        for idx, team in enumerate(teams_now):
+            required = max(0, len(team) * self.pieces_per_player - 1)
+            if required > 0 and idx < len(team_completed) and team_completed[idx] >= required:
+                near_finish_any = 1
+                break
+        self.training_stats['near_finish_any_team'].append(near_finish_any)
         self.recent_timeouts.append(timed_out)
         self.recent_trainable_wins.append(trainable_won)
         entropy = self._reward_entropy(env.reward_event_counts)
@@ -997,6 +1037,8 @@ class TrainingManager:
                     'had_winner': [],
                     'timed_out': [],
                     'trainable_win': [],
+                    'terminal_turns': [],
+                    'near_finish_any_team': [],
                     'bonus_breakdown_history': [],
                 }
 

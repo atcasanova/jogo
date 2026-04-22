@@ -2,7 +2,7 @@ import numpy as np
 from unittest.mock import patch
 import pytest
 from ai.environment import GameEnvironment, PIECE_COMPLETION_REWARD, SKIP_HOME_PENALTY
-from config import STEP_PENALTY_BASE
+from config import STEP_PENALTY_BASE, PIECE_COMPLETION_BONUS
 
 
 def test_reset_returns_zero_when_start_fails():
@@ -42,8 +42,9 @@ def test_piece_completion_reward():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 _, reward, _ = env.step(0, 0)
 
-    assert reward == pytest.approx(PIECE_COMPLETION_REWARD + step_cost)
+    assert reward == pytest.approx(PIECE_COMPLETION_REWARD + PIECE_COMPLETION_BONUS + step_cost)
     assert env.reward_event_counts['home_completion'] == 1
+    assert env.reward_event_counts['piece_completion_bonus'] == 1
 
 
 def test_skip_home_penalty():

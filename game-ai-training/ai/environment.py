@@ -18,6 +18,8 @@ from config import (
     LONG_GAME_PENALTY_INTERVAL,
     LONG_GAME_PENALTY_BASE,
     FAST_FINISH_BONUS_SCALE,
+    PIECE_COMPLETION_BONUS,
+    NEAR_FINISH_BONUS,
 )
 
 # Simplified reward system used for initial curriculum training
@@ -34,7 +36,7 @@ INVALID_MOVE_PENALTY = 0.0
 WIN_BONUS = REWARD_WEIGHTS.get('win', 20.0)
 # Base timeout penalty; TrainingManager scales this by current piece count so
 # unresolved high-difficulty games receive stronger negative feedback.
-TIMEOUT_PENALTY = -4.0
+TIMEOUT_PENALTY = -12.0
 
 # Deprecated reward configuration retained for backward compatibility
 HOME_ENTRY_REWARDS = []
@@ -129,6 +131,8 @@ class GameEnvironment:
         # Track how often each reward type occurs for analysis
         self.reward_event_counts = {
             'home_completion': 0,
+            'piece_completion_bonus': 0,
+            'near_finish': 0,
             'skip_home': 0,
             'home_entry_progress': 0,
             'capture': 0,
@@ -141,6 +145,8 @@ class GameEnvironment:
         # Track the total reward contributed by each event type
         self.reward_event_totals = {
             'home_completion': 0.0,
+            'piece_completion_bonus': 0.0,
+            'near_finish': 0.0,
             'skip_home': 0.0,
             'home_entry_progress': 0.0,
             'capture': 0.0,
@@ -857,6 +863,9 @@ class GameEnvironment:
                 piece_reward += PIECE_COMPLETION_REWARD
                 self.reward_event_counts['home_completion'] += 1
                 self.reward_event_totals['home_completion'] += PIECE_COMPLETION_REWARD
+                piece_reward += PIECE_COMPLETION_BONUS
+                self.reward_event_counts['piece_completion_bonus'] += 1
+                self.reward_event_totals['piece_completion_bonus'] += PIECE_COMPLETION_BONUS
             prev_steps = self._steps_to_entrance(prev.get('pos') or {}, owner)
             new_steps = self._steps_to_entrance(new.get('position') or {}, owner)
             if prev_steps >= 0 and new_steps >= 0 and new_steps < prev_steps:
@@ -898,6 +907,18 @@ class GameEnvironment:
             if t_idx is not None and 0 <= t_idx < len(new_completed):
                 new_completed[t_idx] += count
 
+        my_idx = self.player_team_map.get(player_id, team_idx)
+        if 0 <= my_idx < len(new_completed):
+            my_team_size = len(teams_now[my_idx]) if my_idx < len(teams_now) else 0
+            near_finish_target = max(0, my_team_size * self.pieces_per_player - 1)
+            if (
+                near_finish_target > 0
+                and prev_completed[my_idx] < near_finish_target <= new_completed[my_idx]
+            ):
+                weighted_reward += NEAR_FINISH_BONUS
+                self.reward_event_counts['near_finish'] += 1
+                self.reward_event_totals['near_finish'] += NEAR_FINISH_BONUS
+
         if not done and teams_now:
             winner = self._check_team_completion(teams_now, new_completed)
             if winner is not None:
@@ -913,7 +934,6 @@ class GameEnvironment:
                     winning_idx = idx
                     break
             if winning_idx is not None:
-                my_idx = self.player_team_map.get(player_id, 0)
                 if winning_idx == my_idx:
                     win_reward = self.win_bonus if self.win_bonus != 0 else REWARD_WEIGHTS.get('win', 20.0)
                     self.reward_event_counts['win'] += 1
