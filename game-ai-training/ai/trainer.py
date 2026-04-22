@@ -125,6 +125,8 @@ class TrainingManager:
         # Track recent outcomes to compute win rates over a longer window
         # to reduce short-term variance when the difficulty changes.
         self.recent_outcomes = deque(maxlen=1000)
+        self.recent_timeouts = deque(maxlen=1000)
+        self.recent_trainable_wins = deque(maxlen=1000)
 
         # Reward multiplier per difficulty level
         self.level_reward_multiplier = {}
@@ -501,23 +503,38 @@ class TrainingManager:
 
         # Update curriculum tracking
         self.stage_games += 1
-        # Win rate based on the last 500 games only
-        win_rate = (
+        # Decisive-rate based on the last 1000 games only.
+        decisive_rate = (
             sum(self.recent_outcomes) / len(self.recent_outcomes)
             if self.recent_outcomes
             else 0.0
         )
-        self._adjust_reward_multiplier(win_rate, env)
+        timeout_rate = (
+            sum(self.recent_timeouts) / len(self.recent_timeouts)
+            if self.recent_timeouts
+            else 0.0
+        )
+        decisive_trainable_window = [
+            win for win, had_winner in zip(self.recent_trainable_wins, self.recent_outcomes) if had_winner
+        ]
+        trainable_win_rate_decisive = (
+            sum(decisive_trainable_window) / len(decisive_trainable_window)
+            if decisive_trainable_window
+            else 0.0
+        )
+        self._adjust_reward_multiplier(decisive_rate, env)
         info(
             "Curriculum progress",
             pieces=self.pieces_per_player,
             game=self.stage_games,
-            win_rate=f"{win_rate:.2f}"
+            decisive_rate=f"{decisive_rate:.2f}",
+            timeout_rate=f"{timeout_rate:.2f}",
+            trainable_win_rate_decisive=f"{trainable_win_rate_decisive:.2f}",
         )
         promoted = False
         if (
             self.stage_games >= 5000
-            and win_rate >= 0.55
+            and decisive_rate >= 0.55
             and self.pieces_per_player < 5
         ):
             self.pieces_per_player += 1
@@ -535,6 +552,8 @@ class TrainingManager:
             self.stage_games = 0
             self.stage_winning_games = 0
             self.recent_outcomes.clear()
+            self.recent_timeouts.clear()
+            self.recent_trainable_wins.clear()
             promoted = True
             info(
                 "Increased difficulty",
@@ -577,10 +596,9 @@ class TrainingManager:
             5000 if promoted else self.stage_games
         )
         had_winner = bool(winning_team)
+        timed_out = int(not env.game_state.get('gameEnded', False))
         self.training_stats['had_winner'].append(int(had_winner))
-        self.training_stats['timed_out'].append(
-            int(not env.game_state.get('gameEnded', False))
-        )
+        self.training_stats['timed_out'].append(timed_out)
         trainable_won = 0
         if had_winner:
             for player in winning_team:
@@ -590,6 +608,8 @@ class TrainingManager:
                         trainable_won = 1
                         break
         self.training_stats['trainable_win'].append(trainable_won)
+        self.recent_timeouts.append(timed_out)
+        self.recent_trainable_wins.append(trainable_won)
         entropy = self._reward_entropy(env.reward_event_counts)
         self.training_stats['reward_entropies'].append(entropy)
         event_details = {k: v for k, v in env.reward_event_counts.items()}
@@ -1013,6 +1033,14 @@ class TrainingManager:
                 if had_winner_series:
                     for value in had_winner_series[-self.recent_outcomes.maxlen:]:
                         self.recent_outcomes.append(1 if value else 0)
+                timeout_series = self.training_stats.get('timed_out', [])
+                if timeout_series:
+                    for value in timeout_series[-self.recent_timeouts.maxlen:]:
+                        self.recent_timeouts.append(1 if value else 0)
+                trainable_win_series = self.training_stats.get('trainable_win', [])
+                if trainable_win_series:
+                    for value in trainable_win_series[-self.recent_trainable_wins.maxlen:]:
+                        self.recent_trainable_wins.append(1 if value else 0)
 
                 self.stage_start_wins = {bot.bot_id: bot.wins for bot in self.bots}
                 self.stage_start_games = {
