@@ -3,13 +3,13 @@ TRAINING_CONFIG = {
     'num_episodes': 5000,
     'save_frequency': 500,
     'stats_frequency': 10,
-    'learning_rate': 3e-4,
+    'learning_rate': 1e-4,
     'batch_size': 64,
     'memory_size': 10000,
     'gamma': 0.95,
     'hidden_size': 512,
     'train_freq': 4,
-    'ppo_clip': 0.1,
+    'ppo_clip': 0.08,
     # Slight entropy bonus to maintain exploration without destabilising updates.
     'entropy_weight': 0.005,
     # Target KL divergence used for monitoring training stability.
@@ -75,6 +75,14 @@ REWARD_WEIGHTS = {
     'loss': -25.0,
 }
 
+# Extra piece completion bonus applied in addition to the base completion
+# reward. Helps agents value converting progress into fully completed pieces.
+PIECE_COMPLETION_BONUS = 12.0
+
+# Bonus granted when a team reaches "one move from victory" by completing all
+# but one piece. This creates a bridge between shaping rewards and final wins.
+NEAR_FINISH_BONUS = 10.0
+
 # Small per-step penalty to encourage faster game resolution.
 STEP_PENALTY_BASE = -0.01
 
@@ -89,7 +97,7 @@ LONG_GAME_PENALTY_BASE = -0.02
 FAST_FINISH_BONUS_SCALE = 15.0
 
 # Clip range for the per-step weighted reward sum.
-REWARD_CLIP_RANGE = (-100.0, 100.0)
+REWARD_CLIP_RANGE = (-150.0, 150.0)
 
 # Multiplier applied to positive rewards based on the current
 # number of pieces per player. The curriculum increases the
