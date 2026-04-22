@@ -91,6 +91,10 @@ timeout penalty that is scaled by the current piece count, and the turn limit
 uses a per-stage schedule from `config.py` to reduce premature truncation at
 higher piece counts.
 
+To encourage faster resolution, the environment now applies a small per-step
+time cost and an additional fast-finish bonus when a winning team completes the
+game well before the current turn limit.
+
 ### Advantage Normalization
 
 During PPO updates the advantages are now normalised per batch. After adding any

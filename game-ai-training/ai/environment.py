@@ -9,7 +9,13 @@ import threading
 from typing import List, Tuple, Dict, Any, Optional
 
 from json_logger import info, error, warning
-from config import HEAVY_REWARD_BASE, REWARD_WEIGHTS, REWARD_CLIP_RANGE
+from config import (
+    HEAVY_REWARD_BASE,
+    REWARD_WEIGHTS,
+    REWARD_CLIP_RANGE,
+    STEP_PENALTY_BASE,
+    FAST_FINISH_BONUS_SCALE,
+)
 
 # Simplified reward system used for initial curriculum training
 PIECE_COMPLETION_REWARD = 50.0
@@ -702,6 +708,13 @@ class GameEnvironment:
                 prev_completed[t_idx] += count
 
         weighted_reward = 0.0
+        # Apply a small per-step time cost so policies are encouraged to finish
+        # games efficiently instead of only avoiding hard penalties.
+        step_cost = STEP_PENALTY_BASE * max(1.0, self.pieces_per_player / 2.0)
+        weighted_reward += step_cost
+        self.reward_event_totals['step_cost'] = (
+            self.reward_event_totals.get('step_cost', 0.0) + step_cost
+        )
 
 
 
@@ -883,6 +896,23 @@ class GameEnvironment:
                     self.reward_bonus_totals['win_bonus'] += win_reward
                     weighted_reward += win_reward
                     self.last_step_info['win_bonus'] = win_reward
+                    turn_count = float(self.game_state.get('turnCount', step_count))
+                    if self.turn_limit > 0:
+                        speed_fraction = max(0.0, (self.turn_limit - turn_count) / self.turn_limit)
+                        fast_finish_bonus = FAST_FINISH_BONUS_SCALE * speed_fraction
+                    else:
+                        fast_finish_bonus = 0.0
+                    if fast_finish_bonus > 0:
+                        weighted_reward += fast_finish_bonus
+                        self.reward_event_totals['fast_finish_bonus'] = (
+                            self.reward_event_totals.get('fast_finish_bonus', 0.0)
+                            + fast_finish_bonus
+                        )
+                        self.reward_bonus_totals['fast_finish_bonus'] = (
+                            self.reward_bonus_totals.get('fast_finish_bonus', 0.0)
+                            + fast_finish_bonus
+                        )
+                        self.last_step_info['fast_finish_bonus'] = fast_finish_bonus
                 else:
                     loss_penalty = REWARD_WEIGHTS.get('loss', -10.0)
                     self.reward_event_counts['loss'] += 1

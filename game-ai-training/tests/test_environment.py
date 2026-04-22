@@ -1,6 +1,8 @@
 import numpy as np
 from unittest.mock import patch
+import pytest
 from ai.environment import GameEnvironment, PIECE_COMPLETION_REWARD, SKIP_HOME_PENALTY
+from config import STEP_PENALTY_BASE
 
 
 def test_reset_returns_zero_when_start_fails():
@@ -14,6 +16,7 @@ def test_reset_returns_zero_when_start_fails():
 
 def test_piece_completion_reward():
     env = GameEnvironment()
+    step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)
     env.game_state = {
         'pieces': [
             {'id': 'p0_1', 'playerId': 0, 'completed': False, 'position': {'row': 0, 'col': 0}},
@@ -39,12 +42,13 @@ def test_piece_completion_reward():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 _, reward, _ = env.step(0, 0)
 
-    assert reward == PIECE_COMPLETION_REWARD
+    assert reward == pytest.approx(PIECE_COMPLETION_REWARD + step_cost)
     assert env.reward_event_counts['home_completion'] == 1
 
 
 def test_skip_home_penalty():
     env = GameEnvironment()
+    step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)
     env.game_state = {
         'currentPlayerIndex': 0,
         'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
@@ -89,5 +93,5 @@ def test_skip_home_penalty():
                 _, reward, _ = env.step(0, 0, enter_home=False)
 
     assert len(calls) == 2
-    assert reward == SKIP_HOME_PENALTY
+    assert reward == pytest.approx(SKIP_HOME_PENALTY + step_cost)
     assert env.reward_event_counts['skip_home'] == 1

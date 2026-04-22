@@ -74,6 +74,12 @@ REWARD_WEIGHTS = {
     'loss': -10.0,
 }
 
+# Small per-step penalty to encourage faster game resolution.
+STEP_PENALTY_BASE = -0.01
+
+# Extra bonus awarded on wins that finish well before the turn limit.
+FAST_FINISH_BONUS_SCALE = 15.0
+
 # Clip range for the per-step weighted reward sum.
 REWARD_CLIP_RANGE = (-100.0, 100.0)
 
