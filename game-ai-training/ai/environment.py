@@ -14,6 +14,9 @@ from config import (
     REWARD_WEIGHTS,
     REWARD_CLIP_RANGE,
     STEP_PENALTY_BASE,
+    LONG_GAME_PENALTY_START,
+    LONG_GAME_PENALTY_INTERVAL,
+    LONG_GAME_PENALTY_BASE,
     FAST_FINISH_BONUS_SCALE,
 )
 
@@ -31,7 +34,7 @@ INVALID_MOVE_PENALTY = 0.0
 WIN_BONUS = REWARD_WEIGHTS.get('win', 20.0)
 # Base timeout penalty; TrainingManager scales this by current piece count so
 # unresolved high-difficulty games receive stronger negative feedback.
-TIMEOUT_PENALTY = -1.0
+TIMEOUT_PENALTY = -4.0
 
 # Deprecated reward configuration retained for backward compatibility
 HOME_ENTRY_REWARDS = []
@@ -130,6 +133,7 @@ class GameEnvironment:
             'home_entry_progress': 0,
             'capture': 0,
             'safe_move': 0,
+            'long_game': 0,
             'win': 0,
             'loss': 0,
         }
@@ -141,6 +145,7 @@ class GameEnvironment:
             'home_entry_progress': 0.0,
             'capture': 0.0,
             'safe_move': 0.0,
+            'long_game': 0.0,
             'win': 0.0,
             'loss': 0.0,
         }
@@ -715,6 +720,27 @@ class GameEnvironment:
         self.reward_event_totals['step_cost'] = (
             self.reward_event_totals.get('step_cost', 0.0) + step_cost
         )
+        # Escalating anti-stall penalty for long games. This starts after a
+        # realistic match length and increases in fixed turn buckets.
+        turn_index = int(step_count)
+        if self.game_state:
+            turn_index = max(turn_index, int(self.game_state.get('turnCount', turn_index)))
+        long_game_tiers = 0
+        if turn_index >= LONG_GAME_PENALTY_START:
+            long_game_tiers = (
+                (turn_index - LONG_GAME_PENALTY_START) // LONG_GAME_PENALTY_INTERVAL
+            ) + 1
+            long_game_penalty = (
+                LONG_GAME_PENALTY_BASE
+                * float(long_game_tiers)
+                * max(1.0, self.pieces_per_player / 2.0)
+            )
+            weighted_reward += long_game_penalty
+            self.reward_event_counts['long_game'] += 1
+            self.reward_event_totals['long_game'] += long_game_penalty
+        # Decay tactical shaping late in long games so policies prioritise
+        # finishing over farming progress/capture loops.
+        late_game_factor = max(0.25, 1.0 - 0.10 * long_game_tiers)
 
 
 
@@ -842,12 +868,13 @@ class GameEnvironment:
                 safe_reward += REWARD_WEIGHTS.get('safe_move', 1.0)
 
         if capture_occurred:
-            cap = REWARD_WEIGHTS.get('capture', 6.0)
+            cap = REWARD_WEIGHTS.get('capture', 6.0) * late_game_factor
             self.reward_event_counts['capture'] += 1
             self.reward_event_totals['capture'] += cap
             weighted_reward += cap
 
         if progress_reward > 0:
+            progress_reward *= late_game_factor
             self.reward_event_counts['home_entry_progress'] += 1
             self.reward_event_totals['home_entry_progress'] += progress_reward
             weighted_reward += progress_reward

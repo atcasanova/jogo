@@ -61,21 +61,29 @@ REWARD_TUNE_STEP = 0.1
 # Event-based reward weights used by ``GameEnvironment``. The environment
 # computes a weighted sum and then clips the total to reduce reward spikes.
 REWARD_WEIGHTS = {
-    # Completing a piece remains the core objective signal.
-    'home_completion': 50.0,
+    # Completing a piece remains a strong objective signal, but lower than
+    # before to reduce farming of intermediate rewards without closing games.
+    'home_completion': 35.0,
     # Discourage skipping a valid home entry.
     'skip_home': -1.0,
     # Small tactical bonuses to improve credit assignment.
-    'home_entry_progress': 2.0,
-    'capture': 6.0,
+    'home_entry_progress': 1.0,
+    'capture': 4.0,
     'safe_move': 1.0,
     # Team outcome signal.
-    'win': 20.0,
-    'loss': -10.0,
+    'win': 60.0,
+    'loss': -25.0,
 }
 
 # Small per-step penalty to encourage faster game resolution.
 STEP_PENALTY_BASE = -0.01
+
+# Additional penalty for long-running games. Applied in increasing tiers every
+# ``LONG_GAME_PENALTY_INTERVAL`` turns once ``LONG_GAME_PENALTY_START`` is
+# reached, so stalling policies become progressively less attractive.
+LONG_GAME_PENALTY_START = 150
+LONG_GAME_PENALTY_INTERVAL = 50
+LONG_GAME_PENALTY_BASE = -0.10
 
 # Extra bonus awarded on wins that finish well before the turn limit.
 FAST_FINISH_BONUS_SCALE = 15.0
