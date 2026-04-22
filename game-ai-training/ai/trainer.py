@@ -24,6 +24,7 @@ from config import (
     MAX_REWARD_MULTIPLIER,
     MIN_REWARD_MULTIPLIER,
     REWARD_TUNE_STEP,
+    TURN_LIMIT_SCHEDULE,
 )
 from json_logger import info, warning
 import random
@@ -35,7 +36,7 @@ class TrainingManager:
     def __init__(self, num_envs: int = 1, *, num_trainable_bots: int = 4,
                  fixed_model_dir: Optional[str] = None):
         self.pieces_per_player = 1
-        self.turn_limit = 100 * self.pieces_per_player
+        self.turn_limit = self._turn_limit_for_pieces(self.pieces_per_player)
         self.num_trainable_bots = num_trainable_bots
         self.fixed_model_dir = fixed_model_dir
         self.env = GameEnvironment(
@@ -123,6 +124,11 @@ class TrainingManager:
     def _stats_interval(self) -> int:
         """Return plotting interval based on current piece count."""
         return 500 if self.pieces_per_player < 4 else 100
+
+    def _turn_limit_for_pieces(self, pieces: int) -> int:
+        """Return turn limit for the given curriculum stage."""
+        pieces = max(1, min(5, int(pieces)))
+        return int(TURN_LIMIT_SCHEDULE.get(pieces, 120 * pieces))
 
     
     def create_bots(self, num_bots=4):
@@ -445,14 +451,15 @@ class TrainingManager:
                 break
 
         if not env.game_state.get('gameEnded', False):
+            timeout_penalty = TIMEOUT_PENALTY * max(1, self.pieces_per_player)
             for i in range(len(episode_rewards)):
-                episode_rewards[i] += TIMEOUT_PENALTY
+                episode_rewards[i] += timeout_penalty
             env.reward_event_counts['timeout'] = (
                 env.reward_event_counts.get('timeout', 0) + 1
             )
             env.reward_event_totals['timeout'] = (
                 env.reward_event_totals.get('timeout', 0.0)
-                + TIMEOUT_PENALTY * len(episode_rewards)
+                + timeout_penalty * len(episode_rewards)
             )
 
         # Update statistics
@@ -499,7 +506,7 @@ class TrainingManager:
             and self.pieces_per_player < 5
         ):
             self.pieces_per_player += 1
-            self.turn_limit = 100 * self.pieces_per_player
+            self.turn_limit = self._turn_limit_for_pieces(self.pieces_per_player)
             for env in [self.env] + self.envs:
                 env.set_piece_count(self.pieces_per_player)
                 env.set_turn_limit(self.turn_limit)

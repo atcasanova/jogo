@@ -90,3 +90,13 @@ POSITIVE_REWARD_MULTIPLIERS = {
     4: 225.0,
     5: 50.0,
 }
+
+# Turn budget per piece count. Higher stages need more moves to finish
+# reliably; a too-small limit can artificially inflate timeout rates.
+TURN_LIMIT_SCHEDULE = {
+    1: 120,
+    2: 280,
+    3: 520,
+    4: 760,
+    5: 1000,
+}

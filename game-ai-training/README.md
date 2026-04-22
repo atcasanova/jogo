@@ -86,6 +86,11 @@ Once the win rate rises above roughly 0.9 the multiplier decays back toward the
 scheduled values. This automatic tuning helps the curriculum progress without
 needing to manually edit the reward configuration.
 
+Timeout handling is also stage-aware: unresolved games now apply a negative
+timeout penalty that is scaled by the current piece count, and the turn limit
+uses a per-stage schedule from `config.py` to reduce premature truncation at
+higher piece counts.
+
 ### Advantage Normalization
 
 During PPO updates the advantages are now normalised per batch. After adding any

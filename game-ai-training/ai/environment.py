@@ -23,7 +23,9 @@ HOME_COMPLETION_REWARD = PIECE_COMPLETION_REWARD
 ENEMY_HOME_ENTRY_PENALTY = 0.0
 INVALID_MOVE_PENALTY = 0.0
 WIN_BONUS = REWARD_WEIGHTS.get('win', 20.0)
-TIMEOUT_PENALTY = 0.0
+# Base timeout penalty; TrainingManager scales this by current piece count so
+# unresolved high-difficulty games receive stronger negative feedback.
+TIMEOUT_PENALTY = -1.0
 
 # Deprecated reward configuration retained for backward compatibility
 HOME_ENTRY_REWARDS = []
