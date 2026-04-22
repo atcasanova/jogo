@@ -522,7 +522,10 @@ class TrainingManager:
             if decisive_trainable_window
             else 0.0
         )
-        self._adjust_reward_multiplier(decisive_rate, env)
+        # Tune rewards against the trainable bots' decisive win rate so the
+        # curriculum reacts to "closing games" performance, not just whether
+        # any team finished.
+        self._adjust_reward_multiplier(trainable_win_rate_decisive, env)
         info(
             "Curriculum progress",
             pieces=self.pieces_per_player,
