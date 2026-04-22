@@ -34,7 +34,7 @@ INVALID_MOVE_PENALTY = 0.0
 WIN_BONUS = REWARD_WEIGHTS.get('win', 20.0)
 # Base timeout penalty; TrainingManager scales this by current piece count so
 # unresolved high-difficulty games receive stronger negative feedback.
-TIMEOUT_PENALTY = -1.0
+TIMEOUT_PENALTY = -4.0
 
 # Deprecated reward configuration retained for backward compatibility
 HOME_ENTRY_REWARDS = []
@@ -862,12 +862,13 @@ class GameEnvironment:
                 safe_reward += REWARD_WEIGHTS.get('safe_move', 1.0)
 
         if capture_occurred:
-            cap = REWARD_WEIGHTS.get('capture', 6.0)
+            cap = REWARD_WEIGHTS.get('capture', 6.0) * late_game_factor
             self.reward_event_counts['capture'] += 1
             self.reward_event_totals['capture'] += cap
             weighted_reward += cap
 
         if progress_reward > 0:
+            progress_reward *= late_game_factor
             self.reward_event_counts['home_entry_progress'] += 1
             self.reward_event_totals['home_entry_progress'] += progress_reward
             weighted_reward += progress_reward
