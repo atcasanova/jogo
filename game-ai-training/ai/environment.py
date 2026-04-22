@@ -725,22 +725,16 @@ class GameEnvironment:
         turn_index = int(step_count)
         if self.game_state:
             turn_index = max(turn_index, int(self.game_state.get('turnCount', turn_index)))
-        long_game_tiers = 0
         if turn_index >= LONG_GAME_PENALTY_START:
-            long_game_tiers = (
-                (turn_index - LONG_GAME_PENALTY_START) // LONG_GAME_PENALTY_INTERVAL
-            ) + 1
+            tiers = ((turn_index - LONG_GAME_PENALTY_START) // LONG_GAME_PENALTY_INTERVAL) + 1
             long_game_penalty = (
                 LONG_GAME_PENALTY_BASE
-                * float(long_game_tiers)
+                * float(tiers)
                 * max(1.0, self.pieces_per_player / 2.0)
             )
             weighted_reward += long_game_penalty
             self.reward_event_counts['long_game'] += 1
             self.reward_event_totals['long_game'] += long_game_penalty
-        # Decay tactical shaping late in long games so policies prioritise
-        # finishing over farming progress/capture loops.
-        late_game_factor = max(0.25, 1.0 - 0.10 * long_game_tiers)
 
 
 

@@ -81,9 +81,9 @@ STEP_PENALTY_BASE = -0.01
 # Additional penalty for long-running games. Applied in increasing tiers every
 # ``LONG_GAME_PENALTY_INTERVAL`` turns once ``LONG_GAME_PENALTY_START`` is
 # reached, so stalling policies become progressively less attractive.
-LONG_GAME_PENALTY_START = 150
+LONG_GAME_PENALTY_START = 250
 LONG_GAME_PENALTY_INTERVAL = 50
-LONG_GAME_PENALTY_BASE = -0.10
+LONG_GAME_PENALTY_BASE = -0.02
 
 # Extra bonus awarded on wins that finish well before the turn limit.
 FAST_FINISH_BONUS_SCALE = 15.0
