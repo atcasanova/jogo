@@ -30,6 +30,9 @@ python3 game-ai-training/main.py --continue
 ```
 
 The trainer will load the models from `models/final` if they exist.
+When `training_stats.json` exists in the same directory, the trainer also
+restores curriculum telemetry (including piece count and stage progress) so a
+continued run does not reset back to one piece.
 
 ## Training with Fixed Opponents
 
@@ -66,6 +69,15 @@ Every 100 episodes the trainer now logs the cumulative reward totals for each
 event type. These summaries are useful when sharing progress logs for further
 analysis.
 
+The saved `training_stats.json` file now also includes per-episode curriculum
+telemetry fields that are useful for stage-aware analysis:
+
+- `pieces_per_player`
+- `stage_games`
+- `had_winner`
+- `timed_out`
+- `trainable_win`
+
 ### Dynamic Reward Adjustment
 
 The trainer watches the win rate for the current number of pieces. If it drops
@@ -73,6 +85,11 @@ below 0.75 the heavy reward and win bonus are increased by a small multiplier.
 Once the win rate rises above roughly 0.9 the multiplier decays back toward the
 scheduled values. This automatic tuning helps the curriculum progress without
 needing to manually edit the reward configuration.
+
+Timeout handling is also stage-aware: unresolved games now apply a negative
+timeout penalty that is scaled by the current piece count, and the turn limit
+uses a per-stage schedule from `config.py` to reduce premature truncation at
+higher piece counts.
 
 ### Advantage Normalization
 
@@ -88,6 +105,21 @@ every game played at each save interval to the `logs/` directory. The log files
 follow the pattern `episode_<N>_env_<ID>.log` where `<N>` is the episode number
 and `<ID>` identifies the environment when multiple environments run in
 parallel.
+
+## Training Stats Analysis Helper
+
+Use `analyze_training_stats.py` to build a stage-aware summary from a saved
+`training_stats.json` file:
+
+```bash
+python3 game-ai-training/analyze_training_stats.py models/final/training_stats.json
+```
+
+You can change the tail window used for trend metrics:
+
+```bash
+python3 game-ai-training/analyze_training_stats.py training_stats.json --window 1000
+```
 
 ## Multi-GPU Support
 
