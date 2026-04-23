@@ -199,6 +199,10 @@ class GameBot:
     def update_target_network(self):
         pass
 
+    def set_entropy_weight(self, value: float) -> None:
+        """Update entropy regularization strength used in PPO loss."""
+        self.entropy_weight = float(value)
+
     def save_model(self, filepath: str) -> None:
         torch.save({
             'model_state_dict': self.model.state_dict(),

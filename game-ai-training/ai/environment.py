@@ -20,6 +20,14 @@ from config import (
     FAST_FINISH_BONUS_SCALE,
     PIECE_COMPLETION_BONUS,
     NEAR_FINISH_BONUS,
+    URGENCY_PENALTY_START_FRAC,
+    URGENCY_PENALTY_BASE,
+    HOME_ENTRY_PROGRESS_CAP,
+    CAPTURE_REWARD_CAP,
+    NO_PROGRESS_WINDOW,
+    NO_PROGRESS_PENALTY,
+    REPEATED_STATE_THRESHOLD,
+    REPEATED_STATE_PENALTY,
 )
 
 # Simplified reward system used for initial curriculum training
@@ -192,6 +200,33 @@ class GameEnvironment:
         self.last_step_info: Dict[str, float] = {}
         # Cache legal actions so state encoding can include action metadata.
         self.last_valid_actions: Dict[int, List[int]] = {}
+        # Episode-level anti-stall telemetry.
+        self.state_visit_counts: Dict[str, int] = {}
+        self.total_state_visits = 0
+        self.unique_state_visits = 0
+        self.no_progress_penalty_events = 0
+        self.repeated_state_penalty_events = 0
+
+    def _state_signature(self) -> str:
+        """Return a stable, compact signature for repetition checks."""
+        if not self.game_state:
+            return ""
+        pieces = self.game_state.get('pieces', [])
+        compact = []
+        for p in pieces:
+            pos = p.get('position') or {}
+            compact.append(
+                (
+                    p.get('id'),
+                    p.get('playerId'),
+                    int(bool(p.get('completed'))),
+                    int(bool(p.get('inHomeStretch'))),
+                    pos.get('row'),
+                    pos.get('col'),
+                )
+            )
+        compact.sort()
+        return json.dumps(compact, separators=(',', ':'))
 
     def _generate_track(self) -> List[Dict[str, int]]:
         """Replicate the board track coordinates from the Node game."""
@@ -745,6 +780,19 @@ class GameEnvironment:
             weighted_reward += long_game_penalty
             self.reward_event_counts['long_game'] += 1
             self.reward_event_totals['long_game'] += long_game_penalty
+        # Ramping urgency penalty near the turn budget to prioritise closing.
+        if self.turn_limit > 0:
+            frac_used = turn_index / max(1.0, float(self.turn_limit))
+            if frac_used >= URGENCY_PENALTY_START_FRAC:
+                urgency = (
+                    URGENCY_PENALTY_BASE
+                    * (1.0 + (frac_used - URGENCY_PENALTY_START_FRAC) / max(1e-6, (1.0 - URGENCY_PENALTY_START_FRAC)))
+                    * max(1.0, self.pieces_per_player / 2.0)
+                )
+                weighted_reward += urgency
+                self.reward_event_totals['urgency'] = (
+                    self.reward_event_totals.get('urgency', 0.0) + urgency
+                )
 
 
 
@@ -876,12 +924,19 @@ class GameEnvironment:
 
         if capture_occurred:
             cap = REWARD_WEIGHTS.get('capture', 6.0) * late_game_factor
+            remaining_capture = max(0.0, CAPTURE_REWARD_CAP - self.reward_event_totals.get('capture', 0.0))
+            cap = min(cap, remaining_capture)
             self.reward_event_counts['capture'] += 1
             self.reward_event_totals['capture'] += cap
             weighted_reward += cap
 
         if progress_reward > 0:
             progress_reward *= late_game_factor
+            remaining_progress = max(
+                0.0,
+                HOME_ENTRY_PROGRESS_CAP - self.reward_event_totals.get('home_entry_progress', 0.0),
+            )
+            progress_reward = min(progress_reward, remaining_progress)
             self.reward_event_counts['home_entry_progress'] += 1
             self.reward_event_totals['home_entry_progress'] += progress_reward
             weighted_reward += progress_reward
@@ -964,6 +1019,38 @@ class GameEnvironment:
                     self.reward_event_totals['loss'] += loss_penalty
                     weighted_reward += loss_penalty
 
+        progress_happened = (
+            piece_reward > 0
+            or progress_reward > 0
+            or capture_occurred
+            or self.reward_event_counts.get('near_finish', 0) > 0
+        )
+        if not progress_happened:
+            player_tracker = self.no_progress_steps[player_id]
+            player_tracker['general'] += 1
+            if player_tracker['general'] % NO_PROGRESS_WINDOW == 0:
+                weighted_reward += NO_PROGRESS_PENALTY
+                self.no_progress_penalty_events += 1
+                self.reward_event_totals['no_progress'] = (
+                    self.reward_event_totals.get('no_progress', 0.0) + NO_PROGRESS_PENALTY
+                )
+        else:
+            self.no_progress_steps[player_id]['general'] = 0
+
+        sig = self._state_signature()
+        if sig:
+            visits = self.state_visit_counts.get(sig, 0) + 1
+            self.state_visit_counts[sig] = visits
+            self.total_state_visits += 1
+            if visits == 1:
+                self.unique_state_visits += 1
+            elif visits >= REPEATED_STATE_THRESHOLD:
+                weighted_reward += REPEATED_STATE_PENALTY
+                self.repeated_state_penalty_events += 1
+                self.reward_event_totals['repeated_state'] = (
+                    self.reward_event_totals.get('repeated_state', 0.0) + REPEATED_STATE_PENALTY
+                )
+
         low, high = REWARD_CLIP_RANGE
         reward = float(np.clip(weighted_reward, low, high))
 
@@ -1016,6 +1103,11 @@ class GameEnvironment:
             {'general': 0, 'since_two': 0} for _ in range(4)
         ]
         self.last_step_info = {}
+        self.state_visit_counts = {}
+        self.total_state_visits = 0
+        self.unique_state_visits = 0
+        self.no_progress_penalty_events = 0
+        self.repeated_state_penalty_events = 0
 
     def set_heavy_reward(self, value: float) -> None:
         """Update the weight applied to major reward events."""

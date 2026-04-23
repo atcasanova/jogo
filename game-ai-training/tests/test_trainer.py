@@ -227,5 +227,5 @@ def test_load_models_restores_training_state(tmp_path):
         assert manager.training_stats["games_played"] == 3
         assert manager.pieces_per_player == 2
         assert manager.stage_games == 3
-        assert manager.turn_limit == 200
+        assert manager.turn_limit == 280
         assert list(manager.recent_outcomes) == [1, 0, 1]

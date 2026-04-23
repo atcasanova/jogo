@@ -22,6 +22,16 @@ TRAINING_CONFIG = {
     'lr_final': 1e-5
 }
 
+# Piece-dependent entropy regularization. Harder stages use lower entropy so
+# the policy can consolidate and stop dithering in long games.
+ENTROPY_WEIGHT_SCHEDULE = {
+    1: 0.005,
+    2: 0.004,
+    3: 0.003,
+    4: 0.0025,
+    5: 0.0015,
+}
+
 # Paths
 MODEL_DIR = 'models'
 PLOT_DIR = 'plots'
@@ -57,6 +67,12 @@ MAX_REWARD_MULTIPLIER = 2.0
 MIN_REWARD_MULTIPLIER = 0.5
 # Step size used when adjusting the reward multiplier up or down
 REWARD_TUNE_STEP = 0.1
+
+# Curriculum bridge/rollback controls for the final stage.
+STAGE5_MIX_FROM_GAME = 1000
+STAGE5_MIX_LOWER_STAGE_RATIO = 0.25
+STAGE5_ROLLBACK_MIN_GAMES = 2500
+STAGE5_ROLLBACK_DECISIVE_RATE = 0.08
 
 # Event-based reward weights used by ``GameEnvironment``. The environment
 # computes a weighted sum and then clips the total to reduce reward spikes.
@@ -95,6 +111,21 @@ LONG_GAME_PENALTY_BASE = -0.02
 
 # Extra bonus awarded on wins that finish well before the turn limit.
 FAST_FINISH_BONUS_SCALE = 15.0
+
+# Additional late-game urgency signal: penalty ramps up after
+# ``URGENCY_PENALTY_START_FRAC`` of the turn budget has been consumed.
+URGENCY_PENALTY_START_FRAC = 0.70
+URGENCY_PENALTY_BASE = -0.15
+
+# Cap loopable shaping rewards to reduce farming behavior.
+HOME_ENTRY_PROGRESS_CAP = 120.0
+CAPTURE_REWARD_CAP = 180.0
+
+# Anti-stall penalties.
+NO_PROGRESS_WINDOW = 24
+NO_PROGRESS_PENALTY = -0.8
+REPEATED_STATE_THRESHOLD = 3
+REPEATED_STATE_PENALTY = -0.6
 
 # Clip range for the per-step weighted reward sum.
 REWARD_CLIP_RANGE = (-150.0, 150.0)
