@@ -25,6 +25,11 @@ from config import (
     MIN_REWARD_MULTIPLIER,
     REWARD_TUNE_STEP,
     TURN_LIMIT_SCHEDULE,
+    ENTROPY_WEIGHT_SCHEDULE,
+    STAGE5_MIX_FROM_GAME,
+    STAGE5_MIX_LOWER_STAGE_RATIO,
+    STAGE5_ROLLBACK_MIN_GAMES,
+    STAGE5_ROLLBACK_DECISIVE_RATE,
 )
 from json_logger import info, warning
 import random
@@ -80,6 +85,10 @@ class TrainingManager:
             'trainable_win': [],
             'terminal_turns': [],
             'near_finish_any_team': [],
+            'near_finish_timeout': [],
+            'no_progress_penalties': [],
+            'state_repeat_penalties': [],
+            'unique_state_ratio': [],
         }
 
         # Optional external list storing per-episode reward contributions
@@ -132,6 +141,7 @@ class TrainingManager:
 
         # Reward multiplier per difficulty level
         self.level_reward_multiplier = {}
+        self.curriculum_rollback_count = 0
 
     def _stats_interval(self) -> int:
         """Return plotting interval based on current piece count."""
@@ -300,6 +310,28 @@ class TrainingManager:
         env.set_heavy_reward(weight * multiplier)
         env.set_win_bonus(WIN_BONUS * multiplier)
 
+    def _apply_entropy_schedule(self) -> None:
+        """Adjust trainable bots' entropy weight based on stage difficulty."""
+        target = ENTROPY_WEIGHT_SCHEDULE.get(
+            self.pieces_per_player,
+            TRAINING_CONFIG.get('entropy_weight', 0.005),
+        )
+        for bot in self.trainable_bots:
+            if hasattr(bot, "set_entropy_weight"):
+                bot.set_entropy_weight(target)
+            else:
+                bot.entropy_weight = target
+
+    def _episode_piece_count(self) -> int:
+        """Use occasional easier games in stage 5 as a curriculum bridge."""
+        if (
+            self.pieces_per_player == 5
+            and self.stage_games >= STAGE5_MIX_FROM_GAME
+            and random.random() < STAGE5_MIX_LOWER_STAGE_RATIO
+        ):
+            return 4
+        return self.pieces_per_player
+
     def _adjust_reward_multiplier(self, win_rate: float, env: GameEnvironment) -> None:
         """Update the reward multiplier based on the observed win rate."""
         level = self.pieces_per_player
@@ -361,6 +393,10 @@ class TrainingManager:
 
         # Randomize bot seating for this episode
         self._shuffle_bots()
+        self._apply_entropy_schedule()
+        episode_pieces = self._episode_piece_count()
+        env.set_piece_count(episode_pieces)
+        env.set_turn_limit(self._turn_limit_for_pieces(episode_pieces))
 
         if self.latest_snapshot and episode_num % 4 != 0:
             opponents = [i for i in range(len(self.bots)) if i != self.train_focus_idx]
@@ -385,7 +421,7 @@ class TrainingManager:
         step_records = []
         
         step_count = 0
-        max_steps = self.turn_limit
+        max_steps = self._turn_limit_for_pieces(episode_pieces)
         
         while step_count < max_steps:
             # Get current player from game state
@@ -470,7 +506,9 @@ class TrainingManager:
                 break
 
         if not env.game_state.get('gameEnded', False):
-            timeout_penalty = TIMEOUT_PENALTY * max(1, self.pieces_per_player)
+            timeout_penalty = TIMEOUT_PENALTY * max(1, episode_pieces)
+            if env.reward_event_counts.get('near_finish', 0) > 0:
+                timeout_penalty *= 1.5
             for i in range(len(episode_rewards)):
                 episode_rewards[i] += timeout_penalty
             env.reward_event_counts['timeout'] = (
@@ -550,6 +588,28 @@ class TrainingManager:
             median_terminal_turns=f"{median_terminal_turns:.1f}",
             near_finish_rate=f"{near_finish_rate:.2f}",
         )
+        if (
+            self.pieces_per_player == 5
+            and self.stage_games >= STAGE5_ROLLBACK_MIN_GAMES
+            and decisive_rate < STAGE5_ROLLBACK_DECISIVE_RATE
+        ):
+            self.pieces_per_player = 4
+            self.turn_limit = self._turn_limit_for_pieces(self.pieces_per_player)
+            for rollback_env in [self.env] + self.envs:
+                rollback_env.set_piece_count(self.pieces_per_player)
+                rollback_env.set_turn_limit(self.turn_limit)
+            self.stage_games = 0
+            self.stage_winning_games = 0
+            self.recent_outcomes.clear()
+            self.recent_timeouts.clear()
+            self.recent_trainable_wins.clear()
+            self.curriculum_rollback_count += 1
+            warning(
+                "Curriculum rollback triggered",
+                pieces=self.pieces_per_player,
+                decisive_rate=f"{decisive_rate:.2f}",
+                rollbacks=self.curriculum_rollback_count,
+            )
         promoted = False
         if (
             self.stage_games >= 5000
@@ -608,9 +668,7 @@ class TrainingManager:
         if ep_total < -10000:
             ep_total = -10000
         self.training_stats['episode_rewards'].append(ep_total)
-        self.training_stats['pieces_per_player'].append(
-            self.pieces_per_player - 1 if promoted else self.pieces_per_player
-        )
+        self.training_stats['pieces_per_player'].append(episode_pieces)
         self.training_stats['stage_games'].append(
             5000 if promoted else self.stage_games
         )
@@ -651,6 +709,20 @@ class TrainingManager:
                 near_finish_any = 1
                 break
         self.training_stats['near_finish_any_team'].append(near_finish_any)
+        self.training_stats['near_finish_timeout'].append(
+            int(bool(timed_out and near_finish_any))
+        )
+        self.training_stats['no_progress_penalties'].append(
+            int(getattr(env, 'no_progress_penalty_events', 0))
+        )
+        self.training_stats['state_repeat_penalties'].append(
+            int(getattr(env, 'repeated_state_penalty_events', 0))
+        )
+        total_visits = float(getattr(env, 'total_state_visits', 0) or 0.0)
+        unique_visits = float(getattr(env, 'unique_state_visits', 0) or 0.0)
+        self.training_stats['unique_state_ratio'].append(
+            (unique_visits / total_visits) if total_visits > 0 else 1.0
+        )
         self.recent_timeouts.append(timed_out)
         self.recent_trainable_wins.append(trainable_won)
         entropy = self._reward_entropy(env.reward_event_counts)
@@ -1039,6 +1111,10 @@ class TrainingManager:
                     'trainable_win': [],
                     'terminal_turns': [],
                     'near_finish_any_team': [],
+                    'near_finish_timeout': [],
+                    'no_progress_penalties': [],
+                    'state_repeat_penalties': [],
+                    'unique_state_ratio': [],
                     'bonus_breakdown_history': [],
                 }
 
@@ -1068,7 +1144,7 @@ class TrainingManager:
                 else:
                     self.stage_games = self.training_stats['games_played'] % 5000
 
-                self.turn_limit = 100 * self.pieces_per_player
+                self.turn_limit = self._turn_limit_for_pieces(self.pieces_per_player)
                 for env in [self.env] + self.envs:
                     env.set_piece_count(self.pieces_per_player)
                     env.set_turn_limit(self.turn_limit)
