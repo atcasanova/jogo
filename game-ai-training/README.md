@@ -130,6 +130,15 @@ You can change the tail window used for trend metrics:
 python3 game-ai-training/analyze_training_stats.py training_stats.json --window 1000
 ```
 
+For compact per-piece aggregation across noisy stage segments, run:
+
+```bash
+python3 game-ai-training/summarize_stage_metrics.py run1_summary.json run2_summary.json
+```
+
+This script reports weighted metrics by `pieces_per_player` and highlights the
+longest `pieces_per_player=5` segments where instability is often most visible.
+
 ## Multi-GPU Support
 
 When multiple CUDA devices are available, the training manager will now
