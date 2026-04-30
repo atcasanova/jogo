@@ -30,6 +30,9 @@ from config import (
     STAGE5_MIX_LOWER_STAGE_RATIO,
     STAGE5_ROLLBACK_MIN_GAMES,
     STAGE5_ROLLBACK_DECISIVE_RATE,
+    STAGE_PROMOTION_CONFIRM_WINDOWS,
+    STAGE5_ROLLBACK_CONFIRM_WINDOWS,
+    STAGE5_TURN_LIMIT_BOOST,
 )
 from json_logger import info, warning
 import random
@@ -142,6 +145,8 @@ class TrainingManager:
         # Reward multiplier per difficulty level
         self.level_reward_multiplier = {}
         self.curriculum_rollback_count = 0
+        self.promotion_streak = 0
+        self.rollback_streak = 0
 
     def _stats_interval(self) -> int:
         """Return plotting interval based on current piece count."""
@@ -150,7 +155,10 @@ class TrainingManager:
     def _turn_limit_for_pieces(self, pieces: int) -> int:
         """Return turn limit for the given curriculum stage."""
         pieces = max(1, min(5, int(pieces)))
-        return int(TURN_LIMIT_SCHEDULE.get(pieces, 120 * pieces))
+        limit = int(TURN_LIMIT_SCHEDULE.get(pieces, 120 * pieces))
+        if pieces == 5:
+            limit += int(STAGE5_TURN_LIMIT_BOOST)
+        return limit
 
     
     def create_bots(self, num_bots=4):
@@ -593,6 +601,13 @@ class TrainingManager:
             and self.stage_games >= STAGE5_ROLLBACK_MIN_GAMES
             and decisive_rate < STAGE5_ROLLBACK_DECISIVE_RATE
         ):
+            self.rollback_streak += 1
+        else:
+            self.rollback_streak = 0
+        if (
+            self.pieces_per_player == 5
+            and self.rollback_streak >= STAGE5_ROLLBACK_CONFIRM_WINDOWS
+        ):
             self.pieces_per_player = 4
             self.turn_limit = self._turn_limit_for_pieces(self.pieces_per_player)
             for rollback_env in [self.env] + self.envs:
@@ -603,6 +618,8 @@ class TrainingManager:
             self.recent_outcomes.clear()
             self.recent_timeouts.clear()
             self.recent_trainable_wins.clear()
+            self.rollback_streak = 0
+            self.promotion_streak = 0
             self.curriculum_rollback_count += 1
             warning(
                 "Curriculum rollback triggered",
@@ -614,6 +631,13 @@ class TrainingManager:
         if (
             self.stage_games >= 5000
             and decisive_rate >= 0.55
+            and self.pieces_per_player < 5
+        ):
+            self.promotion_streak += 1
+        else:
+            self.promotion_streak = 0
+        if (
+            self.promotion_streak >= STAGE_PROMOTION_CONFIRM_WINDOWS
             and self.pieces_per_player < 5
         ):
             self.pieces_per_player += 1
@@ -633,6 +657,8 @@ class TrainingManager:
             self.recent_outcomes.clear()
             self.recent_timeouts.clear()
             self.recent_trainable_wins.clear()
+            self.promotion_streak = 0
+            self.rollback_streak = 0
             promoted = True
             info(
                 "Increased difficulty",

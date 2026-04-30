@@ -73,6 +73,9 @@ STAGE5_MIX_FROM_GAME = 1000
 STAGE5_MIX_LOWER_STAGE_RATIO = 0.25
 STAGE5_ROLLBACK_MIN_GAMES = 2500
 STAGE5_ROLLBACK_DECISIVE_RATE = 0.08
+STAGE_PROMOTION_CONFIRM_WINDOWS = 3
+STAGE5_ROLLBACK_CONFIRM_WINDOWS = 4
+STAGE5_TURN_LIMIT_BOOST = 200
 
 # Event-based reward weights used by ``GameEnvironment``. The environment
 # computes a weighted sum and then clips the total to reduce reward spikes.
