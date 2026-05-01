@@ -796,6 +796,17 @@ class TrainingManager:
 
         info("Starting training", episodes=num_episodes, envs=num_envs)
 
+        def _next_checkpoint(target: int, interval: int) -> int:
+            """Return the next positive multiple of interval strictly above target."""
+            if interval <= 0:
+                return 0
+            return ((max(0, int(target)) // interval) + 1) * interval
+
+        initial_games = int(self.training_stats.get('games_played', 0))
+        next_snapshot_at = _next_checkpoint(initial_games, self.snapshot_freq)
+        next_save_at = _next_checkpoint(initial_games, save_freq)
+        next_stats_at = _next_checkpoint(initial_games, self._stats_interval())
+
         if num_envs <= 1:
             # Start the single environment
             if not self.env.start_node_game():
@@ -804,23 +815,28 @@ class TrainingManager:
 
             try:
                 for episode in range(num_episodes):
-                    self._apply_reward_schedule(episode, self.env)
+                    current_games = int(self.training_stats.get('games_played', 0))
+                    self._apply_reward_schedule(current_games, self.env)
                     self.train_episode(self.env)
+                    total_games = int(self.training_stats.get('games_played', 0))
 
-                    if (episode + 1) % self.snapshot_freq == 0:
-                        self.save_snapshot(episode + 1)
+                    if next_snapshot_at > 0 and total_games >= next_snapshot_at:
+                        self.save_snapshot(total_games)
+                        next_snapshot_at += self.snapshot_freq
 
                     interval = self._stats_interval()
-                    if (episode + 1) % interval == 0:
-                        self.print_statistics(episode + 1)
+                    while next_stats_at > 0 and total_games >= next_stats_at:
+                        self.print_statistics(total_games)
                         self.plot_training_progress()
+                        next_stats_at += interval
 
-                    if (episode + 1) % save_freq == 0:
-                        self.save_models(f"{MODEL_DIR}/episode_{episode + 1}")
+                    if next_save_at > 0 and total_games >= next_save_at:
+                        self.save_models(f"{MODEL_DIR}/episode_{total_games}")
+                        next_save_at += save_freq
                         if save_match_log:
                             log_file = os.path.join(
                                 LOG_DIR,
-                                f"episode_{episode + 1}_env_{self.env.env_id}.log"
+                                f"episode_{total_games}_env_{self.env.env_id}.log"
                             )
                             self.env.save_history(log_file)
 
@@ -847,28 +863,31 @@ class TrainingManager:
 
             try:
                 for episode in range(num_episodes):
+                    current_games = int(self.training_stats.get('games_played', 0))
                     for env in self.envs:
-                        self._apply_reward_schedule(episode, env)
+                        self._apply_reward_schedule(current_games, env)
                     with ThreadPoolExecutor(max_workers=num_envs) as executor:
                         list(executor.map(self.train_episode, self.envs))
+                    total_games = int(self.training_stats.get('games_played', 0))
 
-                    if (episode + 1) % self.snapshot_freq == 0:
-                        self.save_snapshot((episode + 1) * num_envs)
+                    if next_snapshot_at > 0 and total_games >= next_snapshot_at:
+                        self.save_snapshot(total_games)
+                        next_snapshot_at += self.snapshot_freq
 
                     interval = self._stats_interval()
-                    if (episode + 1) % interval == 0:
-                        self.print_statistics((episode + 1) * num_envs)
+                    while next_stats_at > 0 and total_games >= next_stats_at:
+                        self.print_statistics(total_games)
                         self.plot_training_progress()
+                        next_stats_at += interval
 
-                    if (episode + 1) % save_freq == 0:
-                        self.save_models(
-                            f"{MODEL_DIR}/episode_{(episode + 1) * num_envs}"
-                        )
+                    if next_save_at > 0 and total_games >= next_save_at:
+                        self.save_models(f"{MODEL_DIR}/episode_{total_games}")
+                        next_save_at += save_freq
                         if save_match_log:
                             for env in self.envs:
                                 log_file = os.path.join(
                                     LOG_DIR,
-                                    f"episode_{(episode + 1) * num_envs}_env_{env.env_id}.log"
+                                    f"episode_{total_games}_env_{env.env_id}.log"
                                 )
                                 env.save_history(log_file)
 
