@@ -24,16 +24,7 @@ class Game {
       captures: [0, 0, 0, 0],
       roundsWithoutPlay: [0, 0, 0, 0],
       jokersPlayed: [0, 0, 0, 0],
-      timesCaptured: [0, 0, 0, 0],
-      specialMoves: {
-        card7Uses: [0, 0, 0, 0],
-        card7TwoPieceOptionAvailable: [0, 0, 0, 0],
-        card7SinglePieceWithTwoPieceOption: [0, 0, 0, 0],
-        card7OneInsideOneEnteringEndZone: [0, 0, 0, 0],
-        card7OneInsideOneOutsideEndZone: [0, 0, 0, 0],
-        card8Uses: [0, 0, 0, 0],
-        card8MoveWithinEndZoneReach: [0, 0, 0, 0]
-      }
+      timesCaptured: [0, 0, 0, 0]
     };
   }
 
@@ -232,16 +223,7 @@ class Game {
       captures: [0, 0, 0, 0],
       roundsWithoutPlay: [0, 0, 0, 0],
       jokersPlayed: [0, 0, 0, 0],
-      timesCaptured: [0, 0, 0, 0],
-      specialMoves: {
-        card7Uses: [0, 0, 0, 0],
-        card7TwoPieceOptionAvailable: [0, 0, 0, 0],
-        card7SinglePieceWithTwoPieceOption: [0, 0, 0, 0],
-        card7OneInsideOneEnteringEndZone: [0, 0, 0, 0],
-        card7OneInsideOneOutsideEndZone: [0, 0, 0, 0],
-        card8Uses: [0, 0, 0, 0],
-        card8MoveWithinEndZoneReach: [0, 0, 0, 0]
-      }
+      timesCaptured: [0, 0, 0, 0]
     };
     for (const player of this.players) {
       player.cards = [];
@@ -406,47 +388,6 @@ class Game {
     return moveResult;
   }
 
-
-
-  isWithinEndZoneReach(piece, maxSteps = 10) {
-    if (!piece || piece.inPenaltyZone || piece.completed || piece.inHomeStretch) {
-      return false;
-    }
-
-    for (let steps = 1; steps <= maxSteps; steps++) {
-      if (this.canEnterHomeStretch(piece, steps)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  hasValidTwoPieceSplitForCard7(playerIndex) {
-    const pieces = this.pieces.filter(p =>
-      this.canControlPiece(playerIndex, p.playerId) && !p.completed
-    );
-
-    for (const pieceA of pieces) {
-      for (const pieceB of pieces) {
-        if (pieceA.id === pieceB.id) continue;
-        for (let s = 1; s <= 6; s++) {
-          const clone = this.cloneForSimulation();
-          try {
-            clone.makeSpecialMove([
-              { pieceId: pieceA.id, steps: s },
-              { pieceId: pieceB.id, steps: 7 - s }
-            ]);
-            return true;
-          } catch (e) {
-            continue;
-          }
-        }
-      }
-    }
-
-    return false;
-  }
-
   makeSpecialMove(moves) {
     // Para a carta 7 que permite dividir o movimento
     const player = this.getCurrentPlayer();
@@ -458,13 +399,6 @@ class Game {
     }
     
     let totalMoves = 0;
-    const playerPos = player.position;
-    const special = this.stats.specialMoves;
-    const hadTwoPieceOption = this.hasValidTwoPieceSplitForCard7(playerPos);
-    special.card7Uses[playerPos]++;
-    if (hadTwoPieceOption) {
-      special.card7TwoPieceOptionAvailable[playerPos]++;
-    }
     for (const move of moves) {
       totalMoves += move.steps;
     }
@@ -474,13 +408,6 @@ class Game {
     }
     
     const moveResults = [];
-    const originalState = new Map();
-    for (const move of moves) {
-      const piece = this.pieces.find(p => p.id === move.pieceId);
-      if (piece) {
-        originalState.set(piece.id, { inHomeStretch: piece.inHomeStretch });
-      }
-    }
 
     // Salvar estado antes de executar os movimentos
     const snapshot = {
@@ -550,26 +477,6 @@ class Game {
     this.nextTurn();
 
     this.pendingSpecialMove = null;
-
-    if (moves.length === 1 && hadTwoPieceOption) {
-      special.card7SinglePieceWithTwoPieceOption[playerPos]++;
-    }
-
-    if (moves.length === 2) {
-      const first = originalState.get(moves[0].pieceId);
-      const second = originalState.get(moves[1].pieceId);
-      const p1 = this.pieces.find(p => p.id === moves[0].pieceId);
-      const p2 = this.pieces.find(p => p.id === moves[1].pieceId);
-      const oneInsideOneEntering =
-        (first?.inHomeStretch && !second?.inHomeStretch && p2?.inHomeStretch) ||
-        (second?.inHomeStretch && !first?.inHomeStretch && p1?.inHomeStretch);
-      const oneInsideOneOutside =
-        (first?.inHomeStretch && p2 && !p2.inHomeStretch) ||
-        (second?.inHomeStretch && p1 && !p1.inHomeStretch);
-
-      if (oneInsideOneEntering) special.card7OneInsideOneEnteringEndZone[playerPos]++;
-      if (oneInsideOneOutside) special.card7OneInsideOneOutsideEndZone[playerPos]++;
-    }
 
     return { success: true, moves: moveResults };
   }
@@ -668,16 +575,8 @@ class Game {
         return this.movePieceForward(piece, value === 'T' ? 10 : parseInt(value), enterHome);
       case '7':
         throw new Error("Carta 7 requer movimento especial");
-      case '8': {
-        const playerPos = this.getCurrentPlayer().position;
-        const result = this.movePieceBackward(piece, 8);
-        const special = this.stats.specialMoves;
-        special.card8Uses[playerPos]++;
-        if (this.isWithinEndZoneReach(piece)) {
-          special.card8MoveWithinEndZoneReach[playerPos]++;
-        }
-        return result;
-      }
+      case '8':
+        return this.movePieceBackward(piece, 8);
       case 'J':
       case 'Q':
       case 'K':
@@ -1579,22 +1478,7 @@ class Game {
       piecesCompleted,
       firstCompletionMove: this.movesToFirstComplete ?? this.history.length,
       movesPlayed: this.history.length,
-      winners: winners.map(p => p.name),
-      specialMoves: {
-        card7: this.players.map((pl, idx) => ({
-          name: pl?.name,
-          uses: stat.specialMoves.card7Uses[idx],
-          twoPieceOptionAvailable: stat.specialMoves.card7TwoPieceOptionAvailable[idx],
-          pctOneInsideOneEnteringEndZone: stat.specialMoves.card7Uses[idx] ? (stat.specialMoves.card7OneInsideOneEnteringEndZone[idx] / stat.specialMoves.card7Uses[idx]) : 0,
-          pctOneInsideOneOutsideEndZone: stat.specialMoves.card7Uses[idx] ? (stat.specialMoves.card7OneInsideOneOutsideEndZone[idx] / stat.specialMoves.card7Uses[idx]) : 0,
-          pctSinglePieceWithTwoPieceOption: stat.specialMoves.card7TwoPieceOptionAvailable[idx] ? (stat.specialMoves.card7SinglePieceWithTwoPieceOption[idx] / stat.specialMoves.card7TwoPieceOptionAvailable[idx]) : 0
-        })),
-        card8: this.players.map((pl, idx) => ({
-          name: pl?.name,
-          uses: stat.specialMoves.card8Uses[idx],
-          pctMoveWithinEndZoneReach: stat.specialMoves.card8Uses[idx] ? (stat.specialMoves.card8MoveWithinEndZoneReach[idx] / stat.specialMoves.card8Uses[idx]) : 0
-        }))
-      }
+      winners: winners.map(p => p.name)
     };
   }
 
