@@ -3,11 +3,11 @@ TRAINING_CONFIG = {
     'num_episodes': 5000,
     'save_frequency': 500,
     'stats_frequency': 10,
-    'learning_rate': 1e-4,
-    'batch_size': 64,
-    'memory_size': 10000,
+    'learning_rate': 7e-5,
+    'batch_size': 128,
+    'memory_size': 50000,
     'gamma': 0.95,
-    'hidden_size': 512,
+    'hidden_size': 1024,
     'train_freq': 4,
     'ppo_clip': 0.08,
     # Slight entropy bonus to maintain exploration without destabilising updates.
@@ -19,7 +19,7 @@ TRAINING_CONFIG = {
     # Defaulting to a relatively high value keeps updates infrequent
     # but allows quick overrides in custom configs.
     'update_target_freq': 1000,
-    'lr_final': 1e-5
+    'lr_final': 7e-6
 }
 
 # Piece-dependent entropy regularization. Harder stages use lower entropy so

@@ -15,8 +15,8 @@ def main():
     parser.add_argument(
         "--num_envs",
         type=int,
-        default=1,
-        help="Number of parallel environments to run",
+        default=4,
+        help="Number of parallel environments to run (default tuned for multi-GPU hosts)",
     )
     parser.add_argument(
         "--fixed-model-dir",
