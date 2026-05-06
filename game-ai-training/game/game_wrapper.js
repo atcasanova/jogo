@@ -212,6 +212,52 @@ class GameWrapper {
                     sevenIndices.push(i);
                 }
             }
+            const specialCandidates = [];
+            const seenSpecialMoves = new Set();
+            const addSpecialCandidate = (moves) => {
+                const key = moves.map(m => `${m.pieceId}:${m.steps}`).join('|');
+                if (seenSpecialMoves.has(key)) {
+                    return;
+                }
+
+                const clone = this.game.cloneForSimulation();
+                try {
+                    const before = moves.map(m => {
+                        const p = this.game.pieces.find(pp => pp.id === m.pieceId);
+                        return {
+                            pieceId: m.pieceId,
+                            inHomeStretch: Boolean(p && p.inHomeStretch),
+                            completed: Boolean(p && p.completed)
+                        };
+                    });
+                    clone.makeSpecialMove(moves);
+                    const after = moves.map(m => {
+                        const p = clone.pieces.find(pp => pp.id === m.pieceId);
+                        return {
+                            pieceId: m.pieceId,
+                            inHomeStretch: Boolean(p && p.inHomeStretch),
+                            completed: Boolean(p && p.completed)
+                        };
+                    });
+
+                    const split = moves.length > 1;
+                    let score = split ? 100 : 0;
+                    for (let i = 0; i < before.length; i++) {
+                        if (!before[i].inHomeStretch && after[i].inHomeStretch) {
+                            score += split ? 40 : 10;
+                        }
+                        if (before[i].inHomeStretch && !before[i].completed && after[i].completed) {
+                            score += split ? 60 : 20;
+                        }
+                    }
+
+                    seenSpecialMoves.add(key);
+                    specialCandidates.push({ moves, score });
+                } catch (e) {
+                    // invalid move, ignore
+                }
+            };
+
             for (const cardIdx of sevenIndices) {
 
                 const movable = [];
@@ -225,40 +271,35 @@ class GameWrapper {
                     }
                 }
 
-                // Single-piece seven moves
-                for (const pid of movable) {
-                    const moves = [{ pieceId: pid, steps: 7 }];
-                    const clone = this.game.cloneForSimulation();
-                    try {
-                        clone.makeSpecialMove(moves);
-                        specialActionsList.push(specialId);
-                        this.specialActions[specialId] = moves;
-                        specialId++;
-                    } catch (e) {
-                        // invalid move, ignore
-                    }
-                }
-
-                // Split moves across two pieces
+                // Split moves across two pieces. These are intentionally
+                // generated before single-piece seven moves and scored higher
+                // so the bounded special action range exposes split choices.
                 for (let i = 0; i < movable.length; i++) {
                     for (let j = i + 1; j < movable.length; j++) {
                         for (let steps = 1; steps <= 6; steps++) {
-                            const moves = [
+                            addSpecialCandidate([
                                 { pieceId: movable[i], steps },
                                 { pieceId: movable[j], steps: 7 - steps }
-                            ];
-                            const clone = this.game.cloneForSimulation();
-                            try {
-                                clone.makeSpecialMove(moves);
-                                specialActionsList.push(specialId);
-                                this.specialActions[specialId] = moves;
-                                specialId++;
-                            } catch (e) {
-                                // invalid split move, ignore
-                            }
+                            ]);
                         }
                     }
                 }
+
+                // Single-piece seven moves remain available when there is room
+                // after the higher-value split candidates.
+                for (const pid of movable) {
+                    addSpecialCandidate([{ pieceId: pid, steps: 7 }]);
+                }
+            }
+
+            specialCandidates.sort((a, b) => b.score - a.score);
+            for (const candidate of specialCandidates) {
+                if (specialId >= 70) {
+                    break;
+                }
+                specialActionsList.push(specialId);
+                this.specialActions[specialId] = candidate.moves;
+                specialId++;
             }
 
             for (let idx = 0; idx < maxMoveCards; idx++) {
@@ -736,7 +777,12 @@ class GameWrapper {
                 captures: result && result.captures ? result.captures : [],
                 gameState: this.getGameState(),
                 gameEnded,
-                winningTeam
+                winningTeam,
+                specialMove: {
+                    cardValue: '7',
+                    split: moves.length > 1,
+                    moves
+                }
             };
 
             if (gameEnded) {
