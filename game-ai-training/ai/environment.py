@@ -34,6 +34,12 @@ from config import (
 PIECE_COMPLETION_REWARD = 50.0
 # Only penalty currently applied when a bot rejects a homestretch entry
 SKIP_HOME_PENALTY = -1.0
+# Extra shaping for learning the 7-card split mechanic. The base bonus rewards
+# using a 7 as a true split, while the stronger bonuses emphasize splits that
+# convert outside pieces into the home stretch or finish pieces already there.
+SEVEN_SPLIT_REWARD = 4.0
+SEVEN_SPLIT_HOME_ENTRY_REWARD = 10.0
+SEVEN_SPLIT_COMPLETION_REWARD = 18.0
 
 # The following constants remain for compatibility but do not affect rewards
 HOME_ENTRY_REWARD = 0.0
@@ -145,6 +151,9 @@ class GameEnvironment:
             'home_entry_progress': 0,
             'capture': 0,
             'safe_move': 0,
+            'seven_split': 0,
+            'seven_split_home_entry': 0,
+            'seven_split_completion': 0,
             'long_game': 0,
             'win': 0,
             'loss': 0,
@@ -159,6 +168,9 @@ class GameEnvironment:
             'home_entry_progress': 0.0,
             'capture': 0.0,
             'safe_move': 0.0,
+            'seven_split': 0.0,
+            'seven_split_home_entry': 0.0,
+            'seven_split_completion': 0.0,
             'long_game': 0.0,
             'win': 0.0,
             'loss': 0.0,
@@ -896,9 +908,18 @@ class GameEnvironment:
                 opponent_team.extend(seats)
 
         capture_occurred = bool(response.get('captures'))
+        special_move = response.get('specialMove') if isinstance(response, dict) else None
+        seven_split_played = bool(
+            isinstance(special_move, dict)
+            and special_move.get('cardValue') == '7'
+            and special_move.get('split')
+        )
         piece_reward = 0.0
         progress_reward = 0.0
         safe_reward = 0.0
+        seven_split_reward = 0.0
+        seven_split_home_entries = 0
+        seven_split_completions = 0
         new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
         for pid, prev in prev_pieces.items():
             new = new_pieces.get(pid)
@@ -914,6 +935,10 @@ class GameEnvironment:
                 piece_reward += PIECE_COMPLETION_BONUS
                 self.reward_event_counts['piece_completion_bonus'] += 1
                 self.reward_event_totals['piece_completion_bonus'] += PIECE_COMPLETION_BONUS
+                if seven_split_played and prev.get('in_home'):
+                    seven_split_completions += 1
+            if seven_split_played and not prev.get('in_home') and new.get('inHomeStretch'):
+                seven_split_home_entries += 1
             prev_steps = self._steps_to_entrance(prev.get('pos') or {}, owner)
             new_steps = self._steps_to_entrance(new.get('position') or {}, owner)
             if prev_steps >= 0 and new_steps >= 0 and new_steps < prev_steps:
@@ -945,6 +970,22 @@ class GameEnvironment:
             self.reward_event_counts['safe_move'] += 1
             self.reward_event_totals['safe_move'] += safe_reward
             weighted_reward += safe_reward
+
+        if seven_split_played:
+            seven_split_reward += SEVEN_SPLIT_REWARD
+            self.reward_event_counts['seven_split'] += 1
+            self.reward_event_totals['seven_split'] += SEVEN_SPLIT_REWARD
+            if seven_split_home_entries > 0:
+                entry_reward = SEVEN_SPLIT_HOME_ENTRY_REWARD * seven_split_home_entries
+                seven_split_reward += entry_reward
+                self.reward_event_counts['seven_split_home_entry'] += seven_split_home_entries
+                self.reward_event_totals['seven_split_home_entry'] += entry_reward
+            if seven_split_completions > 0:
+                completion_reward = SEVEN_SPLIT_COMPLETION_REWARD * seven_split_completions
+                seven_split_reward += completion_reward
+                self.reward_event_counts['seven_split_completion'] += seven_split_completions
+                self.reward_event_totals['seven_split_completion'] += completion_reward
+            weighted_reward += seven_split_reward
 
         weighted_reward += piece_reward
 
@@ -1022,6 +1063,7 @@ class GameEnvironment:
         progress_happened = (
             piece_reward > 0
             or progress_reward > 0
+            or seven_split_reward > 0
             or capture_occurred
             or self.reward_event_counts.get('near_finish', 0) > 0
         )

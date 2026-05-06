@@ -114,3 +114,55 @@ describe('GameWrapper win condition', () => {
     expect(piece.completed).toBe(true);
   });
 });
+
+describe('GameWrapper 7-card split actions', () => {
+  test('prioritizes split moves inside the bounded special action range', () => {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+
+    const pieces = [1, 2, 3].map(n => ({
+      id: `p0_${n}`,
+      playerId: 0,
+      completed: false,
+      inPenaltyZone: false,
+      inHomeStretch: false,
+      position: { row: 0, col: n }
+    }));
+
+    wrapper.game = {
+      players: [{ cards: [{ value: '7' }] }],
+      pieces,
+      piecesPerPlayer: 3,
+      cloneForSimulation() {
+        const clonePieces = JSON.parse(JSON.stringify(pieces));
+        return {
+          pieces: clonePieces,
+          makeSpecialMove(moves) {
+            for (const move of moves) {
+              const piece = clonePieces.find(p => p.id === move.pieceId);
+              if (!piece) throw new Error('missing piece');
+              if (move.pieceId === 'p0_1' && move.steps === 1) {
+                piece.inHomeStretch = true;
+              }
+              if (move.pieceId === 'p0_2' && move.steps === 6) {
+                piece.inHomeStretch = true;
+                piece.completed = true;
+              }
+            }
+            return { success: true };
+          },
+          makeMove() {
+            throw new Error('normal moves omitted');
+          }
+        };
+      }
+    };
+
+    const actions = wrapper.getValidActions(0);
+    const specialActions = actions.filter(action => action >= 60 && action < 70);
+
+    expect(specialActions).toHaveLength(10);
+    expect(Math.max(...specialActions)).toBe(69);
+    expect(specialActions.every(action => wrapper.specialActions[action].length > 1)).toBe(true);
+  });
+});
