@@ -8,8 +8,11 @@ from ai.environment import (
     SEVEN_SPLIT_HOME_ENTRY_REWARD,
     SEVEN_SPLIT_REWARD,
     SKIP_HOME_PENALTY,
+    SMART_CARD_MISUSE_PENALTY,
+    EIGHT_CARD_REACH_REWARD,
+    EIGHT_HOME_ENTRY_MULTIPLIER,
 )
-from config import STEP_PENALTY_BASE, PIECE_COMPLETION_BONUS
+from config import STEP_PENALTY_BASE, PIECE_COMPLETION_BONUS, REWARD_WEIGHTS
 
 
 def test_reset_returns_zero_when_start_fails():
@@ -168,7 +171,12 @@ def test_seven_split_home_entry_reward():
             with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
                 _, reward, _ = env.step(60, 0)
 
-    expected = step_cost + SEVEN_SPLIT_REWARD + SEVEN_SPLIT_HOME_ENTRY_REWARD
+    expected = (
+        step_cost
+        + REWARD_WEIGHTS['home_entry']
+        + SEVEN_SPLIT_REWARD
+        + SEVEN_SPLIT_HOME_ENTRY_REWARD
+    )
     assert reward == pytest.approx(expected)
     assert env.reward_event_counts['seven_split'] == 1
     assert env.reward_event_counts['seven_split_home_entry'] == 1
@@ -247,3 +255,133 @@ def test_seven_split_completion_reward_stacks_with_completion_reward():
     assert reward == pytest.approx(expected)
     assert env.reward_event_counts['seven_split'] == 1
     assert env.reward_event_counts['seven_split_completion'] == 1
+
+
+def test_unimpactful_seven_gets_penalty_without_split_bonus():
+    env = GameEnvironment()
+    step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)
+    env.game_state = {
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'completed': False,
+                'inHomeStretch': False,
+                'inPenaltyZone': False,
+                'position': {'row': 0, 'col': 10},
+            },
+        ],
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+    }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
+    response = {
+        'success': True,
+        'specialMove': {
+            'cardValue': '7',
+            'split': True,
+            'moves': [{'pieceId': 'p0_1', 'steps': 7}],
+        },
+        'gameState': {
+            'pieces': [
+                {
+                    'id': 'p0_1',
+                    'playerId': 0,
+                    'completed': False,
+                    'inHomeStretch': False,
+                    'inPenaltyZone': False,
+                    'position': {'row': 0, 'col': 17},
+                },
+            ],
+            'teams': env.game_state['teams'],
+        },
+        'gameEnded': False,
+        'winningTeam': None,
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, _ = env.step(60, 0)
+
+    assert reward == pytest.approx(step_cost + SMART_CARD_MISUSE_PENALTY)
+    assert env.reward_event_counts['seven_split'] == 0
+    assert env.reward_event_counts['seven_card_penalty'] == 1
+
+
+def test_eight_setup_rewards_reach_and_boosts_next_home_entry():
+    env = GameEnvironment()
+    step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)
+    env.game_state = {
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'completed': False,
+                'inHomeStretch': False,
+                'inPenaltyZone': False,
+                'position': {'row': 0, 'col': 12},
+            },
+        ],
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+    }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
+    eight_response = {
+        'success': True,
+        'playedCardValue': '8',
+        'gameState': {
+            'pieces': [
+                {
+                    'id': 'p0_1',
+                    'playerId': 0,
+                    'completed': False,
+                    'inHomeStretch': False,
+                    'inPenaltyZone': False,
+                    'position': {'row': 0, 'col': 4},
+                },
+            ],
+            'teams': env.game_state['teams'],
+        },
+        'gameEnded': False,
+        'winningTeam': None,
+    }
+
+    with patch.object(env, 'send_command', return_value=eight_response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, eight_reward, _ = env.step(0, 0)
+
+    assert eight_reward == pytest.approx(
+        step_cost + REWARD_WEIGHTS['home_entry_progress'] + EIGHT_CARD_REACH_REWARD
+    )
+    assert env.pending_eight_setups[0]['piece_id'] == 'p0_1'
+
+    env.game_state = eight_response['gameState']
+    entry_response = {
+        'success': True,
+        'playedCardValue': '2',
+        'gameState': {
+            'pieces': [
+                {
+                    'id': 'p0_1',
+                    'playerId': 0,
+                    'completed': False,
+                    'inHomeStretch': True,
+                    'inPenaltyZone': False,
+                    'position': {'row': 1, 'col': 4},
+                },
+            ],
+            'teams': env.game_state['teams'],
+        },
+        'gameEnded': False,
+        'winningTeam': None,
+    }
+
+    with patch.object(env, 'send_command', return_value=entry_response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, entry_reward, _ = env.step(0, 0)
+
+    expected_entry = step_cost + REWARD_WEIGHTS['home_entry'] * EIGHT_HOME_ENTRY_MULTIPLIER
+    assert entry_reward == pytest.approx(expected_entry)
+    assert env.reward_event_counts['eight_home_entry_boost'] == 1
+    assert env.pending_eight_setups[0] is None

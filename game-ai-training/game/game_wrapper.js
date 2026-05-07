@@ -720,7 +720,8 @@ class GameWrapper {
                 captures: result && result.captures ? result.captures : [],
                 gameState: this.getGameState(),
                 gameEnded,
-                winningTeam
+                winningTeam,
+                playedCardValue: playedCard ? playedCard.value : null
             };
 
             if (gameEnded) {

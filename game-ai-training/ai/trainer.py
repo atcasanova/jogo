@@ -149,7 +149,7 @@ class TrainingManager:
         self.rollback_streak = 0
 
     def _stats_interval(self) -> int:
-        """Return plotting interval based on current piece count."""
+        """Return statistics logging interval based on current piece count."""
         return 500 if self.pieces_per_player < 4 else 100
 
     def _turn_limit_for_pieces(self, pieces: int) -> int:
@@ -827,7 +827,6 @@ class TrainingManager:
                     interval = self._stats_interval()
                     while next_stats_at > 0 and total_games >= next_stats_at:
                         self.print_statistics(total_games)
-                        self.plot_training_progress()
                         next_stats_at += interval
 
                     if next_save_at > 0 and total_games >= next_save_at:
@@ -842,7 +841,6 @@ class TrainingManager:
 
                 info("Training completed")
                 self.save_models(f"{MODEL_DIR}/final")
-                self.plot_training_progress()
 
             finally:
                 self.env.close()
@@ -877,7 +875,6 @@ class TrainingManager:
                     interval = self._stats_interval()
                     while next_stats_at > 0 and total_games >= next_stats_at:
                         self.print_statistics(total_games)
-                        self.plot_training_progress()
                         next_stats_at += interval
 
                     if next_save_at > 0 and total_games >= next_save_at:
@@ -893,7 +890,6 @@ class TrainingManager:
 
                 info("Training completed")
                 self.save_models(f"{MODEL_DIR}/final")
-                self.plot_training_progress()
 
             finally:
                 for env in self.envs:

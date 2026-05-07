@@ -85,6 +85,9 @@ REWARD_WEIGHTS = {
     'home_completion': 35.0,
     # Discourage skipping a valid home entry.
     'skip_home': -1.0,
+    # Reward entering the home stretch; this is boosted when it follows
+    # an 8-card setup that newly put the piece within entry reach.
+    'home_entry': 8.0,
     # Small tactical bonuses to improve credit assignment.
     'home_entry_progress': 1.0,
     'capture': 4.0,

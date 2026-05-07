@@ -34,12 +34,16 @@ from config import (
 PIECE_COMPLETION_REWARD = 50.0
 # Only penalty currently applied when a bot rejects a homestretch entry
 SKIP_HOME_PENALTY = -1.0
-# Extra shaping for learning the 7-card split mechanic. The base bonus rewards
-# using a 7 as a true split, while the stronger bonuses emphasize splits that
-# convert outside pieces into the home stretch or finish pieces already there.
+# Extra shaping for learning card-specific tactics. Seven-card rewards only
+# apply when the card creates concrete impact; otherwise the move receives a
+# small penalty so bots learn not to burn sevens on low-value movement.
 SEVEN_SPLIT_REWARD = 4.0
 SEVEN_SPLIT_HOME_ENTRY_REWARD = 10.0
 SEVEN_SPLIT_COMPLETION_REWARD = 18.0
+SMART_CARD_MISUSE_PENALTY = -1.0
+EIGHT_CARD_REACH_REWARD = 6.0
+EIGHT_CARD_CAPTURE_BONUS = 4.0
+EIGHT_HOME_ENTRY_MULTIPLIER = 4.0
 
 # The following constants remain for compatibility but do not affect rewards
 HOME_ENTRY_REWARD = 0.0
@@ -146,6 +150,7 @@ class GameEnvironment:
         self.reward_event_counts = {
             'home_completion': 0,
             'piece_completion_bonus': 0,
+            'home_entry': 0,
             'near_finish': 0,
             'skip_home': 0,
             'home_entry_progress': 0,
@@ -154,6 +159,11 @@ class GameEnvironment:
             'seven_split': 0,
             'seven_split_home_entry': 0,
             'seven_split_completion': 0,
+            'seven_card_penalty': 0,
+            'eight_card_reach': 0,
+            'eight_card_capture': 0,
+            'eight_card_penalty': 0,
+            'eight_home_entry_boost': 0,
             'long_game': 0,
             'win': 0,
             'loss': 0,
@@ -163,6 +173,7 @@ class GameEnvironment:
         self.reward_event_totals = {
             'home_completion': 0.0,
             'piece_completion_bonus': 0.0,
+            'home_entry': 0.0,
             'near_finish': 0.0,
             'skip_home': 0.0,
             'home_entry_progress': 0.0,
@@ -171,6 +182,11 @@ class GameEnvironment:
             'seven_split': 0.0,
             'seven_split_home_entry': 0.0,
             'seven_split_completion': 0.0,
+            'seven_card_penalty': 0.0,
+            'eight_card_reach': 0.0,
+            'eight_card_capture': 0.0,
+            'eight_card_penalty': 0.0,
+            'eight_home_entry_boost': 0.0,
             'long_game': 0.0,
             'win': 0.0,
             'loss': 0.0,
@@ -212,6 +228,10 @@ class GameEnvironment:
         self.last_step_info: Dict[str, float] = {}
         # Cache legal actions so state encoding can include action metadata.
         self.last_valid_actions: Dict[int, List[int]] = {}
+        # Tracks one-turn 8-card setup opportunities by player. A setup is
+        # consumed on that player's next action so it cannot be farmed by
+        # repeatedly moving away and back.
+        self.pending_eight_setups: List[Optional[Dict[str, Any]]] = [None] * 4
         # Episode-level anti-stall telemetry.
         self.state_visit_counts: Dict[str, int] = {}
         self.total_state_visits = 0
@@ -285,6 +305,27 @@ class GameEnvironment:
         """Return ``True`` if ``pos`` lies within the player's entry zone."""
         steps = self._steps_to_entrance(pos, player_id)
         return 0 <= steps <= 10
+
+    def _within_home_entry_reach(self, piece: Dict[str, Any]) -> bool:
+        """Return whether a piece can enter home stretch with a common forward card."""
+        if (
+            piece.get('inPenaltyZone', piece.get('in_penalty'))
+            or piece.get('inHomeStretch', piece.get('in_home'))
+            or piece.get('completed')
+        ):
+            return False
+        owner = int(piece.get('playerId', piece.get('player_id', -1)))
+        if not (0 <= owner < len(self._entrances)):
+            return False
+        pos = piece.get('position') or piece.get('pos') or {}
+        steps_to_entry = self._steps_to_entrance(pos, owner)
+        if steps_to_entry < 0:
+            return False
+        for card_steps in (1, 2, 3, 4, 5, 6, 7, 9, 10):
+            remaining = card_steps - steps_to_entry
+            if 1 <= remaining <= 5:
+                return True
+        return False
 
     def _is_start_square(self, pos: Dict[str, int], player_id: int) -> bool:
         """Return ``True`` if ``pos`` is the starting square for ``player_id``."""
@@ -758,6 +799,8 @@ class GameEnvironment:
                         'in_home': p.get('inHomeStretch'),
                         'in_penalty': p.get('inPenaltyZone'),
                         'completed': p.get('completed'),
+                        'playerId': pid,
+                        'within_home_reach': self._within_home_entry_reach(p),
                     }
 
         for pid, count in enumerate(prev_completed_players):
@@ -907,8 +950,14 @@ class GameEnvironment:
             else:
                 opponent_team.extend(seats)
 
-        capture_occurred = bool(response.get('captures'))
+        captures = response.get('captures') or []
+        capture_occurred = bool(captures)
+        played_card_value = response.get('playedCardValue')
         special_move = response.get('specialMove') if isinstance(response, dict) else None
+        if isinstance(special_move, dict) and special_move.get('cardValue'):
+            played_card_value = special_move.get('cardValue')
+        seven_card_played = played_card_value == '7'
+        eight_card_played = played_card_value == '8'
         seven_split_played = bool(
             isinstance(special_move, dict)
             and special_move.get('cardValue') == '7'
@@ -920,6 +969,9 @@ class GameEnvironment:
         seven_split_reward = 0.0
         seven_split_home_entries = 0
         seven_split_completions = 0
+        home_entry_reward = 0.0
+        home_entry_piece_ids: List[str] = []
+        eight_new_reach_count = 0
         new_pieces = {p['id']: p for p in self.game_state.get('pieces', [])}
         for pid, prev in prev_pieces.items():
             new = new_pieces.get(pid)
@@ -937,8 +989,28 @@ class GameEnvironment:
                 self.reward_event_totals['piece_completion_bonus'] += PIECE_COMPLETION_BONUS
                 if seven_split_played and prev.get('in_home'):
                     seven_split_completions += 1
-            if seven_split_played and not prev.get('in_home') and new.get('inHomeStretch'):
+            entered_home = not prev.get('in_home') and new.get('inHomeStretch')
+            if entered_home:
+                home_entry_piece_ids.append(pid)
+                entry_reward = REWARD_WEIGHTS.get('home_entry', 0.0)
+                pending_setup = self.pending_eight_setups[player_id]
+                if (
+                    pending_setup
+                    and pending_setup.get('piece_id') == pid
+                    and pending_setup.get('from_out_of_reach')
+                ):
+                    boosted_reward = entry_reward * EIGHT_HOME_ENTRY_MULTIPLIER
+                    boost_delta = boosted_reward - entry_reward
+                    entry_reward = boosted_reward
+                    self.reward_event_counts['eight_home_entry_boost'] += 1
+                    self.reward_event_totals['eight_home_entry_boost'] += boost_delta
+                home_entry_reward += entry_reward
+                self.reward_event_counts['home_entry'] += 1
+                self.reward_event_totals['home_entry'] += entry_reward
+            if seven_split_played and entered_home:
                 seven_split_home_entries += 1
+            if eight_card_played and not prev.get('within_home_reach') and self._within_home_entry_reach(new):
+                eight_new_reach_count += 1
             prev_steps = self._steps_to_entrance(prev.get('pos') or {}, owner)
             new_steps = self._steps_to_entrance(new.get('position') or {}, owner)
             if prev_steps >= 0 and new_steps >= 0 and new_steps < prev_steps:
@@ -971,10 +1043,14 @@ class GameEnvironment:
             self.reward_event_totals['safe_move'] += safe_reward
             weighted_reward += safe_reward
 
-        if seven_split_played:
-            seven_split_reward += SEVEN_SPLIT_REWARD
-            self.reward_event_counts['seven_split'] += 1
-            self.reward_event_totals['seven_split'] += SEVEN_SPLIT_REWARD
+        if home_entry_reward > 0:
+            weighted_reward += home_entry_reward
+
+        if seven_card_played and (capture_occurred or home_entry_piece_ids or piece_reward > 0):
+            if seven_split_played:
+                seven_split_reward += SEVEN_SPLIT_REWARD
+                self.reward_event_counts['seven_split'] += 1
+                self.reward_event_totals['seven_split'] += SEVEN_SPLIT_REWARD
             if seven_split_home_entries > 0:
                 entry_reward = SEVEN_SPLIT_HOME_ENTRY_REWARD * seven_split_home_entries
                 seven_split_reward += entry_reward
@@ -986,6 +1062,44 @@ class GameEnvironment:
                 self.reward_event_counts['seven_split_completion'] += seven_split_completions
                 self.reward_event_totals['seven_split_completion'] += completion_reward
             weighted_reward += seven_split_reward
+        elif seven_card_played:
+            # Low-impact sevens should not earn generic progress/safety shaping;
+            # make the net outcome the normal step cost plus the smart-card
+            # penalty so the policy learns to save sevens for concrete impact.
+            weighted_reward -= progress_reward + safe_reward
+            weighted_reward += SMART_CARD_MISUSE_PENALTY
+            self.reward_event_counts['seven_card_penalty'] += 1
+            self.reward_event_totals['seven_card_penalty'] += SMART_CARD_MISUSE_PENALTY
+
+        if eight_card_played:
+            if capture_occurred:
+                eight_capture_bonus = EIGHT_CARD_CAPTURE_BONUS * len(captures)
+                weighted_reward += eight_capture_bonus
+                self.reward_event_counts['eight_card_capture'] += len(captures)
+                self.reward_event_totals['eight_card_capture'] += eight_capture_bonus
+            if eight_new_reach_count > 0:
+                reach_reward = EIGHT_CARD_REACH_REWARD * eight_new_reach_count
+                weighted_reward += reach_reward
+                self.reward_event_counts['eight_card_reach'] += eight_new_reach_count
+                self.reward_event_totals['eight_card_reach'] += reach_reward
+            if not capture_occurred and eight_new_reach_count == 0:
+                weighted_reward += SMART_CARD_MISUSE_PENALTY
+                self.reward_event_counts['eight_card_penalty'] += 1
+                self.reward_event_totals['eight_card_penalty'] += SMART_CARD_MISUSE_PENALTY
+
+        if eight_card_played and eight_new_reach_count > 0:
+            setup_piece_id = None
+            for pid, prev in prev_pieces.items():
+                new = new_pieces.get(pid)
+                if new and not prev.get('within_home_reach') and self._within_home_entry_reach(new):
+                    setup_piece_id = pid
+                    break
+            self.pending_eight_setups[player_id] = {
+                'piece_id': setup_piece_id,
+                'from_out_of_reach': True,
+            }
+        else:
+            self.pending_eight_setups[player_id] = None
 
         weighted_reward += piece_reward
 
@@ -1063,7 +1177,9 @@ class GameEnvironment:
         progress_happened = (
             piece_reward > 0
             or progress_reward > 0
+            or home_entry_reward > 0
             or seven_split_reward > 0
+            or eight_new_reach_count > 0
             or capture_occurred
             or self.reward_event_counts.get('near_finish', 0) > 0
         )
@@ -1139,6 +1255,7 @@ class GameEnvironment:
         for key in self.heavy_reward_breakdown:
             self.heavy_reward_breakdown[key] = 0
         self.pending_penalties = [0.0] * 4
+        self.pending_eight_setups = [None] * 4
         self.next_penalty_check = 60
         self.completion_delay_turns = [0, 0]
         self.no_progress_steps = [
