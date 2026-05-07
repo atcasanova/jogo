@@ -59,16 +59,18 @@ Training logs record how many times each of the following events occurs:
 - Completing a piece (+50 points).
 - Choosing to skip a possible homestretch entry (−1 point).
 
-All other rewards and penalties from earlier revisions have been removed to
-keep the signal easy to interpret. The per‑episode breakdown plot still shows
-the contribution of each event type.
+Additional tactical shaping rewards guide card-specific play without relying on
+periodic plot image checks. The trainer still records per-event reward totals in
+`training_stats.json`, but it no longer saves training-progress plot images at
+statistics intervals or at the end of training.
 
-The entropy of the event counts is plotted to help detect reward starvation. A
-per‑episode breakdown subplot shows the reward contribution of **every** event
-type. Positive values stack upward while negative values stack below zero. Each
-reward type uses a distinct color from Matplotlib's `tab20` palette so negative
-events are no longer lumped into a single “other” category.
-A small heavy reward now boosts impactful plays to help guide the bots.
+Seven-card bonuses now require concrete impact: capturing, entering the home
+stretch, or completing a piece. Low-impact seven plays receive a small smart-card
+misuse penalty instead of generic movement shaping. Eight-card plays receive
+extra reward when they capture or newly place a piece within reach of the home
+stretch; otherwise they receive the same small penalty. A one-turn setup bonus
+multiplies the next home-entry reward when the previous play by that player was
+an 8 that moved the piece from outside entry reach to within entry reach.
 
 Every 100 episodes the trainer now logs the cumulative reward totals for each
 event type. These summaries are useful when sharing progress logs for further
