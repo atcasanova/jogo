@@ -82,16 +82,6 @@ rolling-window count/reward values for each shaping signal, making it easier to
 see whether incentivized events are increasing and discouraged actions are
 decreasing.
 
-Use `rank_checkpoints.py` to compare saved checkpoints under `models/episode_<N>` by recent,
-full-session, or decisive trainable win rate and to print compact reward-event move summaries:
-
-```bash
-python3 game-ai-training/rank_checkpoints.py --models-dir models --trainable-team team1 --rank-by recent
-```
-
-The default ranking uses the recent rolling window because checkpoint stats are cumulative; use
-`--rank-by all` when you want lifetime performance instead.
-
 The saved `training_stats.json` file now also includes per-episode curriculum
 telemetry fields that are useful for stage-aware analysis:
 
