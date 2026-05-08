@@ -9,7 +9,12 @@ class MockGameEnvironment:
     def __init__(self):
         self.state_size = 1
         self.action_space_size = 1
-        self.game_state = {'currentPlayerIndex': 0, 'gameEnded': False, 'winningTeam': None}
+        self.game_state = {
+            'currentPlayerIndex': 0,
+            'gameEnded': False,
+            'winningTeam': None,
+            'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+        }
         # provide env_id attribute expected by TrainingManager
         self.env_id = 0
         self.saved_file = None
@@ -34,7 +39,12 @@ class MockGameEnvironment:
         self.heavy_reward = 1.0
 
     def reset(self, bot_names=None):
-        self.game_state = {'currentPlayerIndex': 0, 'gameEnded': False, 'winningTeam': None}
+        self.game_state = {
+            'currentPlayerIndex': 0,
+            'gameEnded': False,
+            'winningTeam': None,
+            'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+        }
         return np.zeros(self.state_size)
 
     def get_state(self, player_id):
@@ -47,7 +57,8 @@ class MockGameEnvironment:
         self.game_state = {
             'currentPlayerIndex': 0,
             'gameEnded': True,
-            'winningTeam': [{'position': 0}]
+            'winningTeam': [{'position': 0}, {'position': 2}],
+            'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
         }
         return np.zeros(self.state_size), 0.0, True
 
@@ -148,6 +159,32 @@ def test_train_episode_breaks_on_no_actions():
             manager.train_episode()
             env.step.assert_not_called()
 
+
+
+def test_trainable_team_records_team_differential_and_reward_bests():
+    torch_mock = MagicMock()
+    sys.modules['torch'] = torch_mock
+    sys.modules['torch.nn'] = MagicMock()
+    sys.modules['torch.optim'] = MagicMock()
+
+    from ai.trainer import TrainingManager
+
+    with patch('ai.trainer.GameBot', DummyGameBot):
+        manager = TrainingManager(trainable_positions=[0, 2], lock_seats=True)
+        manager.env = MockGameEnvironment()
+        manager.create_bots(num_bots=4)
+
+        with patch.object(manager, '_shuffle_bots', lambda: None):
+            manager.train_episode()
+
+        assert manager.training_stats['winning_team_index'] == [0]
+        assert manager.training_stats['team_0_win'] == [1]
+        assert manager.training_stats['team_1_win'] == [0]
+        assert manager.training_stats['trainable_team_win_rate_window'] == [1.0]
+        assert manager.training_stats['fixed_team_win_rate_window'] == [0.0]
+        assert manager.training_stats['team_win_rate_diff_window'] == [1.0]
+        assert manager.training_stats['reward_count_history'][-1]['home_entry'] == 0
+        assert 'home_entry' in manager.training_stats['reward_event_best_stats']
 
 def test_reward_entropy_computation():
     from ai.trainer import TrainingManager

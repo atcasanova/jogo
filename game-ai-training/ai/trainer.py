@@ -86,12 +86,20 @@ class TrainingManager:
             'had_winner': [],
             'timed_out': [],
             'trainable_win': [],
+            'winning_team_index': [],
+            'team_0_win': [],
+            'team_1_win': [],
+            'trainable_team_win_rate_window': [],
+            'fixed_team_win_rate_window': [],
+            'team_win_rate_diff_window': [],
             'terminal_turns': [],
             'near_finish_any_team': [],
             'near_finish_timeout': [],
             'no_progress_penalties': [],
             'state_repeat_penalties': [],
             'unique_state_ratio': [],
+            'reward_count_history': [],
+            'reward_event_best_stats': {},
         }
 
         # Optional external list storing per-episode reward contributions
@@ -141,6 +149,7 @@ class TrainingManager:
         self.recent_outcomes = deque(maxlen=1000)
         self.recent_timeouts = deque(maxlen=1000)
         self.recent_trainable_wins = deque(maxlen=1000)
+        self.recent_fixed_team_wins = deque(maxlen=1000)
 
         # Reward multiplier per difficulty level
         self.level_reward_multiplier = {}
@@ -278,6 +287,108 @@ class TrainingManager:
             return 0.0
         probs = np.array([c / total for c in counts.values() if c > 0])
         return float(-(probs * np.log2(probs)).sum())
+
+    def _team_index_for_positions(self, teams: list, positions: Iterable[int]) -> Optional[int]:
+        """Return the team index containing all provided player positions."""
+        wanted = {int(pos) for pos in positions}
+        if not wanted:
+            return None
+        for idx, team in enumerate(teams or []):
+            seats = {int(pl.get('position')) for pl in team if pl.get('position') is not None}
+            if wanted.issubset(seats):
+                return idx
+        return None
+
+    def _winning_team_index(self, teams: list, winning_team: list) -> int:
+        """Return the winning team index, or ``-1`` for draws/timeouts."""
+        winning_positions = {
+            int(pl.get('position')) for pl in (winning_team or []) if pl.get('position') is not None
+        }
+        if not winning_positions:
+            return -1
+        for idx, team in enumerate(teams or []):
+            team_positions = {int(pl.get('position')) for pl in team if pl.get('position') is not None}
+            if team_positions == winning_positions:
+                return idx
+        return -1
+
+    def _round_or_none(self, value: Optional[float], digits: int = 4):
+        """Round finite float values while preserving ``None`` for missing metrics."""
+        if value is None:
+            return None
+        return round(float(value), digits)
+
+    def _mean_or_none(self, values: Iterable[float]) -> Optional[float]:
+        """Return the mean of an iterable, or ``None`` when empty."""
+        vals = list(values)
+        return float(sum(vals) / len(vals)) if vals else None
+
+    def _update_reward_best_stats(self, counts: dict, totals: dict, window: int = 100) -> None:
+        """Persist per-event counts and rolling best/worst reward-shaping metrics."""
+        count_entry = {str(k): int(v) for k, v in counts.items()}
+        self.training_stats.setdefault('reward_count_history', []).append(count_entry)
+
+        best_stats = self.training_stats.setdefault('reward_event_best_stats', {})
+        count_history = self.training_stats.get('reward_count_history', [])
+        total_history = self.training_stats.get('reward_breakdown_history', [])
+        episode = int(self.training_stats.get('games_played', 0))
+        count_window = count_history[-window:]
+        # Older checkpoints may have reward totals without matching count history;
+        # align windows from the tail so current episodes are compared together.
+        total_window = total_history[-len(count_window):] if count_window else []
+        events = set(counts) | set(totals)
+
+        for event in events:
+            event_counts = [float(entry.get(event, 0.0)) for entry in count_window]
+            event_rewards = [float(entry.get(event, 0.0)) for entry in total_window]
+            count_window_avg = self._mean_or_none(event_counts)
+            reward_window_avg = self._mean_or_none(event_rewards)
+            stat = best_stats.setdefault(event, {})
+
+            episode_count = float(counts.get(event, 0.0))
+            episode_reward = float(totals.get(event, 0.0))
+            candidates = (
+                ('max_episode_count', episode_count, 'max_episode_count_episode', lambda new, old: new > old),
+                ('min_episode_count', episode_count, 'min_episode_count_episode', lambda new, old: new < old),
+                ('max_episode_reward', episode_reward, 'max_episode_reward_episode', lambda new, old: new > old),
+                ('min_episode_reward', episode_reward, 'min_episode_reward_episode', lambda new, old: new < old),
+                (
+                    'max_window_count_per_game',
+                    count_window_avg,
+                    'max_window_count_per_game_episode',
+                    lambda new, old: new > old,
+                ),
+                (
+                    'min_window_count_per_game',
+                    count_window_avg,
+                    'min_window_count_per_game_episode',
+                    lambda new, old: new < old,
+                ),
+                (
+                    'max_window_reward_per_game',
+                    reward_window_avg,
+                    'max_window_reward_per_game_episode',
+                    lambda new, old: new > old,
+                ),
+                (
+                    'min_window_reward_per_game',
+                    reward_window_avg,
+                    'min_window_reward_per_game_episode',
+                    lambda new, old: new < old,
+                ),
+            )
+            for key, value, episode_key, better in candidates:
+                if value is None:
+                    continue
+                if key not in stat or better(float(value), float(stat[key])):
+                    stat[key] = self._round_or_none(value)
+                    stat[episode_key] = episode
+
+            stat['latest_episode_count'] = self._round_or_none(episode_count)
+            stat['latest_episode_reward'] = self._round_or_none(episode_reward)
+            stat['latest_window_count_per_game'] = self._round_or_none(count_window_avg)
+            stat['latest_window_reward_per_game'] = self._round_or_none(reward_window_avg)
+            stat['window'] = min(window, len(count_history))
 
     def _normalize_reward(self, reward: float) -> float:
         """Return reward normalised using a running standard deviation."""
@@ -657,6 +768,7 @@ class TrainingManager:
             self.recent_outcomes.clear()
             self.recent_timeouts.clear()
             self.recent_trainable_wins.clear()
+            self.recent_fixed_team_wins.clear()
             self.promotion_streak = 0
             self.rollback_streak = 0
             promoted = True
@@ -716,6 +828,38 @@ class TrainingManager:
             self.training_stats['terminal_turns'].append(turn_count)
         team_completed = []
         teams_now = env.game_state.get('teams', []) if env.game_state else []
+        winning_team_index = self._winning_team_index(teams_now, winning_team)
+        current_trainable_positions = [
+            idx for idx, bot in enumerate(self.bots) if getattr(bot, 'trainable', True)
+        ]
+        trainable_team_index = self._team_index_for_positions(teams_now, current_trainable_positions)
+        fixed_team_won = 0
+        if winning_team_index >= 0 and trainable_team_index is not None:
+            fixed_team_won = int(winning_team_index != trainable_team_index)
+        trainable_window = list(self.recent_trainable_wins) + [trainable_won]
+        fixed_window = list(self.recent_fixed_team_wins) + [fixed_team_won]
+        trainable_rate = self._mean_or_none(trainable_window)
+        fixed_rate = self._mean_or_none(fixed_window) if trainable_team_index is not None else None
+        win_rate_diff = (trainable_rate - fixed_rate) if trainable_rate is not None and fixed_rate is not None else None
+
+        self.training_stats['winning_team_index'].append(winning_team_index)
+        self.training_stats['team_0_win'].append(int(winning_team_index == 0))
+        self.training_stats['team_1_win'].append(int(winning_team_index == 1))
+        self.training_stats['trainable_team_win_rate_window'].append(self._round_or_none(trainable_rate))
+        self.training_stats['fixed_team_win_rate_window'].append(self._round_or_none(fixed_rate))
+        self.training_stats['team_win_rate_diff_window'].append(self._round_or_none(win_rate_diff))
+
+        if trainable_team_index is not None:
+            info(
+                "Team matchup progress",
+                trainable_team=trainable_team_index,
+                fixed_team=1 - trainable_team_index if len(teams_now) == 2 else None,
+                winning_team=winning_team_index,
+                trainable_win_rate_window=f"{trainable_rate:.2f}" if trainable_rate is not None else None,
+                fixed_win_rate_window=f"{fixed_rate:.2f}" if fixed_rate is not None else None,
+                win_rate_diff=f"{win_rate_diff:+.2f}" if win_rate_diff is not None else None,
+            )
+
         player_to_team = {}
         for idx, team in enumerate(teams_now):
             for pl in team:
@@ -751,6 +895,7 @@ class TrainingManager:
         )
         self.recent_timeouts.append(timed_out)
         self.recent_trainable_wins.append(trainable_won)
+        self.recent_fixed_team_wins.append(fixed_team_won)
         entropy = self._reward_entropy(env.reward_event_counts)
         self.training_stats['reward_entropies'].append(entropy)
         event_details = {k: v for k, v in env.reward_event_counts.items()}
@@ -765,6 +910,7 @@ class TrainingManager:
         # Store per-episode reward totals to allow plotting breakdowns later
         self.reward_breakdown_history.append(dict(env.reward_event_totals))
         self.bonus_breakdown_history.append(dict(env.reward_bonus_totals))
+        self._update_reward_best_stats(env.reward_event_counts, env.reward_event_totals)
 
         if step_records:
             top = sorted(step_records, key=lambda x: x[0], reverse=True)[:3]
@@ -918,6 +1064,32 @@ class TrainingManager:
                 avg_reward=f"{avg_reward:.2f}",
                 avg_loss=f"{avg_loss:.4f}"
             )
+
+        if self.training_stats.get('team_win_rate_diff_window'):
+            trainable_rate = self.training_stats.get('trainable_team_win_rate_window', [])[-1]
+            fixed_rate = self.training_stats.get('fixed_team_win_rate_window', [])[-1]
+            win_rate_diff = self.training_stats.get('team_win_rate_diff_window', [])[-1]
+            if fixed_rate is not None and win_rate_diff is not None:
+                info(
+                    "Team win-rate differential",
+                    trainable_win_rate=f"{100 * trainable_rate:.1f}" if trainable_rate is not None else None,
+                    fixed_win_rate=f"{100 * fixed_rate:.1f}",
+                    diff_points=f"{100 * win_rate_diff:+.1f}",
+                    window=min(1000, len(self.training_stats.get('team_win_rate_diff_window', []))),
+                )
+
+        best_stats = self.training_stats.get('reward_event_best_stats', {})
+        if best_stats:
+            highlights = {}
+            for event in sorted(best_stats):
+                latest_count = best_stats[event].get('latest_window_count_per_game')
+                latest_reward = best_stats[event].get('latest_window_reward_per_game')
+                if latest_count is not None or latest_reward is not None:
+                    highlights[event] = {
+                        'count_per_game': latest_count,
+                        'reward_per_game': latest_reward,
+                    }
+            info("Reward shaping rolling stats", stats=highlights)
 
         self._check_loss_stagnation()
 
@@ -1150,6 +1322,12 @@ class TrainingManager:
                     'had_winner': [],
                     'timed_out': [],
                     'trainable_win': [],
+                    'winning_team_index': [],
+                    'team_0_win': [],
+                    'team_1_win': [],
+                    'trainable_team_win_rate_window': [],
+                    'fixed_team_win_rate_window': [],
+                    'team_win_rate_diff_window': [],
                     'terminal_turns': [],
                     'near_finish_any_team': [],
                     'near_finish_timeout': [],
@@ -1157,6 +1335,8 @@ class TrainingManager:
                     'state_repeat_penalties': [],
                     'unique_state_ratio': [],
                     'bonus_breakdown_history': [],
+                    'reward_count_history': [],
+                    'reward_event_best_stats': {},
                 }
 
                 merged_stats = dict(default_stats)
@@ -1203,6 +1383,25 @@ class TrainingManager:
                 if trainable_win_series:
                     for value in trainable_win_series[-self.recent_trainable_wins.maxlen:]:
                         self.recent_trainable_wins.append(1 if value else 0)
+                team_win_diff_series = self.training_stats.get('team_win_rate_diff_window', [])
+                fixed_rate_series = self.training_stats.get('fixed_team_win_rate_window', [])
+                if fixed_rate_series or team_win_diff_series:
+                    team_0_win_series = self.training_stats.get('team_0_win', [])
+                    team_1_win_series = self.training_stats.get('team_1_win', [])
+                    trainable_team = None
+                    if self.trainable_positions is not None:
+                        # Locked-team training maps team1 to index 0 and team2 to index 1.
+                        if self.trainable_positions == {0, 2}:
+                            trainable_team = 0
+                        elif self.trainable_positions == {1, 3}:
+                            trainable_team = 1
+                    start_idx = max(0, len(team_0_win_series) - self.recent_fixed_team_wins.maxlen)
+                    for idx in range(start_idx, len(team_0_win_series)):
+                        if trainable_team == 0:
+                            fixed_win = idx < len(team_1_win_series) and team_1_win_series[idx]
+                            self.recent_fixed_team_wins.append(1 if fixed_win else 0)
+                        elif trainable_team == 1:
+                            self.recent_fixed_team_wins.append(1 if team_0_win_series[idx] else 0)
 
                 self.stage_start_wins = {bot.bot_id: bot.wins for bot in self.bots}
                 self.stage_start_games = {
