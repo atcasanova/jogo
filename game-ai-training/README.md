@@ -43,7 +43,9 @@ remaining seats use the models from the provided directory.
 To train only one fixed team while keeping seats stable, use
 `--trainable-team team1` (seats 0/2 trainable) or `--trainable-team team2`
 (seats 1/3 trainable). In this mode seat shuffling is disabled so you can track
-whether one side improves against the other across checkpoints.
+whether one side improves against the other across checkpoints. The trainer now
+logs a rolling trainable-vs-fixed team win-rate differential and persists the
+per-episode team winner fields in `training_stats.json`.
 
 ## Training Configuration
 
@@ -74,7 +76,11 @@ an 8 that moved the piece from outside entry reach to within entry reach.
 
 Every 100 episodes the trainer now logs the cumulative reward totals for each
 event type. These summaries are useful when sharing progress logs for further
-analysis.
+analysis. The trainer also persists per-episode reward event counts and a
+`reward_event_best_stats` table with latest, best, and worst per-episode and
+rolling-window count/reward values for each shaping signal, making it easier to
+see whether incentivized events are increasing and discouraged actions are
+decreasing.
 
 The saved `training_stats.json` file now also includes per-episode curriculum
 telemetry fields that are useful for stage-aware analysis:
@@ -84,6 +90,12 @@ telemetry fields that are useful for stage-aware analysis:
 - `had_winner`
 - `timed_out`
 - `trainable_win`
+- `winning_team_index`
+- `team_0_win` / `team_1_win`
+- `trainable_team_win_rate_window` / `fixed_team_win_rate_window`
+- `team_win_rate_diff_window`
+- `reward_count_history`
+- `reward_event_best_stats`
 
 ### Dynamic Reward Adjustment
 

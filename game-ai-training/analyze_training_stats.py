@@ -87,6 +87,11 @@ def _build_summary(data: Dict, window: int) -> Dict:
     had_winner = _to_float_array(data.get("had_winner"))
     timed_out = _to_float_array(data.get("timed_out"))
     trainable_win = _to_float_array(data.get("trainable_win"))
+    team_0_win = _to_float_array(data.get("team_0_win"))
+    team_1_win = _to_float_array(data.get("team_1_win"))
+    trainable_team_window = _to_float_array(data.get("trainable_team_win_rate_window"))
+    fixed_team_window = _to_float_array(data.get("fixed_team_win_rate_window"))
+    team_diff_window = _to_float_array(data.get("team_win_rate_diff_window"))
 
     episodes = int(rewards.size)
     pieces = _derive_piece_series(data, episodes)
@@ -120,6 +125,11 @@ def _build_summary(data: Dict, window: int) -> Dict:
             "had_winner_rate": _safe_mean(had_winner),
             "timeout_rate": _safe_mean(timed_out),
             "trainable_win_rate_all_eps": _safe_mean(trainable_win),
+            "team_0_win_rate_all_eps": _safe_mean(team_0_win),
+            "team_1_win_rate_all_eps": _safe_mean(team_1_win),
+            "trainable_team_last_window_rate": _safe_mean(_window_tail(trainable_team_window, window)),
+            "fixed_team_last_window_rate": _safe_mean(_window_tail(fixed_team_window, window)),
+            "team_win_rate_diff_last_window": _safe_mean(_window_tail(team_diff_window, window)),
         },
         "stage_metrics": [],
     }
@@ -141,6 +151,11 @@ def _build_summary(data: Dict, window: int) -> Dict:
         hw = had_winner[start:end] if had_winner.size == episodes else np.array([], dtype=float)
         to = timed_out[start:end] if timed_out.size == episodes else np.array([], dtype=float)
         tw = trainable_win[start:end] if trainable_win.size == episodes else np.array([], dtype=float)
+        t0 = team_0_win[start:end] if team_0_win.size == episodes else np.array([], dtype=float)
+        t1 = team_1_win[start:end] if team_1_win.size == episodes else np.array([], dtype=float)
+        ttw = trainable_team_window[start:end] if trainable_team_window.size == episodes else np.array([], dtype=float)
+        ftw = fixed_team_window[start:end] if fixed_team_window.size == episodes else np.array([], dtype=float)
+        tdw = team_diff_window[start:end] if team_diff_window.size == episodes else np.array([], dtype=float)
 
         entry = {
             "stage_start": int(start),
@@ -160,6 +175,11 @@ def _build_summary(data: Dict, window: int) -> Dict:
             "had_winner_rate": _safe_mean(hw),
             "timeout_rate": _safe_mean(to),
             "trainable_win_rate_all_eps": _safe_mean(tw),
+            "team_0_win_rate_all_eps": _safe_mean(t0),
+            "team_1_win_rate_all_eps": _safe_mean(t1),
+            "trainable_team_last_window_rate": _safe_mean(_window_tail(ttw, window)),
+            "fixed_team_last_window_rate": _safe_mean(_window_tail(ftw, window)),
+            "team_win_rate_diff_last_window": _safe_mean(_window_tail(tdw, window)),
         }
 
         if hw.size and tw.size and hw.size == tw.size:
@@ -172,6 +192,10 @@ def _build_summary(data: Dict, window: int) -> Dict:
             entry["trainable_win_rate_decisive_only"] = None
 
         out["stage_metrics"].append(entry)
+
+    reward_best = data.get("reward_event_best_stats")
+    if isinstance(reward_best, dict):
+        out["reward_event_best_stats"] = reward_best
 
     return out
 
