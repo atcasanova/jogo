@@ -44,6 +44,8 @@ SMART_CARD_MISUSE_PENALTY = -1.0
 EIGHT_CARD_REACH_REWARD = 6.0
 EIGHT_CARD_CAPTURE_BONUS = 4.0
 EIGHT_HOME_ENTRY_MULTIPLIER = 4.0
+STUCK_SMART_CARD_DISCARD_PENALTY = -3.0
+STUCK_SMART_CARD_VALUES = {'JOKER', '8', '7'}
 
 # The following constants remain for compatibility but do not affect rewards
 HOME_ENTRY_REWARD = 0.0
@@ -164,6 +166,7 @@ class GameEnvironment:
             'eight_card_capture': 0,
             'eight_card_penalty': 0,
             'eight_home_entry_boost': 0,
+            'stuck_smart_card_discard': 0,
             'long_game': 0,
             'win': 0,
             'loss': 0,
@@ -187,6 +190,7 @@ class GameEnvironment:
             'eight_card_capture': 0.0,
             'eight_card_penalty': 0.0,
             'eight_home_entry_boost': 0.0,
+            'stuck_smart_card_discard': 0.0,
             'long_game': 0.0,
             'win': 0.0,
             'loss': 0.0,
@@ -702,6 +706,30 @@ class GameEnvironment:
             return [70 + i for i in range(max_discards)]
         return []
     
+    def _stuck_in_penalty_without_play_options(self, player_id: int) -> bool:
+        """Return True when a player has only forced discards from penalty zone."""
+        if not self.game_state:
+            return False
+
+        pieces = [
+            piece for piece in self.game_state.get('pieces', [])
+            if piece.get('playerId') == player_id and not piece.get('completed')
+        ]
+        if not pieces or not all(piece.get('inPenaltyZone', piece.get('in_penalty')) for piece in pieces):
+            return False
+
+        player = None
+        for candidate in self.game_state.get('players', []):
+            if candidate.get('position') == player_id:
+                player = candidate
+                break
+        if player is None and player_id < len(self.game_state.get('players', [])):
+            player = self.game_state.get('players', [])[player_id]
+
+        cards = (player or {}).get('cards') or []
+        exit_cards = {'A', 'K', 'Q', 'J'}
+        return not any(card.get('value') in exit_cards for card in cards if isinstance(card, dict))
+
     def get_valid_actions(self, player_id: int) -> List[int]:
         """Get valid actions for current player"""
         response = self.send_command({
@@ -807,6 +835,8 @@ class GameEnvironment:
             t_idx = self.player_team_map.get(pid)
             if t_idx is not None and 0 <= t_idx < len(prev_completed):
                 prev_completed[t_idx] += count
+
+        stuck_in_penalty_before = self._stuck_in_penalty_without_play_options(player_id)
 
         weighted_reward = 0.0
         # Keep late-game scaling neutral by default. Capture/progress rewards
@@ -958,6 +988,16 @@ class GameEnvironment:
             played_card_value = special_move.get('cardValue')
         seven_card_played = played_card_value == '7'
         eight_card_played = played_card_value == '8'
+        stuck_smart_card_discard = (
+            response.get('action') == 'discard'
+            and stuck_in_penalty_before
+            and played_card_value in STUCK_SMART_CARD_VALUES
+        )
+        if stuck_smart_card_discard:
+            weighted_reward += STUCK_SMART_CARD_DISCARD_PENALTY
+            self.reward_event_counts['stuck_smart_card_discard'] += 1
+            self.reward_event_totals['stuck_smart_card_discard'] += STUCK_SMART_CARD_DISCARD_PENALTY
+
         seven_split_played = bool(
             isinstance(special_move, dict)
             and special_move.get('cardValue') == '7'

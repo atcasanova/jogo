@@ -8,6 +8,7 @@ from ai.environment import (
     SEVEN_SPLIT_HOME_ENTRY_REWARD,
     SEVEN_SPLIT_REWARD,
     SKIP_HOME_PENALTY,
+    STUCK_SMART_CARD_DISCARD_PENALTY,
     SMART_CARD_MISUSE_PENALTY,
     EIGHT_CARD_REACH_REWARD,
     EIGHT_HOME_ENTRY_MULTIPLIER,
@@ -385,3 +386,100 @@ def test_eight_setup_rewards_reach_and_boosts_next_home_entry():
     assert entry_reward == pytest.approx(expected_entry)
     assert env.reward_event_counts['eight_home_entry_boost'] == 1
     assert env.pending_eight_setups[0] is None
+
+
+def test_stuck_penalty_zone_joker_discard_gets_smart_card_penalty():
+    env = GameEnvironment()
+    step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)
+    env.game_state = {
+        'currentPlayerIndex': 0,
+        'players': [
+            {'position': 0, 'cards': [{'value': 'JOKER'}, {'value': '8'}, {'value': '7'}]},
+        ],
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'completed': False,
+                'inHomeStretch': False,
+                'inPenaltyZone': True,
+                'position': {'row': 2, 'col': 8},
+            },
+            {
+                'id': 'p0_2',
+                'playerId': 0,
+                'completed': False,
+                'inHomeStretch': False,
+                'inPenaltyZone': True,
+                'position': {'row': 1, 'col': 8},
+            },
+        ],
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+    }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
+    response = {
+        'success': True,
+        'action': 'discard',
+        'playedCardValue': 'JOKER',
+        'gameState': {
+            'players': [{'position': 0, 'cards': [{'value': '8'}, {'value': '7'}]}],
+            'pieces': env.game_state['pieces'],
+            'teams': env.game_state['teams'],
+        },
+        'gameEnded': False,
+        'winningTeam': None,
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, _ = env.step(70, 0)
+
+    assert reward == pytest.approx(step_cost + STUCK_SMART_CARD_DISCARD_PENALTY)
+    assert env.reward_event_counts['stuck_smart_card_discard'] == 1
+    assert env.reward_event_totals['stuck_smart_card_discard'] == pytest.approx(
+        STUCK_SMART_CARD_DISCARD_PENALTY
+    )
+
+
+def test_stuck_penalty_zone_smart_discard_not_penalized_when_exit_card_available():
+    env = GameEnvironment()
+    step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)
+    env.game_state = {
+        'currentPlayerIndex': 0,
+        'players': [
+            {'position': 0, 'cards': [{'value': 'JOKER'}, {'value': 'A'}]},
+        ],
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'completed': False,
+                'inHomeStretch': False,
+                'inPenaltyZone': True,
+                'position': {'row': 2, 'col': 8},
+            },
+        ],
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+    }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
+    response = {
+        'success': True,
+        'action': 'discard',
+        'playedCardValue': 'JOKER',
+        'gameState': {
+            'players': [{'position': 0, 'cards': [{'value': 'A'}]}],
+            'pieces': env.game_state['pieces'],
+            'teams': env.game_state['teams'],
+        },
+        'gameEnded': False,
+        'winningTeam': None,
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, _ = env.step(70, 0)
+
+    assert reward == pytest.approx(step_cost)
+    assert env.reward_event_counts['stuck_smart_card_discard'] == 0
