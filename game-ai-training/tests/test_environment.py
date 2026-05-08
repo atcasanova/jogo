@@ -13,7 +13,13 @@ from ai.environment import (
     EIGHT_CARD_REACH_REWARD,
     EIGHT_HOME_ENTRY_MULTIPLIER,
 )
-from config import STEP_PENALTY_BASE, PIECE_COMPLETION_BONUS, REWARD_WEIGHTS
+from config import (
+    STEP_PENALTY_BASE,
+    PIECE_COMPLETION_BONUS,
+    REWARD_WEIGHTS,
+    NEAR_FINISH_BONUS,
+    NEAR_FINISH_CONVERSION_BONUS,
+)
 
 
 def test_reset_returns_zero_when_start_fails():
@@ -483,3 +489,148 @@ def test_stuck_penalty_zone_smart_discard_not_penalized_when_exit_card_available
 
     assert reward == pytest.approx(step_cost)
     assert env.reward_event_counts['stuck_smart_card_discard'] == 0
+
+
+def test_near_finish_reward_matches_logged_total():
+    env = GameEnvironment(pieces_per_player=1)
+    step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)
+    env.game_state = {
+        'turnCount': 5,
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'completed': False,
+                'inHomeStretch': True,
+                'inPenaltyZone': False,
+                'position': {'row': 4, 'col': 4},
+            },
+            {
+                'id': 'p2_1',
+                'playerId': 2,
+                'completed': False,
+                'inHomeStretch': False,
+                'inPenaltyZone': False,
+                'position': {'row': 18, 'col': 10},
+            },
+        ],
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+    }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
+
+    response = {
+        'success': True,
+        'gameState': {
+            'turnCount': 6,
+            'pieces': [
+                {
+                    'id': 'p0_1',
+                    'playerId': 0,
+                    'completed': True,
+                    'inHomeStretch': True,
+                    'inPenaltyZone': False,
+                    'position': {'row': 5, 'col': 4},
+                },
+                {
+                    'id': 'p2_1',
+                    'playerId': 2,
+                    'completed': False,
+                    'inHomeStretch': False,
+                    'inPenaltyZone': False,
+                    'position': {'row': 18, 'col': 10},
+                },
+            ],
+            'teams': env.game_state['teams'],
+        },
+        'gameEnded': False,
+        'winningTeam': None,
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, _ = env.step(0, 0, step_count=5)
+
+    expected = step_cost + PIECE_COMPLETION_REWARD + PIECE_COMPLETION_BONUS + NEAR_FINISH_BONUS
+    assert reward == pytest.approx(expected)
+    assert env.reward_event_counts['near_finish'] == 1
+    assert env.reward_event_totals['near_finish'] == pytest.approx(NEAR_FINISH_BONUS)
+    assert env.near_finish_turns[0] == 5
+
+
+def test_near_finish_conversion_bonus_rewards_fast_close():
+    env = GameEnvironment(pieces_per_player=1)
+    step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)
+    env.turn_limit = 100
+    env.near_finish_turns[0] = 10
+    env.game_state = {
+        'turnCount': 12,
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'completed': True,
+                'inHomeStretch': True,
+                'inPenaltyZone': False,
+                'position': {'row': 5, 'col': 4},
+            },
+            {
+                'id': 'p2_1',
+                'playerId': 2,
+                'completed': False,
+                'inHomeStretch': True,
+                'inPenaltyZone': False,
+                'position': {'row': 17, 'col': 14},
+            },
+        ],
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+    }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
+
+    response = {
+        'success': True,
+        'gameState': {
+            'turnCount': 12,
+            'pieces': [
+                {
+                    'id': 'p0_1',
+                    'playerId': 0,
+                    'completed': True,
+                    'inHomeStretch': True,
+                    'inPenaltyZone': False,
+                    'position': {'row': 5, 'col': 4},
+                },
+                {
+                    'id': 'p2_1',
+                    'playerId': 2,
+                    'completed': True,
+                    'inHomeStretch': True,
+                    'inPenaltyZone': False,
+                    'position': {'row': 19, 'col': 14},
+                },
+            ],
+            'teams': env.game_state['teams'],
+        },
+        'gameEnded': True,
+        'winningTeam': [{'position': 0}, {'position': 2}],
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, done = env.step(0, 2, step_count=12)
+
+    expected_conversion = NEAR_FINISH_CONVERSION_BONUS * (1.0 - 2.0 / 32.0)
+    expected_fast_finish = 25.0 * 0.88
+    expected = (
+        step_cost
+        + PIECE_COMPLETION_REWARD
+        + PIECE_COMPLETION_BONUS
+        + REWARD_WEIGHTS['win']
+        + expected_fast_finish
+        + expected_conversion
+    )
+    assert done
+    assert reward == pytest.approx(expected)
+    assert env.reward_event_counts['near_finish_conversion'] == 1
+    assert env.reward_event_totals['near_finish_conversion'] == pytest.approx(expected_conversion)
