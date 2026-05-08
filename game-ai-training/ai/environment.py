@@ -20,6 +20,8 @@ from config import (
     FAST_FINISH_BONUS_SCALE,
     PIECE_COMPLETION_BONUS,
     NEAR_FINISH_BONUS,
+    NEAR_FINISH_CONVERSION_WINDOW,
+    NEAR_FINISH_CONVERSION_BONUS,
     URGENCY_PENALTY_START_FRAC,
     URGENCY_PENALTY_BASE,
     HOME_ENTRY_PROGRESS_CAP,
@@ -147,6 +149,7 @@ class GameEnvironment:
         # Reward scale no longer depends on piece count
         # Use a constant factor of ``1.0`` for all situations
         self.positive_reward_scale = 1.0
+        self.speed_reward_multiplier = 1.0
 
         # Track how often each reward type occurs for analysis
         self.reward_event_counts = {
@@ -154,6 +157,7 @@ class GameEnvironment:
             'piece_completion_bonus': 0,
             'home_entry': 0,
             'near_finish': 0,
+            'near_finish_conversion': 0,
             'skip_home': 0,
             'home_entry_progress': 0,
             'capture': 0,
@@ -178,6 +182,7 @@ class GameEnvironment:
             'piece_completion_bonus': 0.0,
             'home_entry': 0.0,
             'near_finish': 0.0,
+            'near_finish_conversion': 0.0,
             'skip_home': 0.0,
             'home_entry_progress': 0.0,
             'capture': 0.0,
@@ -236,6 +241,7 @@ class GameEnvironment:
         # consumed on that player's next action so it cannot be farmed by
         # repeatedly moving away and back.
         self.pending_eight_setups: List[Optional[Dict[str, Any]]] = [None] * 4
+        self.near_finish_turns: Dict[int, int] = {}
         # Episode-level anti-stall telemetry.
         self.state_visit_counts: Dict[str, int] = {}
         self.total_state_visits = 0
@@ -861,6 +867,7 @@ class GameEnvironment:
                 LONG_GAME_PENALTY_BASE
                 * float(tiers)
                 * max(1.0, self.pieces_per_player / 2.0)
+                * self.speed_reward_multiplier
             )
             weighted_reward += long_game_penalty
             self.reward_event_counts['long_game'] += 1
@@ -873,6 +880,7 @@ class GameEnvironment:
                     URGENCY_PENALTY_BASE
                     * (1.0 + (frac_used - URGENCY_PENALTY_START_FRAC) / max(1e-6, (1.0 - URGENCY_PENALTY_START_FRAC)))
                     * max(1.0, self.pieces_per_player / 2.0)
+                    * self.speed_reward_multiplier
                 )
                 weighted_reward += urgency
                 self.reward_event_totals['urgency'] = (
@@ -1168,6 +1176,7 @@ class GameEnvironment:
                 weighted_reward += NEAR_FINISH_BONUS
                 self.reward_event_counts['near_finish'] += 1
                 self.reward_event_totals['near_finish'] += NEAR_FINISH_BONUS
+                self.near_finish_turns.setdefault(my_idx, turn_index)
 
         if not done and teams_now:
             winner = self._check_team_completion(teams_now, new_completed)
@@ -1194,7 +1203,7 @@ class GameEnvironment:
                     turn_count = float(self.game_state.get('turnCount', step_count))
                     if self.turn_limit > 0:
                         speed_fraction = max(0.0, (self.turn_limit - turn_count) / self.turn_limit)
-                        fast_finish_bonus = FAST_FINISH_BONUS_SCALE * speed_fraction
+                        fast_finish_bonus = FAST_FINISH_BONUS_SCALE * speed_fraction * self.speed_reward_multiplier
                     else:
                         fast_finish_bonus = 0.0
                     if fast_finish_bonus > 0:
@@ -1208,6 +1217,24 @@ class GameEnvironment:
                             + fast_finish_bonus
                         )
                         self.last_step_info['fast_finish_bonus'] = fast_finish_bonus
+                    near_finish_turn = self.near_finish_turns.get(winning_idx)
+                    if near_finish_turn is not None:
+                        turns_to_convert = max(0, int(turn_count) - int(near_finish_turn))
+                        if turns_to_convert <= NEAR_FINISH_CONVERSION_WINDOW:
+                            remaining = max(
+                                0.0,
+                                (NEAR_FINISH_CONVERSION_BONUS * self.speed_reward_multiplier)
+                                * (1.0 - turns_to_convert / max(1.0, NEAR_FINISH_CONVERSION_WINDOW)),
+                            )
+                            if remaining > 0:
+                                weighted_reward += remaining
+                                self.reward_event_counts['near_finish_conversion'] += 1
+                                self.reward_event_totals['near_finish_conversion'] += remaining
+                                self.reward_bonus_totals['near_finish_conversion_bonus'] = (
+                                    self.reward_bonus_totals.get('near_finish_conversion_bonus', 0.0)
+                                    + remaining
+                                )
+                                self.last_step_info['near_finish_conversion_bonus'] = remaining
                 else:
                     loss_penalty = REWARD_WEIGHTS.get('loss', -10.0)
                     self.reward_event_counts['loss'] += 1
@@ -1296,6 +1323,7 @@ class GameEnvironment:
             self.heavy_reward_breakdown[key] = 0
         self.pending_penalties = [0.0] * 4
         self.pending_eight_setups = [None] * 4
+        self.near_finish_turns = {}
         self.next_penalty_check = 60
         self.completion_delay_turns = [0, 0]
         self.no_progress_steps = [
@@ -1315,6 +1343,10 @@ class GameEnvironment:
     def set_win_bonus(self, value: float) -> None:
         """Update the win bonus applied when a team wins."""
         self.win_bonus = float(value)
+
+    def set_speed_reward_multiplier(self, value: float) -> None:
+        """Update speed-related reward and penalty scaling."""
+        self.speed_reward_multiplier = max(0.1, float(value))
 
     def set_turn_limit(self, turns: int) -> None:
         """Update the maximum turns per episode."""
