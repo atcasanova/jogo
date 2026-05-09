@@ -24,6 +24,14 @@ from config import (
     MAX_REWARD_MULTIPLIER,
     MIN_REWARD_MULTIPLIER,
     REWARD_TUNE_STEP,
+    TIMEOUT_TUNE_TARGET,
+    SLOW_TERMINAL_TURN_FRAC,
+    MAX_SPEED_REWARD_MULTIPLIER,
+    MIN_SPEED_REWARD_MULTIPLIER,
+    SPEED_TUNE_STEP,
+    TEAM_TERMINAL_CREDIT_RATIO,
+    TEAM_TERMINAL_LOSS_RATIO,
+    REWARD_WEIGHTS,
     TURN_LIMIT_SCHEDULE,
     ENTROPY_WEIGHT_SCHEDULE,
     STAGE5_MIX_FROM_GAME,
@@ -153,6 +161,7 @@ class TrainingManager:
 
         # Reward multiplier per difficulty level
         self.level_reward_multiplier = {}
+        self.level_speed_reward_multiplier = {}
         self.curriculum_rollback_count = 0
         self.promotion_streak = 0
         self.rollback_streak = 0
@@ -428,6 +437,9 @@ class TrainingManager:
         multiplier = self.level_reward_multiplier.get(self.pieces_per_player, 1.0)
         env.set_heavy_reward(weight * multiplier)
         env.set_win_bonus(WIN_BONUS * multiplier)
+        speed_multiplier = self.level_speed_reward_multiplier.get(self.pieces_per_player, 1.0)
+        if hasattr(env, 'set_speed_reward_multiplier'):
+            env.set_speed_reward_multiplier(speed_multiplier)
 
     def _apply_entropy_schedule(self) -> None:
         """Adjust trainable bots' entropy weight based on stage difficulty."""
@@ -451,22 +463,51 @@ class TrainingManager:
             return 4
         return self.pieces_per_player
 
-    def _adjust_reward_multiplier(self, win_rate: float, env: GameEnvironment) -> None:
-        """Update the reward multiplier based on the observed win rate."""
+    def _adjust_reward_multiplier(
+        self,
+        win_rate: float,
+        env: GameEnvironment,
+        timeout_rate: float = 0.0,
+        median_terminal_turns: float = 0.0,
+    ) -> None:
+        """Update reward multipliers based on win rate and closing speed."""
         level = self.pieces_per_player
         factor = self.level_reward_multiplier.get(level, 1.0)
+        speed_factor = self.level_speed_reward_multiplier.get(level, 1.0)
+        reasons = []
+
         if win_rate < WINRATE_TARGET:
             factor = min(factor + REWARD_TUNE_STEP, MAX_REWARD_MULTIPLIER)
-        elif win_rate > WINRATE_TARGET + 0.15:
+            reasons.append('low_trainable_win_rate')
+        elif win_rate > WINRATE_TARGET + 0.15 and timeout_rate <= TIMEOUT_TUNE_TARGET:
             factor = max(factor - REWARD_TUNE_STEP, MIN_REWARD_MULTIPLIER)
+            reasons.append('high_trainable_win_rate')
+
+        turn_budget = float(max(1, self._turn_limit_for_pieces(level)))
+        slow_terminal = bool(median_terminal_turns and median_terminal_turns >= turn_budget * SLOW_TERMINAL_TURN_FRAC)
+        if timeout_rate > TIMEOUT_TUNE_TARGET or slow_terminal:
+            speed_factor = min(speed_factor + SPEED_TUNE_STEP, MAX_SPEED_REWARD_MULTIPLIER)
+            if timeout_rate > TIMEOUT_TUNE_TARGET:
+                reasons.append('high_timeout_rate')
+            if slow_terminal:
+                reasons.append('slow_terminal_turns')
+        elif timeout_rate < TIMEOUT_TUNE_TARGET * 0.5 and not slow_terminal and win_rate >= WINRATE_TARGET:
+            speed_factor = max(speed_factor - SPEED_TUNE_STEP, MIN_SPEED_REWARD_MULTIPLIER)
+            reasons.append('stable_fast_closes')
+
         self.level_reward_multiplier[level] = factor
-        # Immediately apply the updated multiplier so the next episode reflects
+        self.level_speed_reward_multiplier[level] = speed_factor
+        # Immediately apply the updated multipliers so the next episode reflects
         # the change.
         self._apply_reward_schedule(self.training_stats['games_played'], env)
         info(
             "Reward multiplier adjusted",
             difficulty=level,
             multiplier=f"{factor:.2f}",
+            speed_multiplier=f"{speed_factor:.2f}",
+            timeout_rate=f"{timeout_rate:.2f}",
+            median_terminal_turns=f"{median_terminal_turns:.1f}",
+            reasons=sorted(set(reasons)) or ['unchanged'],
             heavy_reward=env.heavy_reward,
             win_bonus=env.win_bonus,
         )
@@ -574,6 +615,7 @@ class TrainingManager:
             if done and info_dict:
                 bonus += info_dict.get('win_bonus', 0.0)
                 bonus += info_dict.get('final_move_bonus', 0.0)
+                bonus += info_dict.get('near_finish_conversion_bonus', 0.0)
             reward += 0.01 * getattr(current_bot, 'last_entropy', 0.0)
             norm_reward = self._normalize_reward(reward)
 
@@ -592,8 +634,65 @@ class TrainingManager:
             # Update tracking
             states[current_player] = state
             actions[current_player] = action
-            episode_rewards[current_player] += reward + bonus
-            step_records.append((abs(reward + bonus), current_player, action, reward + bonus))
+            step_reward = reward + bonus
+            episode_rewards[current_player] += step_reward
+            if done and env.game_state.get('winningTeam'):
+                winners = env.game_state.get('winningTeam') or []
+                winning_positions = [
+                    pl.get('position') for pl in winners if isinstance(pl, dict)
+                ]
+                winning_set = {pos for pos in winning_positions if isinstance(pos, int)}
+                team_credit = (
+                    (getattr(env, 'win_bonus', WIN_BONUS) or WIN_BONUS)
+                    * TEAM_TERMINAL_CREDIT_RATIO
+                )
+                loss_credit = REWARD_WEIGHTS.get('loss', -25.0) * TEAM_TERMINAL_LOSS_RATIO
+                for winner_pos in sorted(winning_set):
+                    if winner_pos == current_player:
+                        continue
+                    if not (0 <= winner_pos < len(self.bots)):
+                        continue
+                    teammate_bot = self.bots[winner_pos]
+                    if not getattr(teammate_bot, 'trainable', True):
+                        continue
+                    episode_rewards[winner_pos] += team_credit
+                    env.reward_bonus_totals['team_terminal_credit_bonus'] = (
+                        env.reward_bonus_totals.get('team_terminal_credit_bonus', 0.0)
+                        + team_credit
+                    )
+                    if states[winner_pos] is not None and actions[winner_pos] is not None:
+                        teammate_next_state = env.get_state(winner_pos)
+                        teammate_bot.remember(
+                            states[winner_pos],
+                            actions[winner_pos],
+                            self._normalize_reward(team_credit),
+                            teammate_next_state,
+                            True,
+                            True,
+                            team_credit,
+                        )
+                for loser_pos, loser_bot in enumerate(self.bots):
+                    if loser_pos in winning_set or loser_pos == current_player:
+                        continue
+                    if not getattr(loser_bot, 'trainable', True):
+                        continue
+                    episode_rewards[loser_pos] += loss_credit
+                    env.reward_bonus_totals['team_terminal_loss_bonus'] = (
+                        env.reward_bonus_totals.get('team_terminal_loss_bonus', 0.0)
+                        + loss_credit
+                    )
+                    if states[loser_pos] is not None and actions[loser_pos] is not None:
+                        loser_next_state = env.get_state(loser_pos)
+                        loser_bot.remember(
+                            states[loser_pos],
+                            actions[loser_pos],
+                            self._normalize_reward(loss_credit),
+                            loser_next_state,
+                            True,
+                            False,
+                            loss_credit,
+                        )
+            step_records.append((abs(step_reward), current_player, action, step_reward))
             
             # Train bot
             current_bot.step_count += 1
@@ -625,7 +724,11 @@ class TrainingManager:
                 break
 
         if not env.game_state.get('gameEnded', False):
-            timeout_penalty = TIMEOUT_PENALTY * max(1, episode_pieces)
+            timeout_penalty = (
+                TIMEOUT_PENALTY
+                * max(1, episode_pieces)
+                * self.level_speed_reward_multiplier.get(self.pieces_per_player, 1.0)
+            )
             if env.reward_event_counts.get('near_finish', 0) > 0:
                 timeout_penalty *= 1.5
             for i in range(len(episode_rewards)):
@@ -696,7 +799,12 @@ class TrainingManager:
         # Tune rewards against the trainable bots' decisive win rate so the
         # curriculum reacts to "closing games" performance, not just whether
         # any team finished.
-        self._adjust_reward_multiplier(trainable_win_rate_decisive, env)
+        self._adjust_reward_multiplier(
+            trainable_win_rate_decisive,
+            env,
+            timeout_rate=timeout_rate,
+            median_terminal_turns=median_terminal_turns,
+        )
         info(
             "Curriculum progress",
             pieces=self.pieces_per_player,

@@ -83,7 +83,8 @@ see whether incentivized events are increasing and discouraged actions are
 decreasing.
 
 The saved `training_stats.json` file now also includes per-episode curriculum
-telemetry fields that are useful for stage-aware analysis:
+telemetry fields that are useful for stage-aware analysis and speed-focused
+experiments:
 
 - `pieces_per_player`
 - `stage_games`
@@ -94,6 +95,8 @@ telemetry fields that are useful for stage-aware analysis:
 - `team_0_win` / `team_1_win`
 - `trainable_team_win_rate_window` / `fixed_team_win_rate_window`
 - `team_win_rate_diff_window`
+- `terminal_turns`
+- `near_finish_any_team` / `near_finish_timeout`
 - `reward_count_history`
 - `reward_event_best_stats`
 
@@ -106,13 +109,25 @@ scheduled values. This automatic tuning helps the curriculum progress without
 needing to manually edit the reward configuration.
 
 Timeout handling is also stage-aware: unresolved games now apply a negative
-timeout penalty that is scaled by the current piece count, and the turn limit
-uses a per-stage schedule from `config.py` to reduce premature truncation at
-higher piece counts.
+timeout penalty that is scaled by the current piece count and by a dynamic
+speed multiplier. The turn limit uses a per-stage schedule from `config.py` to
+reduce premature truncation at higher piece counts.
 
-To encourage faster resolution, the environment now applies a small per-step
-time cost and an additional fast-finish bonus when a winning team completes the
-game well before the current turn limit.
+To encourage faster resolution after the 7-card and 8-card tactical curriculum
+has plateaued, the speed preset now starts long-game pressure earlier, applies
+a stronger urgency penalty late in the turn budget, caps capture farming more
+aggressively, and grants a larger fast-finish bonus when a winning team
+completes the game well before the current turn limit. The trainer raises or
+lowers a separate speed multiplier when recent timeout rate or median terminal
+turn count shows that bots are not closing games quickly enough. Teammates on
+the winning team also receive full terminal credit, and the losing team receives
+a matching terminal penalty, so setup moves that enable the final action and
+outcome differences are reinforced more strongly than generic completions.
+
+Near-finish rewards are counted exactly once per crossing and are now paired
+with a configurable conversion bonus when the team turns a near-finish state
+into a win within the conversion window. This makes the closing objective
+explicit without increasing 7-card or 8-card tactical weights again.
 
 ### Advantage Normalization
 

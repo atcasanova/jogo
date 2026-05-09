@@ -37,6 +37,8 @@ class MockGameEnvironment:
             'final_move_bonus': 0.0,
         }
         self.heavy_reward = 1.0
+        self.win_bonus = 100.0
+        self.speed_reward_multiplier = 1.0
 
     def reset(self, bot_names=None):
         self.game_state = {
@@ -77,11 +79,44 @@ class MockGameEnvironment:
     def set_win_bonus(self, value):
         self.win_bonus = value
 
+    def set_speed_reward_multiplier(self, value):
+        self.speed_reward_multiplier = value
+
     def set_piece_count(self, value):
         self.pieces_per_player = value
 
     def set_turn_limit(self, value):
         self.turn_limit = value
+
+
+class TwoTurnTeamWinEnvironment(MockGameEnvironment):
+    def __init__(self):
+        super().__init__()
+        self.turn = 0
+
+    def reset(self, bot_names=None):
+        super().reset(bot_names=bot_names)
+        self.turn = 0
+        self.game_state['currentPlayerIndex'] = 2
+        return np.zeros(self.state_size)
+
+    def step(self, action, player_id, step_count=0):
+        self.turn += 1
+        if self.turn == 1:
+            self.game_state = {
+                'currentPlayerIndex': 0,
+                'gameEnded': False,
+                'winningTeam': None,
+                'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+            }
+            return np.zeros(self.state_size), 0.0, False
+        self.game_state = {
+            'currentPlayerIndex': 0,
+            'gameEnded': True,
+            'winningTeam': [{'position': 0}, {'position': 2}],
+            'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+        }
+        return np.zeros(self.state_size), 0.0, True
 
 
 class DummyGameBot:
@@ -98,12 +133,13 @@ class DummyGameBot:
         self.update_target_freq = 1
         self.train_freq = 1
         self.step_count = 0
+        self.memories = []
 
     def act(self, state, valid_actions):
         return valid_actions[0]
 
     def remember(self, *args, **kwargs):
-        pass
+        self.memories.append((args, kwargs))
 
     def replay(self):
         pass
@@ -137,6 +173,36 @@ def test_train_episode_increments_wins():
             initial_wins = manager.bots[0].wins
             manager.train_episode()
             assert manager.bots[0].wins == initial_wins + 1
+
+
+def test_team_terminal_credit_rewards_winning_teammate():
+    torch_mock = MagicMock()
+    sys.modules['torch'] = torch_mock
+    sys.modules['torch.nn'] = MagicMock()
+    sys.modules['torch.optim'] = MagicMock()
+
+    from ai.trainer import TrainingManager
+    from config import TEAM_TERMINAL_CREDIT_RATIO
+
+    with patch('ai.trainer.GameBot', DummyGameBot):
+        manager = TrainingManager()
+        env = TwoTurnTeamWinEnvironment()
+        manager.env = env
+        manager.create_bots(num_bots=4)
+
+        with patch.object(manager, '_shuffle_bots', lambda: None):
+            rewards = manager.train_episode()
+
+        expected_credit = 100.0 * TEAM_TERMINAL_CREDIT_RATIO
+        assert rewards[2] == pytest.approx(expected_credit)
+        assert rewards[1] == pytest.approx(-80.0)
+        assert rewards[3] == pytest.approx(-80.0)
+        assert manager.bots[2].total_reward == pytest.approx(expected_credit)
+        assert manager.bots[1].total_reward == pytest.approx(-80.0)
+        assert manager.bots[3].total_reward == pytest.approx(-80.0)
+        assert env.reward_bonus_totals['team_terminal_credit_bonus'] == pytest.approx(expected_credit)
+        assert env.reward_bonus_totals['team_terminal_loss_bonus'] == pytest.approx(-160.0)
+        assert manager.bots[2].memories
 
 
 def test_train_episode_breaks_on_no_actions():
@@ -224,6 +290,19 @@ def test_adjust_reward_multiplier_updates_env():
     expected = HEAVY_REWARD_BASE * (1 + REWARD_TUNE_STEP)
     assert pytest.approx(env.heavy_reward, rel=1e-6) == expected
     assert manager.level_reward_multiplier[manager.pieces_per_player] == 1 + REWARD_TUNE_STEP
+
+
+def test_adjust_reward_multiplier_responds_to_timeouts_and_slow_games():
+    from ai.trainer import TrainingManager
+    from config import SPEED_TUNE_STEP
+
+    manager = TrainingManager()
+    env = MockGameEnvironment()
+
+    manager._adjust_reward_multiplier(0.8, env, timeout_rate=0.6, median_terminal_turns=100.0)
+
+    assert manager.level_speed_reward_multiplier[manager.pieces_per_player] == pytest.approx(1 + SPEED_TUNE_STEP)
+    assert env.speed_reward_multiplier == pytest.approx(1 + SPEED_TUNE_STEP)
 
 
 def test_load_models_restores_training_state(tmp_path):
