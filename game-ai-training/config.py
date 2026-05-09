@@ -103,16 +103,16 @@ REWARD_WEIGHTS = {
     'home_entry': 8.0,
     # Small tactical bonuses to improve credit assignment.
     'home_entry_progress': 1.0,
-    'capture': 4.0,
+    'capture': 2.0,
     'safe_move': 1.0,
     # Team outcome signal.
-    'win': 60.0,
-    'loss': -25.0,
+    'win': 100.0,
+    'loss': -80.0,
 }
 
 # Extra piece completion bonus applied in addition to the base completion
 # reward. Helps agents value converting progress into fully completed pieces.
-PIECE_COMPLETION_BONUS = 12.0
+PIECE_COMPLETION_BONUS = 8.0
 
 # Bonus granted when a team reaches "one move from victory" by completing all
 # but one piece. This creates a bridge between shaping rewards and final wins.
@@ -130,7 +130,7 @@ STEP_PENALTY_BASE = -0.01
 # reached, so stalling policies become progressively less attractive.
 LONG_GAME_PENALTY_START = 220
 LONG_GAME_PENALTY_INTERVAL = 50
-LONG_GAME_PENALTY_BASE = -0.02
+LONG_GAME_PENALTY_BASE = -0.05
 
 # Extra bonus awarded on wins that finish well before the turn limit.
 FAST_FINISH_BONUS_SCALE = 25.0
@@ -144,7 +144,7 @@ URGENCY_PENALTY_BASE = -0.20
 
 # Cap loopable shaping rewards to reduce farming behavior.
 HOME_ENTRY_PROGRESS_CAP = 120.0
-CAPTURE_REWARD_CAP = 180.0
+CAPTURE_REWARD_CAP = 80.0
 
 # Anti-stall penalties.
 NO_PROGRESS_WINDOW = 24
