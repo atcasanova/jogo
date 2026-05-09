@@ -30,8 +30,6 @@ from config import (
     MIN_SPEED_REWARD_MULTIPLIER,
     SPEED_TUNE_STEP,
     TEAM_TERMINAL_CREDIT_RATIO,
-    TEAM_TERMINAL_LOSS_RATIO,
-    REWARD_WEIGHTS,
     TURN_LIMIT_SCHEDULE,
     ENTROPY_WEIGHT_SCHEDULE,
     STAGE5_MIX_FROM_GAME,
@@ -636,19 +634,17 @@ class TrainingManager:
             actions[current_player] = action
             step_reward = reward + bonus
             episode_rewards[current_player] += step_reward
-            if done and env.game_state.get('winningTeam'):
+            if done and game_won:
                 winners = env.game_state.get('winningTeam') or []
                 winning_positions = [
                     pl.get('position') for pl in winners if isinstance(pl, dict)
                 ]
-                winning_set = {pos for pos in winning_positions if isinstance(pos, int)}
                 team_credit = (
                     (getattr(env, 'win_bonus', WIN_BONUS) or WIN_BONUS)
                     * TEAM_TERMINAL_CREDIT_RATIO
                 )
-                loss_credit = REWARD_WEIGHTS.get('loss', -25.0) * TEAM_TERMINAL_LOSS_RATIO
-                for winner_pos in sorted(winning_set):
-                    if winner_pos == current_player:
+                for winner_pos in winning_positions:
+                    if winner_pos == current_player or not isinstance(winner_pos, int):
                         continue
                     if not (0 <= winner_pos < len(self.bots)):
                         continue
@@ -670,27 +666,6 @@ class TrainingManager:
                             True,
                             True,
                             team_credit,
-                        )
-                for loser_pos, loser_bot in enumerate(self.bots):
-                    if loser_pos in winning_set or loser_pos == current_player:
-                        continue
-                    if not getattr(loser_bot, 'trainable', True):
-                        continue
-                    episode_rewards[loser_pos] += loss_credit
-                    env.reward_bonus_totals['team_terminal_loss_bonus'] = (
-                        env.reward_bonus_totals.get('team_terminal_loss_bonus', 0.0)
-                        + loss_credit
-                    )
-                    if states[loser_pos] is not None and actions[loser_pos] is not None:
-                        loser_next_state = env.get_state(loser_pos)
-                        loser_bot.remember(
-                            states[loser_pos],
-                            actions[loser_pos],
-                            self._normalize_reward(loss_credit),
-                            loser_next_state,
-                            True,
-                            False,
-                            loss_credit,
                         )
             step_records.append((abs(step_reward), current_player, action, step_reward))
             

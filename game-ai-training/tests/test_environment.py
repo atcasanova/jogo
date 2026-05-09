@@ -621,7 +621,7 @@ def test_near_finish_conversion_bonus_rewards_fast_close():
                 _, reward, done = env.step(0, 2, step_count=12)
 
     expected_conversion = NEAR_FINISH_CONVERSION_BONUS * (1.0 - 2.0 / 32.0)
-    expected_fast_finish = 40.0 * 0.88
+    expected_fast_finish = 25.0 * 0.88
     expected = (
         step_cost
         + PIECE_COMPLETION_REWARD

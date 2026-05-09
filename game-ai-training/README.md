@@ -115,14 +115,12 @@ reduce premature truncation at higher piece counts.
 
 To encourage faster resolution after the 7-card and 8-card tactical curriculum
 has plateaued, the speed preset now starts long-game pressure earlier, applies
-a stronger urgency penalty late in the turn budget, caps capture farming more
-aggressively, and grants a larger fast-finish bonus when a winning team
-completes the game well before the current turn limit. The trainer raises or
-lowers a separate speed multiplier when recent timeout rate or median terminal
-turn count shows that bots are not closing games quickly enough. Teammates on
-the winning team also receive full terminal credit, and the losing team receives
-a matching terminal penalty, so setup moves that enable the final action and
-outcome differences are reinforced more strongly than generic completions.
+a stronger urgency penalty late in the turn budget, and grants a larger
+fast-finish bonus when a winning team completes the game well before the
+current turn limit. The trainer raises or lowers a separate speed multiplier
+when recent timeout rate or median terminal turn count shows that bots are
+not closing games quickly enough. Teammates on the winning team also receive
+terminal credit, so setup moves that enable the final action are reinforced.
 
 Near-finish rewards are counted exactly once per crossing and are now paired
 with a configurable conversion bonus when the team turns a near-finish state

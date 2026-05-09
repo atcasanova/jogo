@@ -37,7 +37,7 @@ class MockGameEnvironment:
             'final_move_bonus': 0.0,
         }
         self.heavy_reward = 1.0
-        self.win_bonus = 100.0
+        self.win_bonus = 60.0
         self.speed_reward_multiplier = 1.0
 
     def reset(self, bot_names=None):
@@ -193,15 +193,10 @@ def test_team_terminal_credit_rewards_winning_teammate():
         with patch.object(manager, '_shuffle_bots', lambda: None):
             rewards = manager.train_episode()
 
-        expected_credit = 100.0 * TEAM_TERMINAL_CREDIT_RATIO
+        expected_credit = 60.0 * TEAM_TERMINAL_CREDIT_RATIO
         assert rewards[2] == pytest.approx(expected_credit)
-        assert rewards[1] == pytest.approx(-80.0)
-        assert rewards[3] == pytest.approx(-80.0)
         assert manager.bots[2].total_reward == pytest.approx(expected_credit)
-        assert manager.bots[1].total_reward == pytest.approx(-80.0)
-        assert manager.bots[3].total_reward == pytest.approx(-80.0)
         assert env.reward_bonus_totals['team_terminal_credit_bonus'] == pytest.approx(expected_credit)
-        assert env.reward_bonus_totals['team_terminal_loss_bonus'] == pytest.approx(-160.0)
         assert manager.bots[2].memories
 
 

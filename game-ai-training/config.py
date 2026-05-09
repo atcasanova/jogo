@@ -71,16 +71,15 @@ REWARD_TUNE_STEP = 0.1
 
 # Dynamic speed/closing tuning. These multipliers scale win-speed bonuses,
 # late-game urgency, long-game penalties, and unresolved timeout penalties.
-TIMEOUT_TUNE_TARGET = 0.15
-SLOW_TERMINAL_TURN_FRAC = 0.60
+TIMEOUT_TUNE_TARGET = 0.25
+SLOW_TERMINAL_TURN_FRAC = 0.75
 MAX_SPEED_REWARD_MULTIPLIER = 2.0
 MIN_SPEED_REWARD_MULTIPLIER = 0.75
 SPEED_TUNE_STEP = 0.1
 
-# Terminal outcome credit for teammates who contributed earlier in the episode
-# but were not the actor on the final move, plus a matching team loss signal.
-TEAM_TERMINAL_CREDIT_RATIO = 1.0
-TEAM_TERMINAL_LOSS_RATIO = 1.0
+# Terminal team credit for teammates who contributed earlier in the episode but
+# were not the actor on the final move.
+TEAM_TERMINAL_CREDIT_RATIO = 0.5
 
 # Curriculum bridge/rollback controls for the final stage.
 STAGE5_MIX_FROM_GAME = 1000
@@ -121,7 +120,7 @@ NEAR_FINISH_BONUS = 10.0
 
 # Bonus for converting a near-finish state into a win soon after reaching it.
 NEAR_FINISH_CONVERSION_WINDOW = 32
-NEAR_FINISH_CONVERSION_BONUS = 30.0
+NEAR_FINISH_CONVERSION_BONUS = 18.0
 
 # Small per-step penalty to encourage faster game resolution.
 STEP_PENALTY_BASE = -0.01
@@ -129,19 +128,19 @@ STEP_PENALTY_BASE = -0.01
 # Additional penalty for long-running games. Applied in increasing tiers every
 # ``LONG_GAME_PENALTY_INTERVAL`` turns once ``LONG_GAME_PENALTY_START`` is
 # reached, so stalling policies become progressively less attractive.
-LONG_GAME_PENALTY_START = 180
+LONG_GAME_PENALTY_START = 220
 LONG_GAME_PENALTY_INTERVAL = 50
 LONG_GAME_PENALTY_BASE = -0.05
 
 # Extra bonus awarded on wins that finish well before the turn limit.
-FAST_FINISH_BONUS_SCALE = 40.0
+FAST_FINISH_BONUS_SCALE = 25.0
 
 # Additional late-game urgency signal: penalty ramps up after
 # ``URGENCY_PENALTY_START_FRAC`` of the turn budget has been consumed.
 # Speed pressure is intentionally stronger than the baseline tactical-card
 # curriculum so policies that already find good plays learn to close sooner.
-URGENCY_PENALTY_START_FRAC = 0.60
-URGENCY_PENALTY_BASE = -0.35
+URGENCY_PENALTY_START_FRAC = 0.70
+URGENCY_PENALTY_BASE = -0.20
 
 # Cap loopable shaping rewards to reduce farming behavior.
 HOME_ENTRY_PROGRESS_CAP = 120.0
@@ -154,7 +153,7 @@ REPEATED_STATE_THRESHOLD = 3
 REPEATED_STATE_PENALTY = -0.6
 
 # Clip range for the per-step weighted reward sum.
-REWARD_CLIP_RANGE = (-250.0, 250.0)
+REWARD_CLIP_RANGE = (-180.0, 180.0)
 
 # Multiplier applied to positive rewards based on the current
 # number of pieces per player. The curriculum increases the
