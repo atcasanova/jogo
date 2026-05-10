@@ -116,6 +116,20 @@ def test_skip_home_penalty():
     assert env.reward_event_counts['skip_home'] == 1
 
 
+
+def test_get_valid_actions_prioritizes_home_entry_actions():
+    env = GameEnvironment()
+    response = {'validActions': [1, 2, 2, 3], 'homeEntryActions': [2, 4]}
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            actions = env.get_valid_actions(0)
+
+    assert actions == [2]
+    assert env.last_valid_actions[0] == [2]
+    assert env.last_home_entry_actions[0] == [2]
+
+
 def test_missed_home_entry_penalty_when_entry_action_available():
     env = GameEnvironment()
     step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)

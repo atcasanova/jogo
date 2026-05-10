@@ -64,8 +64,9 @@ Training logs record how many times each of the following events occurs:
   available (−250 points).
 
 The Node wrapper also tags legal actions that would enter the homestretch so the
-Python trainer can punish missed entries even when the bot chooses a different
-move. Additional tactical shaping rewards guide card-specific play without relying on
+Python trainer masks out every non-entry action whenever an entry is available,
+while still recording a missed-entry penalty if a replayed or fallback action
+skips the entry. Additional tactical shaping rewards guide card-specific play without relying on
 periodic plot image checks. The trainer still records per-event reward totals in
 `training_stats.json`, but it no longer saves training-progress plot images at
 statistics intervals or at the end of training.

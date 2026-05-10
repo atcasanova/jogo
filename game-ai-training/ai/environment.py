@@ -788,8 +788,20 @@ class GameEnvironment:
                 seen.add(act)
                 unique_actions.append(act)
 
-        # Return the complete set of valid actions so the agent can evaluate
-        # every option provided by the game wrapper.
+        valid_action_set = set(unique_actions)
+        home_entry_actions = [
+            act for act in self.last_home_entry_actions.get(player_id, []) if act in valid_action_set
+        ]
+        self.last_home_entry_actions[player_id] = home_entry_actions
+        if home_entry_actions:
+            # Homestretch entry is a rule-level priority for the training policy:
+            # when any legal action can enter home, mask out every alternative so
+            # the bot cannot learn to prefer captures, setup moves, or discards.
+            self.last_valid_actions[player_id] = home_entry_actions
+            return home_entry_actions
+
+        # Return the complete set of non-entry valid actions only when no
+        # homestretch-entry action is available.
         self.last_valid_actions[player_id] = unique_actions
         valid_action_set = set(unique_actions)
         self.last_home_entry_actions[player_id] = [
