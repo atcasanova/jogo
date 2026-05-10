@@ -34,8 +34,9 @@ from config import (
 
 # Simplified reward system used for initial curriculum training
 PIECE_COMPLETION_REWARD = 50.0
-# Only penalty currently applied when a bot rejects a homestretch entry
-SKIP_HOME_PENALTY = -1.0
+# Severe penalties used when a bot rejects or misses a homestretch entry.
+SKIP_HOME_PENALTY = REWARD_WEIGHTS.get('skip_home', -250.0)
+MISSED_HOME_ENTRY_PENALTY = REWARD_WEIGHTS.get('missed_home_entry', -250.0)
 # Extra shaping for learning card-specific tactics. Seven-card rewards only
 # apply when the card creates concrete impact; otherwise the move receives a
 # small penalty so bots learn not to burn sevens on low-value movement.
@@ -159,6 +160,7 @@ class GameEnvironment:
             'near_finish': 0,
             'near_finish_conversion': 0,
             'skip_home': 0,
+            'missed_home_entry': 0,
             'home_entry_progress': 0,
             'capture': 0,
             'safe_move': 0,
@@ -184,6 +186,7 @@ class GameEnvironment:
             'near_finish': 0.0,
             'near_finish_conversion': 0.0,
             'skip_home': 0.0,
+            'missed_home_entry': 0.0,
             'home_entry_progress': 0.0,
             'capture': 0.0,
             'safe_move': 0.0,
@@ -237,6 +240,7 @@ class GameEnvironment:
         self.last_step_info: Dict[str, float] = {}
         # Cache legal actions so state encoding can include action metadata.
         self.last_valid_actions: Dict[int, List[int]] = {}
+        self.last_home_entry_actions: Dict[int, List[int]] = {}
         # Tracks one-turn 8-card setup opportunities by player. A setup is
         # consumed on that player's next action so it cannot be farmed by
         # repeatedly moving away and back.
@@ -747,9 +751,11 @@ class GameEnvironment:
             fallback = self._default_discards(player_id)
             result = [fallback[0]] if fallback else []
             self.last_valid_actions[player_id] = result
+            self.last_home_entry_actions[player_id] = []
             return result
 
         actions = response.get("validActions", [])
+        self.last_home_entry_actions[player_id] = list(response.get("homeEntryActions", []))
         # Ensure actions are within the defined action space and remain valid
         # when checked individually. The Node wrapper occasionally returns
         # discard actions for cards that no longer exist. Filtering with
@@ -765,10 +771,12 @@ class GameEnvironment:
             if discard_actions:
                 result = [discard_actions[0]]
                 self.last_valid_actions[player_id] = result
+                self.last_home_entry_actions[player_id] = []
                 return result
             fallback = self._default_discards(player_id)
             result = [fallback[0]] if fallback else []
             self.last_valid_actions[player_id] = result
+            self.last_home_entry_actions[player_id] = []
             return result
 
         # Deduplicate while preserving order so the bot only evaluates unique
@@ -783,6 +791,10 @@ class GameEnvironment:
         # Return the complete set of valid actions so the agent can evaluate
         # every option provided by the game wrapper.
         self.last_valid_actions[player_id] = unique_actions
+        valid_action_set = set(unique_actions)
+        self.last_home_entry_actions[player_id] = [
+            act for act in self.last_home_entry_actions.get(player_id, []) if act in valid_action_set
+        ]
         return unique_actions
 
     def is_action_valid(self, player_id: int, action: int) -> bool:
@@ -823,6 +835,9 @@ class GameEnvironment:
         teams = self.game_state.get('teams', []) if self.game_state else []
         prev_completed = [0] * max(len(teams), 2)
         prev_completed_players = self.get_completed_counts() if self.game_state else [0]*4
+
+        home_entry_actions = set(self.last_home_entry_actions.get(player_id, []))
+        entry_available_before = bool(home_entry_actions)
 
         if self.game_state and 'pieces' in self.game_state:
             for p in self.game_state['pieces']:
@@ -1093,6 +1108,11 @@ class GameEnvironment:
 
         if home_entry_reward > 0:
             weighted_reward += home_entry_reward
+
+        if entry_available_before and home_entry_reward <= 0:
+            self.reward_event_counts['missed_home_entry'] += 1
+            self.reward_event_totals['missed_home_entry'] += MISSED_HOME_ENTRY_PENALTY
+            weighted_reward += MISSED_HOME_ENTRY_PENALTY
 
         if seven_card_played and (capture_occurred or home_entry_piece_ids or piece_reward > 0):
             if seven_split_played:
