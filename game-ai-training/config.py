@@ -96,11 +96,12 @@ REWARD_WEIGHTS = {
     # Completing a piece remains a strong objective signal, but lower than
     # before to reduce farming of intermediate rewards without closing games.
     'home_completion': 35.0,
-    # Discourage skipping a valid home entry.
-    'skip_home': -1.0,
-    # Reward entering the home stretch; this is boosted when it follows
-    # an 8-card setup that newly put the piece within entry reach.
-    'home_entry': 8.0,
+    # Make homestretch entry overwhelmingly preferred whenever it is available.
+    'home_entry': 250.0,
+    # Heavily punish rejecting or missing a valid home entry so bots learn this
+    # is never an acceptable alternative to entering the homestretch.
+    'skip_home': -250.0,
+    'missed_home_entry': -250.0,
     # Small tactical bonuses to improve credit assignment.
     'home_entry_progress': 1.0,
     'capture': 2.0,
@@ -153,7 +154,7 @@ REPEATED_STATE_THRESHOLD = 3
 REPEATED_STATE_PENALTY = -0.6
 
 # Clip range for the per-step weighted reward sum.
-REWARD_CLIP_RANGE = (-180.0, 180.0)
+REWARD_CLIP_RANGE = (-1200.0, 1200.0)
 
 # Multiplier applied to positive rewards based on the current
 # number of pieces per player. The curriculum increases the
