@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 from ai.environment import (
     GameEnvironment,
+    prioritize_home_entry_actions,
     PIECE_COMPLETION_REWARD,
     SEVEN_SPLIT_COMPLETION_REWARD,
     SEVEN_SPLIT_HOME_ENTRY_REWARD,
@@ -115,6 +116,10 @@ def test_skip_home_penalty():
     assert reward == pytest.approx(SKIP_HOME_PENALTY + step_cost)
     assert env.reward_event_counts['skip_home'] == 1
 
+
+def test_prioritize_home_entry_actions_filters_to_legal_entries():
+    assert prioritize_home_entry_actions([1, 2, 3], [2, 4]) == [2]
+    assert prioritize_home_entry_actions([1, 2, 3], []) == [1, 2, 3]
 
 
 def test_get_valid_actions_prioritizes_home_entry_actions():

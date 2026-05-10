@@ -73,6 +73,14 @@ STAGNATION_PENALTY = 0.0
 LATE_STAGNATION_PENALTY = 0.0
 
 
+def prioritize_home_entry_actions(valid_actions: List[int], home_entry_actions: List[int]) -> List[int]:
+    """Return only legal homestretch-entry actions when any are available."""
+    valid_list = list(valid_actions or [])
+    valid_action_set = set(valid_list)
+    prioritized = [act for act in home_entry_actions or [] if act in valid_action_set]
+    return prioritized or valid_list
+
+
 class GameEnvironment:
     def __init__(self, env_id: int = 0, pieces_per_player: int = 5, turn_limit: int = 500):
         self.node_process = None
