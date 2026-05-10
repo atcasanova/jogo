@@ -59,10 +59,15 @@ than 100 update steps.
 Training logs record how many times each of the following events occurs:
 
 - Completing a piece (+50 points).
-- Choosing to skip a possible homestretch entry (−1 point).
+- Entering the homestretch (+250 points), with matching severe penalties for
+  explicitly skipping or choosing another move when a homestretch-entry action is
+  available (−250 points).
 
-Additional tactical shaping rewards guide card-specific play without relying on
-periodic plot image checks. The trainer still records per-event reward totals in
+The Node wrapper also tags legal actions that would enter the homestretch so the
+Python trainer and bot-service prediction path mask out every non-entry action
+whenever an entry is available, while still recording a missed-entry penalty if
+a replayed or fallback action skips the entry. Additional tactical shaping rewards
+guide card-specific play without relying on periodic plot image checks. The trainer still records per-event reward totals in
 `training_stats.json`, but it no longer saves training-progress plot images at
 statistics intervals or at the end of training.
 

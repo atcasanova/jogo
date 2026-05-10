@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-from ai.environment import GameEnvironment
+from ai.environment import GameEnvironment, prioritize_home_entry_actions
 from ai.bot import GameBot, DQNBot
 from json_logger import info
 import torch
@@ -51,7 +51,10 @@ def main():
         if cmd.get("cmd") == "predict":
             env.game_state = cmd.get("gameState", {})
             pid = int(cmd.get("playerId", 0))
-            valid = cmd.get("validActions", [])
+            valid = prioritize_home_entry_actions(
+                cmd.get("validActions", []),
+                cmd.get("homeEntryActions", []),
+            )
             state = env.get_state(pid)
             action = bots[pid].act(state, valid)
             print(json.dumps({"actionId": action}), flush=True)

@@ -3,11 +3,13 @@ from unittest.mock import patch
 import pytest
 from ai.environment import (
     GameEnvironment,
+    prioritize_home_entry_actions,
     PIECE_COMPLETION_REWARD,
     SEVEN_SPLIT_COMPLETION_REWARD,
     SEVEN_SPLIT_HOME_ENTRY_REWARD,
     SEVEN_SPLIT_REWARD,
     SKIP_HOME_PENALTY,
+    MISSED_HOME_ENTRY_PENALTY,
     STUCK_SMART_CARD_DISCARD_PENALTY,
     SMART_CARD_MISUSE_PENALTY,
     EIGHT_CARD_REACH_REWARD,
@@ -113,6 +115,68 @@ def test_skip_home_penalty():
     assert len(calls) == 2
     assert reward == pytest.approx(SKIP_HOME_PENALTY + step_cost)
     assert env.reward_event_counts['skip_home'] == 1
+
+
+def test_prioritize_home_entry_actions_filters_to_legal_entries():
+    assert prioritize_home_entry_actions([1, 2, 3], [2, 4]) == [2]
+    assert prioritize_home_entry_actions([1, 2, 3], []) == [1, 2, 3]
+
+
+def test_get_valid_actions_prioritizes_home_entry_actions():
+    env = GameEnvironment()
+    response = {'validActions': [1, 2, 2, 3], 'homeEntryActions': [2, 4]}
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            actions = env.get_valid_actions(0)
+
+    assert actions == [2]
+    assert env.last_valid_actions[0] == [2]
+    assert env.last_home_entry_actions[0] == [2]
+
+
+def test_missed_home_entry_penalty_when_entry_action_available():
+    env = GameEnvironment()
+    step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)
+    env.game_state = {
+        'currentPlayerIndex': 0,
+        'teams': [[{'position': 0}, {'position': 2}], [{'position': 1}, {'position': 3}]],
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'position': {'row': 0, 'col': 8},
+                'inHomeStretch': False,
+                'inPenaltyZone': False,
+                'completed': False,
+            }
+        ],
+    }
+    env.player_team_map = {0: 0, 2: 0, 1: 1, 3: 1}
+    env.last_home_entry_actions[0] = [1]
+
+    new_state = {
+        'pieces': [
+            {
+                'id': 'p0_1',
+                'playerId': 0,
+                'position': {'row': 0, 'col': 7},
+                'inHomeStretch': False,
+                'inPenaltyZone': False,
+                'completed': False,
+            }
+        ],
+        'teams': env.game_state['teams'],
+    }
+    response = {'success': True, 'gameState': new_state, 'gameEnded': False, 'winningTeam': None}
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            with patch.object(env, 'get_state', return_value=np.zeros(env.state_size)):
+                _, reward, _ = env.step(0, 0)
+
+    assert reward == pytest.approx(MISSED_HOME_ENTRY_PENALTY + step_cost)
+    assert env.reward_event_counts['missed_home_entry'] == 1
 
 
 def test_seven_split_home_entry_reward():

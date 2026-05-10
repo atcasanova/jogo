@@ -103,10 +103,13 @@ class GameWrapper {
                         return { error: "Failed to setup game" };
                     }
                     
-                case 'getValidActions':
+                case 'getValidActions': {
+                    const validActions = this.getValidActions(command.playerId);
                     return {
-                        validActions: this.getValidActions(command.playerId)
+                        validActions,
+                        homeEntryActions: this.getHomeEntryActions(command.playerId, validActions)
                     };
+                }
                     
                 case 'makeMove':
                     return this.makeMove(command.playerId, command.actionId);
@@ -340,6 +343,85 @@ class GameWrapper {
         } catch (error) {
             return [];
         }
+    }
+
+    actionWouldEnterHome(playerId, actionId) {
+        try {
+            if (!this.game || !this.game.players || !this.game.players[playerId] || actionId >= 70) {
+                return false;
+            }
+
+            const clone = this.game.cloneForSimulation();
+
+            if (actionId >= 60) {
+                const moves = this.specialActions[actionId];
+                if (!moves) return false;
+                const before = moves.map(m => {
+                    const piece = clone.pieces.find(p => p.id === m.pieceId);
+                    return {
+                        id: m.pieceId,
+                        inHomeStretch: Boolean(piece && piece.inHomeStretch)
+                    };
+                });
+                let result = clone.makeSpecialMove(moves);
+                if (result && result.action === 'homeEntryChoice') {
+                    result = clone.resumeSpecialMove(true);
+                }
+                if (result && result.success === false) {
+                    return false;
+                }
+                return before.some(info => {
+                    const piece = clone.pieces.find(p => p.id === info.id);
+                    return piece && !info.inHomeStretch && piece.inHomeStretch;
+                });
+            }
+
+            const cardIndex = Math.floor(actionId / 10);
+            let pieceNumber = actionId % 10;
+            if (pieceNumber === 0) {
+                pieceNumber = 10;
+            }
+
+            const countCheck = this.game.piecesPerPlayer || 5;
+            let ownerId = playerId;
+            if (pieceNumber > countCheck) {
+                const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
+                if (partner === null || partner === undefined) {
+                    return false;
+                }
+                ownerId = partner;
+                pieceNumber -= countCheck;
+            }
+
+            const pieceId = `p${ownerId}_${pieceNumber}`;
+            const beforePiece = clone.pieces.find(p => p.id === pieceId);
+            if (!beforePiece || beforePiece.inHomeStretch || beforePiece.completed) {
+                return false;
+            }
+
+            let result = clone.makeMove(pieceId, cardIndex);
+            if (result && result.action === 'homeEntryChoice') {
+                result = clone.makeMove(pieceId, cardIndex, true);
+            }
+            if (result && result.success === false) {
+                return false;
+            }
+
+            const afterPiece = clone.pieces.find(p => p.id === pieceId);
+            return Boolean(afterPiece && afterPiece.inHomeStretch);
+        } catch (e) {
+            return false;
+        }
+    }
+
+    getHomeEntryActions(playerId, actions) {
+        const result = [];
+        for (const action of actions || []) {
+            if (this.actionWouldEnterHome(playerId, action)) {
+                result.push(action);
+            }
+        }
+        return result;
     }
 
     findFirstAvailableAction(playerId) {

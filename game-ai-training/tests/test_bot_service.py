@@ -36,3 +36,10 @@ def test_load_bots_detects_algorithm(tmp_path):
 
     assert isinstance(bots[0], GameBot)
     assert isinstance(bots[1], DQNBot)
+
+
+def test_bot_service_prioritizes_home_entry_actions():
+    from bot_service import prioritize_home_entry_actions
+
+    assert prioritize_home_entry_actions([5, 6, 7], [6]) == [6]
+    assert prioritize_home_entry_actions([5, 6, 7], [8]) == [5, 6, 7]
