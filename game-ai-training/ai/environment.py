@@ -803,6 +803,10 @@ class GameEnvironment:
         # Return the complete set of non-entry valid actions only when no
         # homestretch-entry action is available.
         self.last_valid_actions[player_id] = unique_actions
+        valid_action_set = set(unique_actions)
+        self.last_home_entry_actions[player_id] = [
+            act for act in self.last_home_entry_actions.get(player_id, []) if act in valid_action_set
+        ]
         return unique_actions
 
     def is_action_valid(self, player_id: int, action: int) -> bool:
