@@ -71,6 +71,14 @@ app.get('/replay', (req, res) => {
 
 
 
+
+function getMoveAnimationDirection(card, moveResult) {
+  if ((card && card.value === 'JOKER') || (moveResult && ['leavePenalty', 'choosePosition'].includes(moveResult.action))) {
+    return 'direct';
+  }
+  return card && card.value === '8' ? 'backward' : 'forward';
+}
+
 function announceHomeStretch(game, roomId) {
   for (let i = 0; i < game.players.length; i++) {
     if (!game.homeStretchAnnounced[i] && game.hasAllPiecesInHomeStretch(i)) {
@@ -721,7 +729,8 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
       updatedState.moveAnimations = [{
         pieceId,
         oldPosition: oldPos,
-        newPosition: { ...movedPiece.position }
+        newPosition: { ...movedPiece.position },
+        direction: getMoveAnimationDirection(playedCard, moveResult)
       }];
     }
     io.to(roomId).emit('gameStateUpdate', updatedState);
@@ -797,7 +806,8 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       updatedState.moveAnimations = [{
         pieceId,
         oldPosition: oldPos,
-        newPosition: { ...movedPiece.position }
+        newPosition: { ...movedPiece.position },
+        direction: getMoveAnimationDirection(playedCard, moveResult)
       }];
     }
     io.to(roomId).emit('gameStateUpdate', updatedState);
@@ -898,7 +908,8 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         updatedState.moveAnimations = moveResult.moves.map(move => ({
           pieceId: move.pieceId,
           oldPosition: move.oldPosition,
-          newPosition: move.newPosition
+          newPosition: move.newPosition,
+          direction: 'forward'
         }));
       }
       io.to(roomId).emit('gameStateUpdate', updatedState);
@@ -1017,7 +1028,8 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         updatedState.moveAnimations = moveResult.moves.map(move => ({
           pieceId: move.pieceId,
           oldPosition: move.oldPosition,
-          newPosition: move.newPosition
+          newPosition: move.newPosition,
+          direction: 'forward'
         }));
       }
       io.to(roomId).emit('gameStateUpdate', updatedState);
