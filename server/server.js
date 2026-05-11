@@ -716,6 +716,14 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
     // Atualizar estado do jogo para todos
     const updatedState = game.getGameState();
+    const movedPiece = game.pieces.find(p => p.id === pieceId);
+    if (movedPiece) {
+      updatedState.moveAnimations = [{
+        pieceId,
+        oldPosition: oldPos,
+        newPosition: { ...movedPiece.position }
+      }];
+    }
     io.to(roomId).emit('gameStateUpdate', updatedState);
     announceHomeStretch(game, roomId);
     logTurnState(game);
@@ -784,6 +792,14 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     }
 
     const updatedState = game.getGameState();
+    const movedPiece = game.pieces.find(p => p.id === pieceId);
+    if (movedPiece) {
+      updatedState.moveAnimations = [{
+        pieceId,
+        oldPosition: oldPos,
+        newPosition: { ...movedPiece.position }
+      }];
+    }
     io.to(roomId).emit('gameStateUpdate', updatedState);
     announceHomeStretch(game, roomId);
 
@@ -877,7 +893,15 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       }
 
       // Atualizar estado do jogo para todos
-      io.to(roomId).emit('gameStateUpdate', game.getGameState());
+      const updatedState = game.getGameState();
+      if (moveResult.moves) {
+        updatedState.moveAnimations = moveResult.moves.map(move => ({
+          pieceId: move.pieceId,
+          oldPosition: move.oldPosition,
+          newPosition: move.newPosition
+        }));
+      }
+      io.to(roomId).emit('gameStateUpdate', updatedState);
       announceHomeStretch(game, roomId);
       logTurnState(game);
       
@@ -988,7 +1012,15 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         return;
       }
 
-      io.to(roomId).emit('gameStateUpdate', game.getGameState());
+      const updatedState = game.getGameState();
+      if (moveResult.moves) {
+        updatedState.moveAnimations = moveResult.moves.map(move => ({
+          pieceId: move.pieceId,
+          oldPosition: move.oldPosition,
+          newPosition: move.newPosition
+        }));
+      }
+      io.to(roomId).emit('gameStateUpdate', updatedState);
       announceHomeStretch(game, roomId);
       logTurnState(game);
 

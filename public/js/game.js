@@ -120,6 +120,11 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     const pieceElements = {};
+    const MOVE_ANIMATION_DURATION_MS = 1000;
+    let boardAnimationPromise = Promise.resolve();
+    let isAnimatingBoard = false;
+    let pendingYourTurnData = null;
+    let pendingCardsData = null;
 
     function setPieceNumbersVisible(visible) {
       board?.classList.toggle('show-piece-numbers', visible);
@@ -143,6 +148,58 @@ document.addEventListener('DOMContentLoaded', () => {
       turnMessage.textContent = message;
       turnMessage.className = '';
       turnMessage.classList.add(type);
+    }
+
+    function wait(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function waitForNextFrame() {
+      return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+
+    function positionsEqual(a, b) {
+      return Boolean(a && b && a.row === b.row && a.col === b.col);
+    }
+
+    function capturePieceRects() {
+      const rects = {};
+      Object.entries(pieceElements).forEach(([id, element]) => {
+        if (element && element.isConnected) {
+          rects[id] = element.getBoundingClientRect();
+        }
+      });
+      return rects;
+    }
+
+    function getPieceById(state, id) {
+      return state?.pieces?.find(piece => piece.id === id) || null;
+    }
+
+    function getMoveAnimationDescriptors() {
+      if (!Array.isArray(gameState?.moveAnimations)) return [];
+      return gameState.moveAnimations
+        .filter(move => move && move.pieceId && move.oldPosition && move.newPosition)
+        .map((move, index) => ({
+          pieceId: move.pieceId,
+          from: move.oldPosition,
+          to: move.newPosition,
+          order: index
+        }));
+    }
+
+    function clearMoveHighlights() {
+      board.querySelectorAll('.move-origin, .move-destination').forEach(cell => {
+        cell.classList.remove('move-origin', 'move-destination');
+      });
+    }
+
+    function highlightMoveCells(move) {
+      clearMoveHighlights();
+      const origin = getCell(move.from.row, move.from.col);
+      const destination = getCell(move.to.row, move.to.col);
+      if (origin) origin.classList.add('move-origin');
+      if (destination) destination.classList.add('move-destination');
     }
 
     function showLastMove(message) {
@@ -376,8 +433,9 @@ function handlePlayerInfo(data) {
 }
 
     // Manipuladores de eventos do socket
-    function handleGameStateUpdate(state) {
+    async function handleGameStateUpdate(state) {
         console.log('Estado do jogo recebido:', state);
+        const previousState = gameState;
         gameState = state;
 
         clearJokerMode();
@@ -389,17 +447,31 @@ function handlePlayerInfo(data) {
         console.log('Posição do jogador:', playerPosition);
         }
 
-        updateBoard();
+        const animationPromise = updateBoard(previousState);
+        boardAnimationPromise = animationPromise.catch(error => {
+          console.error('Erro ao animar movimento no tabuleiro:', error);
+        });
         updateTeams();
-        updateTurnInfo();
         updateDeckInfo();
         updateStats(state.stats);
         if (state.lastMove) {
             showLastMove(state.lastMove);
         }
+
+        await boardAnimationPromise;
+        updateTurnInfo();
+        flushDeferredTurnEvents();
     }
     
 function handleUpdateCards(data) {
+  if (isAnimatingBoard) {
+    pendingCardsData = data;
+    return;
+  }
+  applyCardsUpdate(data);
+}
+
+function applyCardsUpdate(data) {
   console.log('Cartas atualizadas recebidas:', data);
   
   if (data.playerPosition !== undefined) {
@@ -462,6 +534,14 @@ function handleHomeEntryChoiceSpecial(data) {
 // Modifique a função handleYourTurn
  // No arquivo game.js do cliente - Modifique a função handleYourTurn
 function handleYourTurn(data) {
+  if (isAnimatingBoard) {
+    pendingYourTurnData = data;
+    return;
+  }
+  applyYourTurn(data);
+}
+
+function applyYourTurn(data) {
   console.log('É sua vez de jogar!', data);
   isMyTurn = true;
   showStatusMessage('É sua vez de jogar!', 'turn');
@@ -475,6 +555,20 @@ function handleYourTurn(data) {
     checkIfStuckInPenalty(data.cards, data.canMove);
   } else {
     console.error('ERRO: Dados de cartas não recebidos');
+  }
+}
+
+function flushDeferredTurnEvents() {
+  if (pendingCardsData) {
+    const data = pendingCardsData;
+    pendingCardsData = null;
+    applyCardsUpdate(data);
+  }
+
+  if (pendingYourTurnData) {
+    const data = pendingYourTurnData;
+    pendingYourTurnData = null;
+    applyYourTurn(data);
   }
 }
 
@@ -614,10 +708,12 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
     }
     
    // Modifique a função updateBoard para incluir o indicador de peças
-function updateBoard() {
-  if (!gameState) return;
+function updateBoard(previousState = null) {
+  if (!gameState) return Promise.resolve();
 
   clearJokerMode();
+  clearMoveHighlights();
+  const previousPieceRects = capturePieceRects();
   
   // Limpar tabuleiro
   const cells = board.querySelectorAll('.cell');
@@ -640,21 +736,19 @@ function updateBoard() {
   markSpecialCells();
 
   // Posicionar peças
-  positionPieces();
-
-  // Reaplicar rotação para ajustar a orientação das peças
-  rotateBoard();
+  const animations = positionPieces(previousState, previousPieceRects);
 
   updatePlayerLabels();
 
-  // Rotacionar novamente para ajustar os rótulos recém-criados
-  rotateBoard();
+  // Ajustar os rótulos recém-criados sem sobrescrever transforms usados pela animação.
+  rotateBoard(false);
 
   console.log('Tabuleiro atualizado');
+  return animatePieceMoves(animations);
 }
 
 
-function rotateBoard() {
+function rotateBoard(rotatePieces = true) {
   // Rotacionar o tabuleiro com base na posição do jogador
   // 0: sem rotação, 1: 90° no sentido anti-horário, 2: 180°, 3: 270° no sentido anti-horário
   if (playerPosition === undefined) return;
@@ -668,10 +762,12 @@ function rotateBoard() {
   board.style.transform = `rotate(${rotation}deg)`;
 
   // Rotacionar também as peças na direção oposta para manter orientação correta
-  const pieces = document.querySelectorAll('.piece');
-  pieces.forEach(piece => {
-    piece.style.transform = `rotate(${-rotation}deg)`;
-  });
+  if (rotatePieces) {
+    const pieces = document.querySelectorAll('.piece');
+    pieces.forEach(piece => {
+      piece.style.transform = `rotate(${-rotation}deg)`;
+    });
+  }
 
   // Ajustar a grade de nomes para acompanhar o tabuleiro
   const labelsContainer = document.getElementById('player-labels');
@@ -866,10 +962,10 @@ function updatePlayerLabels() {
     
    // Modifique a função positionPieces
 
-        function positionPieces() {
+        function positionPieces(previousState = null, previousPieceRects = {}) {
   if (!gameState || !gameState.pieces) {
     console.log('Sem peças para posicionar');
-    return;
+    return [];
   }
 
   const rotationMap = [180, 90, 0, 270];
@@ -886,6 +982,10 @@ function updatePlayerLabels() {
       partnerId = partner ? partner.position : null;
     }
   }
+
+  const animations = [];
+  const moveDescriptors = getMoveAnimationDescriptors();
+  const moveDescriptorByPiece = new Map(moveDescriptors.map(move => [move.pieceId, move]));
 
   gameState.pieces.forEach(piece => {
     const cell = getCell(piece.position.row, piece.position.col);
@@ -921,18 +1021,55 @@ function updatePlayerLabels() {
     }
     ensurePieceLabel(pieceElement, piece);
     
-    const first = pieceElement.getBoundingClientRect();
+    const previousPiece = getPieceById(previousState, piece.id);
+    const moveDescriptor = moveDescriptorByPiece.get(piece.id);
+    const first = previousPieceRects[piece.id];
     cell.appendChild(pieceElement);
     const last = pieceElement.getBoundingClientRect();
-    const deltaX = first.left - last.left;
-    const deltaY = first.top - last.top;
+    const moved = moveDescriptor || (previousPiece && !positionsEqual(previousPiece.position, piece.position));
+    const deltaX = first ? first.left - last.left : 0;
+    const deltaY = first ? first.top - last.top : 0;
+
     pieceElement.style.transition = 'none';
-    pieceElement.style.transform = `translate(${deltaX}px, ${deltaY}px) rotate(${-rotation}deg)`;
-    requestAnimationFrame(() => {
-      pieceElement.style.transition = 'transform 0.3s';
-      pieceElement.style.transform = `rotate(${-rotation}deg)`;
-    });
+    pieceElement.style.transform = `rotate(${-rotation}deg)`;
+
+    if (moved && (Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5)) {
+      pieceElement.style.transform = `translate(${deltaX}px, ${deltaY}px) rotate(${-rotation}deg)`;
+      animations.push({
+        element: pieceElement,
+        from: moveDescriptor ? moveDescriptor.from : previousPiece.position,
+        to: moveDescriptor ? moveDescriptor.to : piece.position,
+        order: moveDescriptor ? moveDescriptor.order : animations.length,
+        finalTransform: `rotate(${-rotation}deg)`
+      });
+    }
   });
+
+  return animations.sort((a, b) => a.order - b.order);
+}
+
+async function animatePieceMoves(animations) {
+  if (!animations || animations.length === 0) {
+    isAnimatingBoard = false;
+    return;
+  }
+
+  isAnimatingBoard = true;
+  isMyTurn = false;
+  showStatusMessage('Acompanhando a jogada no tabuleiro...', 'info');
+
+  for (const animation of animations) {
+    highlightMoveCells(animation);
+    animation.element.classList.add('moving');
+    await waitForNextFrame();
+    animation.element.style.transition = `transform ${MOVE_ANIMATION_DURATION_MS}ms ease-in-out`;
+    animation.element.style.transform = animation.finalTransform;
+    await wait(MOVE_ANIMATION_DURATION_MS);
+    animation.element.classList.remove('moving');
+  }
+
+  clearMoveHighlights();
+  isAnimatingBoard = false;
 }
 
 

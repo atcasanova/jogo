@@ -636,6 +636,7 @@ class BotWrapper {
         success: true,
         action: result && result.action ? result.action : 'move',
         captures: result && result.captures ? result.captures : [],
+        moves: result && result.moves ? result.moves : null,
         gameState: this.getGameState(),
         gameEnded,
         winningTeam
