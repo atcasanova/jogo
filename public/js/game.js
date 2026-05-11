@@ -184,8 +184,87 @@ document.addEventListener('DOMContentLoaded', () => {
           pieceId: move.pieceId,
           from: move.oldPosition,
           to: move.newPosition,
+          direction: move.direction,
           order: index
         }));
+    }
+
+
+    function getTrackCoordinates() {
+      const track = [];
+      for (let col = 0; col <= 18; col++) track.push({ row: 0, col });
+      for (let row = 1; row <= 18; row++) track.push({ row, col: 18 });
+      for (let col = 17; col >= 0; col--) track.push({ row: 18, col });
+      for (let row = 17; row >= 1; row--) track.push({ row, col: 0 });
+      return track;
+    }
+
+    function positionIndex(path, position) {
+      return path.findIndex(pos => positionsEqual(pos, position));
+    }
+
+    function pathBetweenIndexes(path, startIndex, endIndex, direction = 'forward') {
+      if (startIndex === -1 || endIndex === -1) return [];
+      const step = direction === 'backward' ? -1 : 1;
+      const positions = [path[startIndex]];
+      let index = startIndex;
+      while (index !== endIndex) {
+        index = (index + step + path.length) % path.length;
+        positions.push(path[index]);
+        if (positions.length > path.length + 1) break;
+      }
+      return positions;
+    }
+
+    function buildBoardMovementPath(move, piece, previousPiece) {
+      const from = move?.from || previousPiece?.position;
+      const to = move?.to || piece?.position;
+      if (!from || !to || !piece || move?.direction === 'direct' || positionsEqual(from, to)) return [];
+
+      const track = getTrackCoordinates();
+      const startTrackIndex = positionIndex(track, from);
+      const endTrackIndex = positionIndex(track, to);
+      if (startTrackIndex !== -1 && endTrackIndex !== -1) {
+        return pathBetweenIndexes(track, startTrackIndex, endTrackIndex, move?.direction || 'forward');
+      }
+
+      const homeStretch = homeStretches[piece.playerId] || [];
+      const startHomeIndex = positionIndex(homeStretch, from);
+      const endHomeIndex = positionIndex(homeStretch, to);
+      if (startHomeIndex !== -1 && endHomeIndex !== -1 && endHomeIndex >= startHomeIndex) {
+        return homeStretch.slice(startHomeIndex, endHomeIndex + 1);
+      }
+
+      if (startTrackIndex !== -1 && endHomeIndex !== -1) {
+        const entrances = [
+          { row: 0, col: 4 },
+          { row: 4, col: 18 },
+          { row: 18, col: 14 },
+          { row: 14, col: 0 }
+        ];
+        const entranceIndex = positionIndex(track, entrances[piece.playerId]);
+        const boardPath = pathBetweenIndexes(track, startTrackIndex, entranceIndex, 'forward');
+        return [...boardPath, ...homeStretch.slice(0, endHomeIndex + 1)];
+      }
+
+      return [];
+    }
+
+    function buildMovementKeyframes(path, finalRect, rotation) {
+      const keyframes = path
+        .map(position => getCell(position.row, position.col))
+        .filter(Boolean)
+        .map(cell => {
+          const rect = cell.getBoundingClientRect();
+          const centeredLeft = rect.left + (rect.width - finalRect.width) / 2;
+          const centeredTop = rect.top + (rect.height - finalRect.height) / 2;
+          return {
+            transform: `translate(${centeredLeft - finalRect.left}px, ${centeredTop - finalRect.top}px) rotate(${-rotation}deg)`
+          };
+        });
+
+      keyframes.push({ transform: `rotate(${-rotation}deg)` });
+      return keyframes;
     }
 
     function clearMoveHighlights() {
@@ -1034,12 +1113,21 @@ function updatePlayerLabels() {
     pieceElement.style.transform = `rotate(${-rotation}deg)`;
 
     if (moved && (Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5)) {
-      pieceElement.style.transform = `translate(${deltaX}px, ${deltaY}px) rotate(${-rotation}deg)`;
+      const boardMovementPath = moveDescriptor ? buildBoardMovementPath(moveDescriptor, piece, previousPiece) : [];
+      const keyframes = boardMovementPath.length > 1
+        ? buildMovementKeyframes(boardMovementPath, last, rotation)
+        : [
+            { transform: `translate(${deltaX}px, ${deltaY}px) rotate(${-rotation}deg)` },
+            { transform: `rotate(${-rotation}deg)` }
+          ];
+
+      pieceElement.style.transform = keyframes[0].transform;
       animations.push({
         element: pieceElement,
         from: moveDescriptor ? moveDescriptor.from : previousPiece.position,
         to: moveDescriptor ? moveDescriptor.to : piece.position,
         order: moveDescriptor ? moveDescriptor.order : animations.length,
+        keyframes,
         finalTransform: `rotate(${-rotation}deg)`
       });
     }
@@ -1062,9 +1150,14 @@ async function animatePieceMoves(animations) {
     highlightMoveCells(animation);
     animation.element.classList.add('moving');
     await waitForNextFrame();
-    animation.element.style.transition = `transform ${MOVE_ANIMATION_DURATION_MS}ms ease-in-out`;
+    animation.element.style.transition = 'none';
+    const movement = animation.element.animate(animation.keyframes, {
+      duration: MOVE_ANIMATION_DURATION_MS,
+      easing: 'ease-in-out',
+      fill: 'forwards'
+    });
+    await movement.finished.catch(() => {});
     animation.element.style.transform = animation.finalTransform;
-    await wait(MOVE_ANIMATION_DURATION_MS);
     animation.element.classList.remove('moving');
   }
 

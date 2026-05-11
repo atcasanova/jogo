@@ -2,6 +2,14 @@ const { spawn } = require('child_process');
 const path = require('path');
 const BotWrapper = require('./bot_wrapper');
 const { logTurnState, logMoveDetails } = require('./log_utils');
+
+function getMoveAnimationDirection(card, result) {
+  if ((card && card.value === 'JOKER') || (result && ['leavePenalty', 'choosePosition'].includes(result.action))) {
+    return 'direct';
+  }
+  return card && card.value === '8' ? 'backward' : 'forward';
+}
+
 class BotManager {
   constructor(game, io, onGameOver = null) {
     this.game = game;
@@ -103,7 +111,8 @@ class BotManager {
         stateForClients.moveAnimations = result.moves.map(move => ({
           pieceId: move.pieceId,
           oldPosition: move.oldPosition,
-          newPosition: move.newPosition
+          newPosition: move.newPosition,
+          direction: 'forward'
         }));
       } else if (pieceId && oldPos) {
         const movedPiece = this.game.pieces.find(p => p.id === pieceId);
@@ -111,7 +120,8 @@ class BotManager {
           stateForClients.moveAnimations = [{
             pieceId,
             oldPosition: oldPos,
-            newPosition: { ...movedPiece.position }
+            newPosition: { ...movedPiece.position },
+            direction: getMoveAnimationDirection(playedCard, result)
           }];
         }
       }
