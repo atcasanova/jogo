@@ -250,16 +250,36 @@ document.addEventListener('DOMContentLoaded', () => {
       return [];
     }
 
+    function viewportDeltaToBoardDelta(deltaX, deltaY, rotation) {
+      const radians = -rotation * Math.PI / 180;
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      return {
+        x: deltaX * cos - deltaY * sin,
+        y: deltaX * sin + deltaY * cos
+      };
+    }
+
+    function rectCenterDelta(fromRect, toRect) {
+      return {
+        x: (fromRect.left + fromRect.width / 2) - (toRect.left + toRect.width / 2),
+        y: (fromRect.top + fromRect.height / 2) - (toRect.top + toRect.height / 2)
+      };
+    }
+
+    function translateTransformFromViewportDelta(deltaX, deltaY, rotation) {
+      const localDelta = viewportDeltaToBoardDelta(deltaX, deltaY, rotation);
+      return `translate(${localDelta.x}px, ${localDelta.y}px) rotate(${-rotation}deg)`;
+    }
+
     function buildMovementKeyframes(path, finalRect, rotation) {
       const keyframes = path
         .map(position => getCell(position.row, position.col))
         .filter(Boolean)
         .map(cell => {
-          const rect = cell.getBoundingClientRect();
-          const centeredLeft = rect.left + (rect.width - finalRect.width) / 2;
-          const centeredTop = rect.top + (rect.height - finalRect.height) / 2;
+          const delta = rectCenterDelta(cell.getBoundingClientRect(), finalRect);
           return {
-            transform: `translate(${centeredLeft - finalRect.left}px, ${centeredTop - finalRect.top}px) rotate(${-rotation}deg)`
+            transform: translateTransformFromViewportDelta(delta.x, delta.y, rotation)
           };
         });
 
@@ -1106,8 +1126,9 @@ function updatePlayerLabels() {
     cell.appendChild(pieceElement);
     const last = pieceElement.getBoundingClientRect();
     const moved = moveDescriptor || (previousPiece && !positionsEqual(previousPiece.position, piece.position));
-    const deltaX = first ? first.left - last.left : 0;
-    const deltaY = first ? first.top - last.top : 0;
+    const delta = first ? rectCenterDelta(first, last) : { x: 0, y: 0 };
+    const deltaX = delta.x;
+    const deltaY = delta.y;
 
     pieceElement.style.transition = 'none';
     pieceElement.style.transform = `rotate(${-rotation}deg)`;
@@ -1117,7 +1138,7 @@ function updatePlayerLabels() {
       const keyframes = boardMovementPath.length > 1
         ? buildMovementKeyframes(boardMovementPath, last, rotation)
         : [
-            { transform: `translate(${deltaX}px, ${deltaY}px) rotate(${-rotation}deg)` },
+            { transform: translateTransformFromViewportDelta(deltaX, deltaY, rotation) },
             { transform: `rotate(${-rotation}deg)` }
           ];
 
