@@ -169,6 +169,49 @@ class BotWrapper {
     ][playerId];
   }
 
+  homeStretchForPlayer(playerId, game = this.game) {
+    if (game && typeof game.homeStretchForPlayer === 'function') {
+      return game.homeStretchForPlayer(playerId);
+    }
+    return [
+      [
+        { row: 1, col: 4 },
+        { row: 2, col: 4 },
+        { row: 3, col: 4 },
+        { row: 4, col: 4 },
+        { row: 5, col: 4 }
+      ],
+      [
+        { row: 4, col: 17 },
+        { row: 4, col: 16 },
+        { row: 4, col: 15 },
+        { row: 4, col: 14 },
+        { row: 4, col: 13 }
+      ],
+      [
+        { row: 17, col: 14 },
+        { row: 16, col: 14 },
+        { row: 15, col: 14 },
+        { row: 14, col: 14 },
+        { row: 13, col: 14 }
+      ],
+      [
+        { row: 14, col: 1 },
+        { row: 14, col: 2 },
+        { row: 14, col: 3 },
+        { row: 14, col: 4 },
+        { row: 14, col: 5 }
+      ]
+    ][playerId];
+  }
+
+  homeStretchIndex(piece, game = this.game) {
+    if (!piece || !piece.position) return -1;
+    const stretch = this.homeStretchForPlayer(piece.playerId, game);
+    if (!stretch) return -1;
+    return stretch.findIndex(pos => this.positionsEqual(pos, piece.position));
+  }
+
   trackIndex(pos) {
     const track = this.getTrackCoordinates();
     return track.findIndex(p => this.positionsEqual(p, pos));
@@ -363,17 +406,17 @@ class BotWrapper {
     };
   }
 
-  actionWouldEnterHome(playerId, actionId) {
+  homeEntryDepthForAction(playerId, actionId) {
     try {
       if (!this.game || !this.game.players || !this.game.players[playerId] || actionId >= 70) {
-        return false;
+        return -1;
       }
 
       const clone = this.game.cloneForSimulation();
 
       if (actionId >= 60) {
         const moves = this.specialActions[actionId];
-        if (!moves) return false;
+        if (!moves) return -1;
         const before = moves.map(m => {
           const piece = clone.pieces.find(p => p.id === m.pieceId);
           return {
@@ -386,19 +429,20 @@ class BotWrapper {
           result = clone.resumeSpecialMove(true);
         }
         if (result && result.success === false) {
-          return false;
+          return -1;
         }
-        return before.some(info => {
+        return before.reduce((bestDepth, info) => {
           const piece = clone.pieces.find(p => p.id === info.id);
-          return piece && !info.inHomeStretch && piece.inHomeStretch;
-        });
+          if (!piece || info.inHomeStretch || !piece.inHomeStretch) return bestDepth;
+          return Math.max(bestDepth, this.homeStretchIndex(piece, clone));
+        }, -1);
       }
 
       const info = this.actionPieceInfo(playerId, actionId);
-      if (!info) return false;
+      if (!info) return -1;
       const beforePiece = clone.pieces.find(p => p.id === info.pieceId);
       if (!beforePiece || beforePiece.inHomeStretch || beforePiece.completed) {
-        return false;
+        return -1;
       }
 
       let result = clone.makeMove(info.pieceId, info.cardIndex);
@@ -406,18 +450,29 @@ class BotWrapper {
         result = clone.makeMove(info.pieceId, info.cardIndex, true);
       }
       if (result && result.success === false) {
-        return false;
+        return -1;
       }
 
       const afterPiece = clone.pieces.find(p => p.id === info.pieceId);
-      return Boolean(afterPiece && afterPiece.inHomeStretch);
+      if (!afterPiece || !afterPiece.inHomeStretch) return -1;
+      return this.homeStretchIndex(afterPiece, clone);
     } catch (e) {
-      return false;
+      return -1;
     }
   }
 
+  actionWouldEnterHome(playerId, actionId) {
+    return this.homeEntryDepthForAction(playerId, actionId) >= 0;
+  }
+
   getHomeEntryActions(playerId, actions) {
-    return (actions || []).filter(action => this.actionWouldEnterHome(playerId, action));
+    const entries = (actions || [])
+      .map(action => ({ action, depth: this.homeEntryDepthForAction(playerId, action) }))
+      .filter(entry => entry.depth >= 0);
+    if (entries.length === 0) return [];
+
+    const deepest = Math.max(...entries.map(entry => entry.depth));
+    return entries.filter(entry => entry.depth === deepest).map(entry => entry.action);
   }
 
   applyActionConstraints(playerId, actions) {

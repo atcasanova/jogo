@@ -1,4 +1,5 @@
 const BotWrapper = require('../bot_wrapper');
+const { Game } = require('../game');
 
 function buildCaptureWrapper(capturedPiece, captureAction = 'opponentCapture') {
   const wrapper = new BotWrapper(null);
@@ -76,6 +77,30 @@ describe('BotWrapper live fixed play constraints', () => {
     });
 
     expect(wrapper.applyActionConstraints(0, [1])).toEqual([1]);
+  });
+
+  test('keeps only the deepest home-stretch entry action', () => {
+    const game = new Game('deepest-entry');
+    game.addPlayer('1', 'Alice', true);
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+    game.isActive = true;
+
+    const player = game.players[0];
+    player.cards = [
+      { suit: '♠', value: '2' },
+      { suit: '♣', value: '5' }
+    ];
+
+    const mover = game.pieces.find(p => p.id === 'p0_1');
+    mover.inPenaltyZone = false;
+    mover.position = { row: 0, col: 4 };
+
+    const wrapper = new BotWrapper(game);
+
+    expect(wrapper.getValidActions(0)).toEqual([11]);
   });
 
   test('prioritizes parking an own piece on partner start when partner is jailed', () => {
