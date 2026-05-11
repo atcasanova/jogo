@@ -249,6 +249,8 @@ class GameEnvironment:
         # Cache legal actions so state encoding can include action metadata.
         self.last_valid_actions: Dict[int, List[int]] = {}
         self.last_home_entry_actions: Dict[int, List[int]] = {}
+        self.last_fixed_play_actions: Dict[int, List[int]] = {}
+        self.last_avoid_actions: Dict[int, List[int]] = {}
         # Tracks one-turn 8-card setup opportunities by player. A setup is
         # consumed on that player's next action so it cannot be farmed by
         # repeatedly moving away and back.
@@ -760,10 +762,14 @@ class GameEnvironment:
             result = [fallback[0]] if fallback else []
             self.last_valid_actions[player_id] = result
             self.last_home_entry_actions[player_id] = []
+            self.last_fixed_play_actions[player_id] = []
+            self.last_avoid_actions[player_id] = []
             return result
 
         actions = response.get("validActions", [])
         self.last_home_entry_actions[player_id] = list(response.get("homeEntryActions", []))
+        self.last_fixed_play_actions[player_id] = list(response.get("fixedPlayActions", []))
+        self.last_avoid_actions[player_id] = list(response.get("avoidActions", []))
         # Ensure actions are within the defined action space and remain valid
         # when checked individually. The Node wrapper occasionally returns
         # discard actions for cards that no longer exist. Filtering with
@@ -780,11 +786,15 @@ class GameEnvironment:
                 result = [discard_actions[0]]
                 self.last_valid_actions[player_id] = result
                 self.last_home_entry_actions[player_id] = []
+                self.last_fixed_play_actions[player_id] = []
+                self.last_avoid_actions[player_id] = []
                 return result
             fallback = self._default_discards(player_id)
             result = [fallback[0]] if fallback else []
             self.last_valid_actions[player_id] = result
             self.last_home_entry_actions[player_id] = []
+            self.last_fixed_play_actions[player_id] = []
+            self.last_avoid_actions[player_id] = []
             return result
 
         # Deduplicate while preserving order so the bot only evaluates unique
@@ -805,8 +815,27 @@ class GameEnvironment:
             # Homestretch entry is a rule-level priority for the training policy:
             # when any legal action can enter home, mask out every alternative so
             # the bot cannot learn to prefer captures, setup moves, or discards.
+            self.last_fixed_play_actions[player_id] = []
+            self.last_avoid_actions[player_id] = []
             self.last_valid_actions[player_id] = home_entry_actions
             return home_entry_actions
+
+        fixed_play_actions = [
+            act for act in self.last_fixed_play_actions.get(player_id, []) if act in valid_action_set
+        ]
+        self.last_fixed_play_actions[player_id] = fixed_play_actions
+        if fixed_play_actions:
+            # Fixed tactical plays are treated like home-stretch entries: if a
+            # legal move can make an urgent capture/setup, hide lower-value
+            # alternatives from the learner so training reinforces the tactic.
+            self.last_valid_actions[player_id] = fixed_play_actions
+            return fixed_play_actions
+
+        avoid_actions = {act for act in self.last_avoid_actions.get(player_id, []) if act in valid_action_set}
+        self.last_avoid_actions[player_id] = [act for act in unique_actions if act in avoid_actions]
+        filtered_actions = [act for act in unique_actions if act not in avoid_actions]
+        if filtered_actions:
+            unique_actions = filtered_actions
 
         # Return the complete set of non-entry valid actions only when no
         # homestretch-entry action is available.
@@ -1370,6 +1399,8 @@ class GameEnvironment:
             {'general': 0, 'since_two': 0} for _ in range(4)
         ]
         self.last_step_info = {}
+        self.last_fixed_play_actions = {}
+        self.last_avoid_actions = {}
         self.state_visit_counts = {}
         self.total_state_visits = 0
         self.unique_state_visits = 0

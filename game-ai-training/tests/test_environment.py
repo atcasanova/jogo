@@ -698,3 +698,55 @@ def test_near_finish_conversion_bonus_rewards_fast_close():
     assert reward == pytest.approx(expected)
     assert env.reward_event_counts['near_finish_conversion'] == 1
     assert env.reward_event_totals['near_finish_conversion'] == pytest.approx(expected_conversion)
+
+
+def test_get_valid_actions_prioritizes_fixed_play_actions_after_home_entries():
+    env = GameEnvironment()
+    response = {
+        'validActions': [1, 2, 3],
+        'homeEntryActions': [],
+        'fixedPlayActions': [3],
+        'avoidActions': [],
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            actions = env.get_valid_actions(0)
+
+    assert actions == [3]
+    assert env.last_valid_actions[0] == [3]
+    assert env.last_fixed_play_actions[0] == [3]
+
+
+def test_get_valid_actions_filters_avoidable_fixed_play_actions_when_alternatives_exist():
+    env = GameEnvironment()
+    response = {
+        'validActions': [1, 2, 3],
+        'homeEntryActions': [],
+        'fixedPlayActions': [],
+        'avoidActions': [2, 3],
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            actions = env.get_valid_actions(0)
+
+    assert actions == [1]
+    assert env.last_avoid_actions[0] == [2, 3]
+
+
+def test_get_valid_actions_keeps_avoidable_actions_if_forced():
+    env = GameEnvironment()
+    response = {
+        'validActions': [2],
+        'homeEntryActions': [],
+        'fixedPlayActions': [],
+        'avoidActions': [2],
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            actions = env.get_valid_actions(0)
+
+    assert actions == [2]
+    assert env.last_avoid_actions[0] == [2]

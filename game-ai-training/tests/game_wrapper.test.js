@@ -166,3 +166,204 @@ describe('GameWrapper 7-card split actions', () => {
     expect(specialActions.every(action => wrapper.specialActions[action].length > 1)).toBe(true);
   });
 });
+
+describe('GameWrapper fixed play action metadata', () => {
+  function buildWrapper(capturedPiece, captureAction = 'opponentCapture') {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+    const pieces = [
+      {
+        id: 'p0_1',
+        playerId: 0,
+        completed: false,
+        inPenaltyZone: false,
+        inHomeStretch: false,
+        position: { row: 0, col: 14 }
+      },
+      capturedPiece
+    ];
+    wrapper.game = {
+      pieces,
+      piecesPerPlayer: 5,
+      partnerIdFor(playerId) {
+        return playerId === 0 ? 2 : 0;
+      },
+      isPartner(a, b) {
+        return (a === 0 && b === 2) || (a === 2 && b === 0);
+      },
+      cloneForSimulation() {
+        const clonePieces = JSON.parse(JSON.stringify(pieces));
+        return {
+          pieces: clonePieces,
+          makeMove() {
+            return { success: true, captures: [{ pieceId: capturedPiece.id, action: captureAction }] };
+          }
+        };
+      }
+    };
+    return wrapper;
+  }
+
+  test('prioritizes capturing an opponent in home-entry reach', () => {
+    const wrapper = buildWrapper({
+      id: 'p1_1',
+      playerId: 1,
+      completed: false,
+      inPenaltyZone: false,
+      inHomeStretch: false,
+      position: { row: 0, col: 15 }
+    });
+
+    const metadata = wrapper.getFixedPlayActions(0, [1]);
+
+    expect(metadata.priorityActions).toEqual([1]);
+    expect(metadata.avoidActions).toEqual([]);
+  });
+
+  test('marks opponent captures on start squares as avoidable', () => {
+    const wrapper = buildWrapper({
+      id: 'p1_1',
+      playerId: 1,
+      completed: false,
+      inPenaltyZone: false,
+      inHomeStretch: false,
+      position: { row: 8, col: 18 }
+    });
+
+    const metadata = wrapper.getFixedPlayActions(0, [1]);
+
+    expect(metadata.priorityActions).toEqual([]);
+    expect(metadata.avoidActions).toEqual([1]);
+  });
+
+  test('prioritizes capturing a partner on their start square', () => {
+    const wrapper = buildWrapper({
+      id: 'p2_1',
+      playerId: 2,
+      completed: false,
+      inPenaltyZone: false,
+      inHomeStretch: false,
+      position: { row: 18, col: 10 }
+    }, 'partnerCapture');
+
+    const metadata = wrapper.getFixedPlayActions(0, [1]);
+
+    expect(metadata.priorityActions).toEqual([1]);
+    expect(metadata.avoidActions).toEqual([]);
+  });
+
+  test('does not prioritize partner captures on home entrance squares', () => {
+    const wrapper = buildWrapper({
+      id: 'p2_1',
+      playerId: 2,
+      completed: false,
+      inPenaltyZone: false,
+      inHomeStretch: false,
+      position: { row: 18, col: 14 }
+    }, 'partnerCapture');
+
+    const metadata = wrapper.getFixedPlayActions(0, [1]);
+
+    expect(metadata.priorityActions).toEqual([]);
+    expect(metadata.avoidActions).toEqual([]);
+  });
+
+  test('prioritizes parking an own piece on partner start when partner is jailed', () => {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+    const pieces = [
+      {
+        id: 'p2_1',
+        playerId: 2,
+        completed: false,
+        inPenaltyZone: false,
+        inHomeStretch: false,
+        position: { row: 18, col: 11 }
+      },
+      {
+        id: 'p0_1',
+        playerId: 0,
+        completed: false,
+        inPenaltyZone: true,
+        inHomeStretch: false,
+        position: { row: 2, col: 8 }
+      }
+    ];
+    wrapper.game = {
+      pieces,
+      piecesPerPlayer: 5,
+      partnerIdFor(playerId) {
+        return playerId === 2 ? 0 : 2;
+      },
+      isPartner(a, b) {
+        return (a === 0 && b === 2) || (a === 2 && b === 0);
+      },
+      cloneForSimulation() {
+        const clonePieces = JSON.parse(JSON.stringify(pieces));
+        return {
+          pieces: clonePieces,
+          makeMove(pieceId) {
+            const piece = clonePieces.find(p => p.id === pieceId);
+            piece.position = { row: 0, col: 8 };
+            return { success: true };
+          }
+        };
+      }
+    };
+
+    const metadata = wrapper.getFixedPlayActions(2, [1]);
+
+    expect(metadata.priorityActions).toEqual([1]);
+    expect(metadata.avoidActions).toEqual([]);
+  });
+
+  test('avoids vacating partner start when partner is jailed', () => {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+    const pieces = [
+      {
+        id: 'p2_1',
+        playerId: 2,
+        completed: false,
+        inPenaltyZone: false,
+        inHomeStretch: false,
+        position: { row: 0, col: 8 }
+      },
+      {
+        id: 'p0_1',
+        playerId: 0,
+        completed: false,
+        inPenaltyZone: true,
+        inHomeStretch: false,
+        position: { row: 2, col: 8 }
+      }
+    ];
+    wrapper.game = {
+      pieces,
+      piecesPerPlayer: 5,
+      partnerIdFor(playerId) {
+        return playerId === 2 ? 0 : 2;
+      },
+      isPartner(a, b) {
+        return (a === 0 && b === 2) || (a === 2 && b === 0);
+      },
+      cloneForSimulation() {
+        const clonePieces = JSON.parse(JSON.stringify(pieces));
+        return {
+          pieces: clonePieces,
+          makeMove(pieceId) {
+            const piece = clonePieces.find(p => p.id === pieceId);
+            piece.position = { row: 0, col: 9 };
+            return { success: true };
+          }
+        };
+      }
+    };
+
+    const metadata = wrapper.getFixedPlayActions(2, [1]);
+
+    expect(metadata.priorityActions).toEqual([]);
+    expect(metadata.avoidActions).toEqual([1]);
+  });
+
+});
