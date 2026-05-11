@@ -109,6 +109,7 @@ class GameWrapper {
                     return {
                         validActions,
                         homeEntryActions: this.getHomeEntryActions(command.playerId, validActions),
+                        homeStretchMoveActions: this.getHomeStretchMoveActions(command.playerId, validActions),
                         fixedPlayActions: fixedPlayActions.priorityActions,
                         avoidActions: fixedPlayActions.avoidActions
                     };
@@ -389,6 +390,49 @@ class GameWrapper {
         ][playerId];
     }
 
+    homeStretchForPlayer(playerId, game = this.game) {
+        if (game && typeof game.homeStretchForPlayer === 'function') {
+            return game.homeStretchForPlayer(playerId);
+        }
+        return [
+            [
+                { row: 1, col: 4 },
+                { row: 2, col: 4 },
+                { row: 3, col: 4 },
+                { row: 4, col: 4 },
+                { row: 5, col: 4 }
+            ],
+            [
+                { row: 4, col: 17 },
+                { row: 4, col: 16 },
+                { row: 4, col: 15 },
+                { row: 4, col: 14 },
+                { row: 4, col: 13 }
+            ],
+            [
+                { row: 17, col: 14 },
+                { row: 16, col: 14 },
+                { row: 15, col: 14 },
+                { row: 14, col: 14 },
+                { row: 13, col: 14 }
+            ],
+            [
+                { row: 14, col: 1 },
+                { row: 14, col: 2 },
+                { row: 14, col: 3 },
+                { row: 14, col: 4 },
+                { row: 14, col: 5 }
+            ]
+        ][playerId];
+    }
+
+    homeStretchIndex(piece, game = this.game) {
+        if (!piece || !piece.position) return -1;
+        const stretch = this.homeStretchForPlayer(piece.playerId, game);
+        if (!stretch) return -1;
+        return stretch.findIndex(pos => this.positionsEqual(pos, piece.position));
+    }
+
     trackIndex(pos) {
         const track = this.getTrackCoordinates();
         return track.findIndex(p => this.positionsEqual(p, pos));
@@ -650,6 +694,75 @@ class GameWrapper {
         } catch (e) {
             return false;
         }
+    }
+
+    homeStretchProgressForAction(playerId, actionId) {
+        try {
+            if (!this.game || !this.game.players || !this.game.players[playerId] || actionId >= 70) {
+                return -1;
+            }
+
+            const clone = this.game.cloneForSimulation();
+            const beforeByPiece = new Map();
+            const trackBefore = (pieceId) => {
+                const piece = clone.pieces.find(p => p.id === pieceId);
+                if (!piece || !piece.inHomeStretch || piece.completed) return;
+                beforeByPiece.set(pieceId, this.homeStretchIndex(piece, clone));
+            };
+
+            if (actionId >= 60) {
+                const moves = this.specialActions[actionId];
+                if (!moves) return -1;
+                for (const move of moves) {
+                    trackBefore(move.pieceId);
+                }
+                if (beforeByPiece.size === 0) return -1;
+
+                let result = clone.makeSpecialMove(moves);
+                if (result && result.action === 'homeEntryChoice') {
+                    result = clone.resumeSpecialMove(true);
+                }
+                if (result && result.success === false) {
+                    return -1;
+                }
+            } else {
+                const info = this.actionPieceInfo(playerId, actionId);
+                if (!info) return -1;
+                const card = this.game.players[playerId].cards[info.cardIndex];
+                if (!card || !['A', '2', '3', '4'].includes(card.value)) {
+                    return -1;
+                }
+                trackBefore(info.pieceId);
+                if (beforeByPiece.size === 0) return -1;
+
+                const result = clone.makeMove(info.pieceId, info.cardIndex);
+                if (result && result.success === false) {
+                    return -1;
+                }
+            }
+
+            let bestProgress = -1;
+            for (const [pieceId, beforeIndex] of beforeByPiece.entries()) {
+                const piece = clone.pieces.find(p => p.id === pieceId);
+                const afterIndex = this.homeStretchIndex(piece, clone);
+                if (afterIndex > beforeIndex) {
+                    bestProgress = Math.max(bestProgress, afterIndex);
+                }
+            }
+            return bestProgress;
+        } catch (e) {
+            return -1;
+        }
+    }
+
+    getHomeStretchMoveActions(playerId, actions) {
+        const moves = (actions || [])
+            .map(action => ({ action, progress: this.homeStretchProgressForAction(playerId, action) }))
+            .filter(entry => entry.progress >= 0);
+        if (moves.length === 0) return [];
+
+        const deepest = Math.max(...moves.map(entry => entry.progress));
+        return moves.filter(entry => entry.progress === deepest).map(entry => entry.action);
     }
 
     getHomeEntryActions(playerId, actions) {
