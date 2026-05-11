@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
           from: move.oldPosition,
           to: move.newPosition,
           direction: move.direction,
-          order: index
+          order: Number.isFinite(move.order) ? move.order : index
         }));
     }
 

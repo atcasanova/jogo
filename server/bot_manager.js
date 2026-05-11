@@ -3,6 +3,44 @@ const path = require('path');
 const BotWrapper = require('./bot_wrapper');
 const { logTurnState, logMoveDetails } = require('./log_utils');
 
+
+function positionsEqual(a, b) {
+  return Boolean(a && b && a.row === b.row && a.col === b.col);
+}
+
+function capturePiecePositions(game) {
+  const positions = new Map();
+  game.pieces.forEach(piece => {
+    positions.set(piece.id, { ...piece.position });
+  });
+  return positions;
+}
+
+function buildMoveAnimations(game, previousPositions, primaryMoves = []) {
+  const animations = primaryMoves.map((move, index) => ({
+    ...move,
+    order: index
+  }));
+  const primaryPieceIds = new Set(primaryMoves.map(move => move.pieceId));
+
+  game.pieces.forEach(piece => {
+    const oldPosition = previousPositions.get(piece.id);
+    if (!oldPosition || primaryPieceIds.has(piece.id) || positionsEqual(oldPosition, piece.position)) {
+      return;
+    }
+
+    animations.push({
+      pieceId: piece.id,
+      oldPosition,
+      newPosition: { ...piece.position },
+      direction: 'direct',
+      order: animations.length
+    });
+  });
+
+  return animations;
+}
+
 function getMoveAnimationDirection(card, result) {
   if ((card && card.value === 'JOKER') || (result && ['leavePenalty', 'choosePosition'].includes(result.action))) {
     return 'direct';
@@ -104,25 +142,27 @@ class BotManager {
         playedCard = this.game.players[current.position].cards[cardIndex];
       }
 
+      const previousPositions = capturePiecePositions(this.game);
       const result = this.wrapper.makeMove(current.position, actionId);
       const roomId = this.game.roomId;
       const stateForClients = result.gameState;
       if (actionId >= 60 && actionId < 70 && result.moves) {
-        stateForClients.moveAnimations = result.moves.map(move => ({
+        const primaryMoves = result.moves.map(move => ({
           pieceId: move.pieceId,
           oldPosition: move.oldPosition,
           newPosition: move.newPosition,
           direction: 'forward'
         }));
+        stateForClients.moveAnimations = buildMoveAnimations(this.game, previousPositions, primaryMoves);
       } else if (pieceId && oldPos) {
         const movedPiece = this.game.pieces.find(p => p.id === pieceId);
         if (movedPiece) {
-          stateForClients.moveAnimations = [{
+          stateForClients.moveAnimations = buildMoveAnimations(this.game, previousPositions, [{
             pieceId,
             oldPosition: oldPos,
             newPosition: { ...movedPiece.position },
             direction: getMoveAnimationDirection(playedCard, result)
-          }];
+          }]);
         }
       }
       this.io.to(roomId).emit('gameStateUpdate', stateForClients);
