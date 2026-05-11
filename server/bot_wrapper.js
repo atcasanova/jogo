@@ -124,9 +124,8 @@ class BotWrapper {
       const validActions = [...specialActionsList, ...moveActions];
 
       if (validActions.length === 0) {
-        const maxDiscardCards = Math.min(cardIndices.length, 10);
-        for (let i = 0; i < maxDiscardCards; i++) {
-          const cardIdx = cardIndices[i];
+        const discardCardIndices = this.getPreferredDiscardCardIndices(player.cards, cardIndices);
+        for (const cardIdx of discardCardIndices) {
           validActions.push(70 + cardIdx);
         }
       }
@@ -135,6 +134,17 @@ class BotWrapper {
     } catch (e) {
       return [];
     }
+  }
+
+  isProtectedDiscardCard(card) {
+    return Boolean(card && ['7', '8', 'JOKER'].includes(card.value));
+  }
+
+  getPreferredDiscardCardIndices(cards, candidateIndices) {
+    const safeIndices = (candidateIndices || [])
+      .filter(idx => cards && cards[idx] && !this.isProtectedDiscardCard(cards[idx]));
+    const selectedIndices = safeIndices.length > 0 ? safeIndices : (candidateIndices || []);
+    return selectedIndices.slice(0, 10);
   }
 
 
@@ -512,6 +522,16 @@ class BotWrapper {
       if (actionId >= 70) {
         const cardIndex = actionId - 70;
         playedCard = this.game.players[playerId].cards[cardIndex];
+
+        const preferredDiscardCardIndices = this.getPreferredDiscardCardIndices(
+          this.game.players[playerId].cards,
+          Object.keys(this.game.players[playerId].cards || {}).map(Number)
+        );
+        if (this.isProtectedDiscardCard(playedCard) &&
+            preferredDiscardCardIndices.length > 0 &&
+            !preferredDiscardCardIndices.includes(cardIndex)) {
+          return this.makeMove(playerId, 70 + preferredDiscardCardIndices[0]);
+        }
 
         if (this.game.hasAnyValidMove && this.game.hasAnyValidMove(playerId)) {
           const alt = this.getValidActions(playerId)[0];
