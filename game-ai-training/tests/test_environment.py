@@ -135,6 +135,26 @@ def test_get_valid_actions_prioritizes_home_entry_actions():
     assert env.last_home_entry_actions[0] == [2]
 
 
+
+def test_get_valid_actions_prioritizes_home_stretch_move_actions_after_entries():
+    env = GameEnvironment()
+    response = {
+        'validActions': [1, 2, 2, 3],
+        'homeEntryActions': [],
+        'homeStretchMoveActions': [2, 4],
+        'fixedPlayActions': [3],
+        'avoidActions': [],
+    }
+
+    with patch.object(env, 'send_command', return_value=response):
+        with patch.object(env, 'is_action_valid', return_value=True):
+            actions = env.get_valid_actions(0)
+
+    assert actions == [2]
+    assert env.last_valid_actions[0] == [2]
+    assert env.last_home_stretch_move_actions[0] == [2]
+    assert env.last_fixed_play_actions[0] == []
+
 def test_missed_home_entry_penalty_when_entry_action_available():
     env = GameEnvironment()
     step_cost = STEP_PENALTY_BASE * max(1.0, env.pieces_per_player / 2.0)

@@ -249,6 +249,7 @@ class GameEnvironment:
         # Cache legal actions so state encoding can include action metadata.
         self.last_valid_actions: Dict[int, List[int]] = {}
         self.last_home_entry_actions: Dict[int, List[int]] = {}
+        self.last_home_stretch_move_actions: Dict[int, List[int]] = {}
         self.last_fixed_play_actions: Dict[int, List[int]] = {}
         self.last_avoid_actions: Dict[int, List[int]] = {}
         # Tracks one-turn 8-card setup opportunities by player. A setup is
@@ -762,12 +763,14 @@ class GameEnvironment:
             result = [fallback[0]] if fallback else []
             self.last_valid_actions[player_id] = result
             self.last_home_entry_actions[player_id] = []
+            self.last_home_stretch_move_actions[player_id] = []
             self.last_fixed_play_actions[player_id] = []
             self.last_avoid_actions[player_id] = []
             return result
 
         actions = response.get("validActions", [])
         self.last_home_entry_actions[player_id] = list(response.get("homeEntryActions", []))
+        self.last_home_stretch_move_actions[player_id] = list(response.get("homeStretchMoveActions", []))
         self.last_fixed_play_actions[player_id] = list(response.get("fixedPlayActions", []))
         self.last_avoid_actions[player_id] = list(response.get("avoidActions", []))
         # Ensure actions are within the defined action space and remain valid
@@ -786,6 +789,7 @@ class GameEnvironment:
                 result = [discard_actions[0]]
                 self.last_valid_actions[player_id] = result
                 self.last_home_entry_actions[player_id] = []
+                self.last_home_stretch_move_actions[player_id] = []
                 self.last_fixed_play_actions[player_id] = []
                 self.last_avoid_actions[player_id] = []
                 return result
@@ -793,6 +797,7 @@ class GameEnvironment:
             result = [fallback[0]] if fallback else []
             self.last_valid_actions[player_id] = result
             self.last_home_entry_actions[player_id] = []
+            self.last_home_stretch_move_actions[player_id] = []
             self.last_fixed_play_actions[player_id] = []
             self.last_avoid_actions[player_id] = []
             return result
@@ -815,10 +820,24 @@ class GameEnvironment:
             # Homestretch entry is a rule-level priority for the training policy:
             # when any legal action can enter home, mask out every alternative so
             # the bot cannot learn to prefer captures, setup moves, or discards.
+            self.last_home_stretch_move_actions[player_id] = []
             self.last_fixed_play_actions[player_id] = []
             self.last_avoid_actions[player_id] = []
             self.last_valid_actions[player_id] = home_entry_actions
             return home_entry_actions
+
+        home_stretch_move_actions = [
+            act for act in self.last_home_stretch_move_actions.get(player_id, []) if act in valid_action_set
+        ]
+        self.last_home_stretch_move_actions[player_id] = home_stretch_move_actions
+        if home_stretch_move_actions:
+            # Once a piece is already in the homestretch, moving it deeper with
+            # A/2/3/4 or a split 7 is mandatory so bots keep organizing pieces
+            # instead of wasting winning positions on unrelated moves.
+            self.last_fixed_play_actions[player_id] = []
+            self.last_avoid_actions[player_id] = []
+            self.last_valid_actions[player_id] = home_stretch_move_actions
+            return home_stretch_move_actions
 
         fixed_play_actions = [
             act for act in self.last_fixed_play_actions.get(player_id, []) if act in valid_action_set
@@ -843,6 +862,9 @@ class GameEnvironment:
         valid_action_set = set(unique_actions)
         self.last_home_entry_actions[player_id] = [
             act for act in self.last_home_entry_actions.get(player_id, []) if act in valid_action_set
+        ]
+        self.last_home_stretch_move_actions[player_id] = [
+            act for act in self.last_home_stretch_move_actions.get(player_id, []) if act in valid_action_set
         ]
         return unique_actions
 

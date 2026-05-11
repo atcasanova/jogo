@@ -103,6 +103,37 @@ describe('BotWrapper live fixed play constraints', () => {
     expect(wrapper.getValidActions(0)).toEqual([11]);
   });
 
+
+  test('keeps only deepest available home-stretch move action', () => {
+    const game = new Game('home-stretch-progress');
+    game.addPlayer('1', 'Alice', true);
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+    game.isActive = true;
+
+    const player = game.players[0];
+    player.cards = [
+      { suit: '♠', value: 'A' },
+      { suit: '♣', value: '2' },
+      { suit: '♦', value: '5' }
+    ];
+
+    const homeMover = game.pieces.find(p => p.id === 'p0_1');
+    homeMover.inPenaltyZone = false;
+    homeMover.inHomeStretch = true;
+    homeMover.position = { ...game.homeStretchForPlayer(0)[0] };
+
+    const boardMover = game.pieces.find(p => p.id === 'p0_2');
+    boardMover.inPenaltyZone = false;
+    boardMover.position = { row: 0, col: 9 };
+
+    const wrapper = new BotWrapper(game);
+
+    expect(wrapper.getValidActions(0)).toEqual([11]);
+  });
+
   test('prioritizes parking an own piece on partner start when partner is jailed', () => {
     const wrapper = new BotWrapper(null);
     const pieces = [
