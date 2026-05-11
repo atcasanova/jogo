@@ -98,7 +98,24 @@ class BotManager {
 
       const result = this.wrapper.makeMove(current.position, actionId);
       const roomId = this.game.roomId;
-      this.io.to(roomId).emit('gameStateUpdate', result.gameState);
+      const stateForClients = result.gameState;
+      if (actionId >= 60 && actionId < 70 && result.moves) {
+        stateForClients.moveAnimations = result.moves.map(move => ({
+          pieceId: move.pieceId,
+          oldPosition: move.oldPosition,
+          newPosition: move.newPosition
+        }));
+      } else if (pieceId && oldPos) {
+        const movedPiece = this.game.pieces.find(p => p.id === pieceId);
+        if (movedPiece) {
+          stateForClients.moveAnimations = [{
+            pieceId,
+            oldPosition: oldPos,
+            newPosition: { ...movedPiece.position }
+          }];
+        }
+      }
+      this.io.to(roomId).emit('gameStateUpdate', stateForClients);
 
       if (actionId >= 60 && actionId < 70 && result.moves) {
         const msgs = [];

@@ -233,6 +233,43 @@
     --piece-shadow: #3da866;
 }
 
+.piece.moving {
+    z-index: 12;
+    box-shadow: 0 14px 24px rgba(0,0,0,0.45), 0 0 0 4px rgba(255,255,255,0.55), 0 0 32px rgba(255, 236, 122, 0.9);
+}
+
+.cell.move-origin::after,
+.cell.move-destination::after {
+    content: '';
+    position: absolute;
+    inset: 12%;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 4;
+    animation: move-cell-pulse 1s ease-in-out infinite;
+}
+
+.cell.move-origin::after {
+    border: 3px dashed rgba(255, 236, 122, 0.95);
+    background: rgba(255, 236, 122, 0.14);
+}
+
+.cell.move-destination::after {
+    border: 3px solid rgba(111, 255, 176, 0.95);
+    background: rgba(111, 255, 176, 0.16);
+}
+
+@keyframes move-cell-pulse {
+    0%, 100% {
+        transform: scale(0.82);
+        opacity: 0.65;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+}
+
 .player-hand {
     padding: 1.1rem;
     background: linear-gradient(145deg, rgba(17, 19, 36, 0.92), rgba(7, 9, 20, 0.9));
