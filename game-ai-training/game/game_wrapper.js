@@ -329,13 +329,11 @@ class GameWrapper {
             const validActions = [...specialActionsList, ...moveActions];
 
             if (validActions.length === 0) {
-                // If no moves were generated, allow discarding any card. This
-                // ensures the Python trainer always receives at least one
-                // action even when a playable card lies outside the scanned
-                // range.
-                const maxDiscardCards = Math.min(cardIndices.length, 10);
-                for (let i = 0; i < maxDiscardCards; i++) {
-                    const cardIdx = cardIndices[i];
+                // If no moves were generated, allow discarding only low-value
+                // cards first. Preserve 7, 8 and Joker unless every discard
+                // option is protected.
+                const discardCardIndices = this.getPreferredDiscardCardIndices(player.cards, cardIndices);
+                for (const cardIdx of discardCardIndices) {
                     validActions.push(70 + cardIdx);
                 }
             }
@@ -346,6 +344,17 @@ class GameWrapper {
         } catch (error) {
             return [];
         }
+    }
+
+    isProtectedDiscardCard(card) {
+        return Boolean(card && ['7', '8', 'JOKER'].includes(card.value));
+    }
+
+    getPreferredDiscardCardIndices(cards, candidateIndices) {
+        const safeIndices = (candidateIndices || [])
+            .filter(idx => cards && cards[idx] && !this.isProtectedDiscardCard(cards[idx]));
+        const selectedIndices = safeIndices.length > 0 ? safeIndices : (candidateIndices || []);
+        return selectedIndices.slice(0, 10);
     }
 
 
@@ -821,6 +830,16 @@ class GameWrapper {
             if (actionId >= 70) {
                 const cardIndex = actionId - 70;
                 playedCard = this.game.players[playerId].cards[cardIndex];
+
+                const preferredDiscardCardIndices = this.getPreferredDiscardCardIndices(
+                    this.game.players[playerId].cards,
+                    Object.keys(this.game.players[playerId].cards || {}).map(Number)
+                );
+                if (this.isProtectedDiscardCard(playedCard) &&
+                    preferredDiscardCardIndices.length > 0 &&
+                    !preferredDiscardCardIndices.includes(cardIndex)) {
+                    return this.makeMove(playerId, 70 + preferredDiscardCardIndices[0]);
+                }
 
                 if (this.game.hasAnyValidMove && this.game.hasAnyValidMove(playerId)) {
                     const alt = this.findFirstAvailableAction(playerId);

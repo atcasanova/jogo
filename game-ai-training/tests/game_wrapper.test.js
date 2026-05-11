@@ -167,6 +167,89 @@ describe('GameWrapper 7-card split actions', () => {
   });
 });
 
+describe('GameWrapper discard protection', () => {
+  function buildDiscardOnlyWrapper(cards) {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+    wrapper.game = {
+      players: [{ cards }],
+      pieces: [],
+      piecesPerPlayer: 1,
+      cloneForSimulation() {
+        return {
+          pieces: [],
+          makeMove() {
+            throw new Error('no moves');
+          },
+          makeSpecialMove() {
+            throw new Error('no special moves');
+          }
+        };
+      }
+    };
+    return wrapper;
+  }
+
+  test('does not expose 7, 8 or Joker discards while safer cards are available', () => {
+    const wrapper = buildDiscardOnlyWrapper([
+      { value: 'JOKER' },
+      { value: '8' },
+      { value: '7' },
+      { value: '5' },
+      { value: 'K' }
+    ]);
+
+    expect(wrapper.getValidActions(0)).toEqual([73, 74]);
+  });
+
+  test('allows protected discards only when every discard option is protected', () => {
+    const wrapper = buildDiscardOnlyWrapper([
+      { value: '8' },
+      { value: 'JOKER' },
+      { value: '7' }
+    ]);
+
+    expect(wrapper.getValidActions(0)).toEqual([70, 71, 72]);
+  });
+
+  test('redirects stale protected discard actions to a safer discard', () => {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+    const discardedIndices = [];
+    wrapper.game = {
+      isActive: true,
+      currentPlayerIndex: 0,
+      players: [{ name: 'Bot_0', position: 0, cards: [{ value: 'JOKER' }, { value: '5' }] }],
+      pieces: [],
+      discardPile: [],
+      history: [],
+      stats: { roundsWithoutPlay: [0, 0, 0, 0], jokersPlayed: [0, 0, 0, 0] },
+      hasAnyValidMove() {
+        return false;
+      },
+      discardCard(cardIndex) {
+        discardedIndices.push(cardIndex);
+        this.players[0].cards.splice(cardIndex, 1);
+        return { success: true, action: 'discard' };
+      },
+      getCurrentPlayer() {
+        return null;
+      },
+      checkWinCondition() {
+        return false;
+      },
+      getWinningTeam() {
+        return null;
+      }
+    };
+
+    const response = wrapper.makeMove(0, 70);
+
+    expect(response.success).toBe(true);
+    expect(discardedIndices).toEqual([1]);
+  });
+});
+
 describe('GameWrapper fixed play action metadata', () => {
   function buildWrapper(capturedPiece, captureAction = 'opponentCapture') {
     const GameWrapper = loadGameWrapper();
