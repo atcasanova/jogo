@@ -72,6 +72,44 @@ app.get('/replay', (req, res) => {
 
 
 
+
+function positionsEqual(a, b) {
+  return Boolean(a && b && a.row === b.row && a.col === b.col);
+}
+
+function capturePiecePositions(game) {
+  const positions = new Map();
+  game.pieces.forEach(piece => {
+    positions.set(piece.id, { ...piece.position });
+  });
+  return positions;
+}
+
+function buildMoveAnimations(game, previousPositions, primaryMoves = []) {
+  const animations = primaryMoves.map((move, index) => ({
+    ...move,
+    order: index
+  }));
+  const primaryPieceIds = new Set(primaryMoves.map(move => move.pieceId));
+
+  game.pieces.forEach(piece => {
+    const oldPosition = previousPositions.get(piece.id);
+    if (!oldPosition || primaryPieceIds.has(piece.id) || positionsEqual(oldPosition, piece.position)) {
+      return;
+    }
+
+    animations.push({
+      pieceId: piece.id,
+      oldPosition,
+      newPosition: { ...piece.position },
+      direction: 'direct',
+      order: animations.length
+    });
+  });
+
+  return animations;
+}
+
 function getMoveAnimationDirection(card, moveResult) {
   if ((card && card.value === 'JOKER') || (moveResult && ['leavePenalty', 'choosePosition'].includes(moveResult.action))) {
     return 'direct';
@@ -693,6 +731,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
   try {
     const piece = game.pieces.find(p => p.id === pieceId);
     const oldPos = { ...piece.position };
+    const previousPositions = capturePiecePositions(game);
     const playedCard = currentPlayer.cards[cardIndex];
     const moveResult = game.makeMove(pieceId, cardIndex, enterHome);
 
@@ -726,12 +765,12 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
     const updatedState = game.getGameState();
     const movedPiece = game.pieces.find(p => p.id === pieceId);
     if (movedPiece) {
-      updatedState.moveAnimations = [{
+      updatedState.moveAnimations = buildMoveAnimations(game, previousPositions, [{
         pieceId,
         oldPosition: oldPos,
         newPosition: { ...movedPiece.position },
         direction: getMoveAnimationDirection(playedCard, moveResult)
-      }];
+      }]);
     }
     io.to(roomId).emit('gameStateUpdate', updatedState);
     announceHomeStretch(game, roomId);
@@ -793,6 +832,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
    try {
     const piece = game.pieces.find(p => p.id === pieceId);
     const oldPos = { ...piece.position };
+    const previousPositions = capturePiecePositions(game);
     const playedCard = currentPlayer.cards[cardIndex];
     const moveResult = game.makeMove(pieceId, cardIndex, enterHome);
     const msg = logMoveDetails(currentPlayer, pieceId, oldPos, moveResult, game, playedCard);
@@ -803,12 +843,12 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     const updatedState = game.getGameState();
     const movedPiece = game.pieces.find(p => p.id === pieceId);
     if (movedPiece) {
-      updatedState.moveAnimations = [{
+      updatedState.moveAnimations = buildMoveAnimations(game, previousPositions, [{
         pieceId,
         oldPosition: oldPos,
         newPosition: { ...movedPiece.position },
         direction: getMoveAnimationDirection(playedCard, moveResult)
-      }];
+      }]);
     }
     io.to(roomId).emit('gameStateUpdate', updatedState);
     announceHomeStretch(game, roomId);
@@ -865,6 +905,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     
     try {
       const currentPlayer = game.getCurrentPlayer();
+      const previousPositions = capturePiecePositions(game);
       const moveResult = game.makeSpecialMove(moves);
 
       // Atualizar a mão do jogador imediatamente após jogar a carta 7
@@ -905,12 +946,13 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       // Atualizar estado do jogo para todos
       const updatedState = game.getGameState();
       if (moveResult.moves) {
-        updatedState.moveAnimations = moveResult.moves.map(move => ({
+        const primaryMoves = moveResult.moves.map(move => ({
           pieceId: move.pieceId,
           oldPosition: move.oldPosition,
           newPosition: move.newPosition,
           direction: 'forward'
         }));
+        updatedState.moveAnimations = buildMoveAnimations(game, previousPositions, primaryMoves);
       }
       io.to(roomId).emit('gameStateUpdate', updatedState);
       announceHomeStretch(game, roomId);
@@ -985,6 +1027,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     }
 
     try {
+      const previousPositions = capturePiecePositions(game);
       const moveResult = game.resumeSpecialMove(enterHome);
 
       // Garantir que a mão seja atualizada após concluir o movimento especial
@@ -1025,12 +1068,13 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
 
       const updatedState = game.getGameState();
       if (moveResult.moves) {
-        updatedState.moveAnimations = moveResult.moves.map(move => ({
+        const primaryMoves = moveResult.moves.map(move => ({
           pieceId: move.pieceId,
           oldPosition: move.oldPosition,
           newPosition: move.newPosition,
           direction: 'forward'
         }));
+        updatedState.moveAnimations = buildMoveAnimations(game, previousPositions, primaryMoves);
       }
       io.to(roomId).emit('gameStateUpdate', updatedState);
       announceHomeStretch(game, roomId);
