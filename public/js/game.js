@@ -122,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pieceElements = {};
     const MOVE_ANIMATION_DURATION_MS = 1000;
     let boardAnimationPromise = Promise.resolve();
+    let gameStateUpdateQueue = Promise.resolve();
     let isAnimatingBoard = false;
     let pendingYourTurnData = null;
     let pendingCardsData = null;
@@ -431,7 +432,7 @@ function initSocketWithPlayerData(playerData) {
   // Eventos do socket
   socket.on('roomJoined', handleRoomJoined);
   socket.on('gameStarted', handleGameStarted);
-  socket.on('gameStateUpdate', handleGameStateUpdate);
+  socket.on('gameStateUpdate', enqueueGameStateUpdate);
   socket.on('playerInfo', handlePlayerInfo);
   socket.on('yourTurn', handleYourTurn);
   socket.on('gameOver', handleGameOver);
@@ -532,6 +533,14 @@ function handlePlayerInfo(data) {
 }
 
     // Manipuladores de eventos do socket
+    function enqueueGameStateUpdate(state) {
+        gameStateUpdateQueue = gameStateUpdateQueue
+          .then(() => handleGameStateUpdate(state))
+          .catch(error => {
+            console.error('Erro ao processar atualização do estado do jogo:', error);
+          });
+    }
+
     async function handleGameStateUpdate(state) {
         console.log('Estado do jogo recebido:', state);
         const previousState = gameState;
