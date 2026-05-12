@@ -3,6 +3,16 @@ const path = require('path');
 const BotWrapper = require('./bot_wrapper');
 const { logTurnState, logMoveDetails } = require('./log_utils');
 
+const MOVE_ANIMATION_DURATION_MS = 1000;
+const TURN_ANIMATION_BUFFER_MS = 150;
+
+function getTurnAnimationDelay(moveAnimations) {
+  if (!Array.isArray(moveAnimations) || moveAnimations.length === 0) {
+    return 0;
+  }
+  return (moveAnimations.length * MOVE_ANIMATION_DURATION_MS) + TURN_ANIMATION_BUFFER_MS;
+}
+
 
 function positionsEqual(a, b) {
   return Boolean(a && b && a.row === b.row && a.col === b.col);
@@ -14,6 +24,34 @@ function capturePiecePositions(game) {
     positions.set(piece.id, { ...piece.position });
   });
   return positions;
+}
+
+function animationLeavesDestination(animation, otherAnimation) {
+  return positionsEqual(animation.oldPosition, otherAnimation.newPosition);
+}
+
+function orderMoveAnimations(animations) {
+  const remaining = animations.map((animation, originalIndex) => ({
+    ...animation,
+    originalIndex
+  }));
+  const ordered = [];
+
+  while (remaining.length > 0) {
+    const blockingIndex = remaining.findIndex(animation =>
+      remaining.some(otherAnimation =>
+        otherAnimation !== animation && animationLeavesDestination(animation, otherAnimation)
+      )
+    );
+    const nextIndex = blockingIndex === -1 ? 0 : blockingIndex;
+    const [nextAnimation] = remaining.splice(nextIndex, 1);
+    ordered.push(nextAnimation);
+  }
+
+  return ordered.map(({ originalIndex, ...animation }, order) => ({
+    ...animation,
+    order
+  }));
 }
 
 function buildMoveAnimations(game, previousPositions, primaryMoves = []) {
@@ -38,7 +76,7 @@ function buildMoveAnimations(game, previousPositions, primaryMoves = []) {
     });
   });
 
-  return animations;
+  return orderMoveAnimations(animations);
 }
 
 function getMoveAnimationDirection(card, result) {
@@ -219,6 +257,11 @@ class BotManager {
         break;
       }
 
+      const animationDelay = getTurnAnimationDelay(stateForClients.moveAnimations);
+      if (animationDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, animationDelay));
+      }
+
       const nextPlayer = this.game.getCurrentPlayer();
       if (!nextPlayer) break;
 
@@ -232,8 +275,6 @@ class BotManager {
         break;
       }
 
-      const delay = 4000 + Math.random() * 4000;
-      await new Promise(resolve => setTimeout(resolve, delay));
     }
     this.running = false;
   }
