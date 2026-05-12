@@ -167,6 +167,31 @@ describe('GameWrapper 7-card split actions', () => {
   });
 });
 
+describe('GameWrapper home-stretch entry priorities', () => {
+  test('reports only the deepest available home-stretch entry action', () => {
+    const GameWrapper = loadGameWrapper();
+    const wrapper = new GameWrapper();
+    wrapper.setupGame();
+
+    const game = wrapper.game;
+    game.players[0].cards = [
+      { suit: '♠', value: '2' },
+      { suit: '♣', value: '5' }
+    ];
+
+    const mover = game.pieces.find(p => p.id === 'p0_1');
+    mover.inPenaltyZone = false;
+    mover.inHomeStretch = false;
+    mover.completed = false;
+    mover.position = { row: 0, col: 4 };
+
+    const validActions = wrapper.getValidActions(0);
+
+    expect(validActions).toEqual(expect.arrayContaining([1, 11]));
+    expect(wrapper.getHomeEntryActions(0, validActions)).toEqual([11]);
+  });
+});
+
 describe('GameWrapper discard protection', () => {
   function buildDiscardOnlyWrapper(cards) {
     const GameWrapper = loadGameWrapper();

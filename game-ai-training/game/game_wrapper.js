@@ -627,17 +627,17 @@ class GameWrapper {
         };
     }
 
-    actionWouldEnterHome(playerId, actionId) {
+    homeEntryDepthForAction(playerId, actionId) {
         try {
             if (!this.game || !this.game.players || !this.game.players[playerId] || actionId >= 70) {
-                return false;
+                return -1;
             }
 
             const clone = this.game.cloneForSimulation();
 
             if (actionId >= 60) {
                 const moves = this.specialActions[actionId];
-                if (!moves) return false;
+                if (!moves) return -1;
                 const before = moves.map(m => {
                     const piece = clone.pieces.find(p => p.id === m.pieceId);
                     return {
@@ -650,50 +650,40 @@ class GameWrapper {
                     result = clone.resumeSpecialMove(true);
                 }
                 if (result && result.success === false) {
-                    return false;
+                    return -1;
                 }
-                return before.some(info => {
+                return before.reduce((bestDepth, info) => {
                     const piece = clone.pieces.find(p => p.id === info.id);
-                    return piece && !info.inHomeStretch && piece.inHomeStretch;
-                });
+                    if (!piece || info.inHomeStretch || !piece.inHomeStretch) return bestDepth;
+                    return Math.max(bestDepth, this.homeStretchIndex(piece, clone));
+                }, -1);
             }
 
-            const cardIndex = Math.floor(actionId / 10);
-            let pieceNumber = actionId % 10;
-            if (pieceNumber === 0) {
-                pieceNumber = 10;
-            }
-
-            const countCheck = this.game.piecesPerPlayer || 5;
-            let ownerId = playerId;
-            if (pieceNumber > countCheck) {
-                const partner = this.game.partnerIdFor && this.game.partnerIdFor(playerId);
-                if (partner === null || partner === undefined) {
-                    return false;
-                }
-                ownerId = partner;
-                pieceNumber -= countCheck;
-            }
-
-            const pieceId = `p${ownerId}_${pieceNumber}`;
-            const beforePiece = clone.pieces.find(p => p.id === pieceId);
+            const info = this.actionPieceInfo(playerId, actionId);
+            if (!info) return -1;
+            const beforePiece = clone.pieces.find(p => p.id === info.pieceId);
             if (!beforePiece || beforePiece.inHomeStretch || beforePiece.completed) {
-                return false;
+                return -1;
             }
 
-            let result = clone.makeMove(pieceId, cardIndex);
+            let result = clone.makeMove(info.pieceId, info.cardIndex);
             if (result && result.action === 'homeEntryChoice') {
-                result = clone.makeMove(pieceId, cardIndex, true);
+                result = clone.makeMove(info.pieceId, info.cardIndex, true);
             }
             if (result && result.success === false) {
-                return false;
+                return -1;
             }
 
-            const afterPiece = clone.pieces.find(p => p.id === pieceId);
-            return Boolean(afterPiece && afterPiece.inHomeStretch);
+            const afterPiece = clone.pieces.find(p => p.id === info.pieceId);
+            if (!afterPiece || !afterPiece.inHomeStretch) return -1;
+            return this.homeStretchIndex(afterPiece, clone);
         } catch (e) {
-            return false;
+            return -1;
         }
+    }
+
+    actionWouldEnterHome(playerId, actionId) {
+        return this.homeEntryDepthForAction(playerId, actionId) >= 0;
     }
 
     homeStretchProgressForAction(playerId, actionId) {
@@ -766,13 +756,13 @@ class GameWrapper {
     }
 
     getHomeEntryActions(playerId, actions) {
-        const result = [];
-        for (const action of actions || []) {
-            if (this.actionWouldEnterHome(playerId, action)) {
-                result.push(action);
-            }
-        }
-        return result;
+        const entries = (actions || [])
+            .map(action => ({ action, depth: this.homeEntryDepthForAction(playerId, action) }))
+            .filter(entry => entry.depth >= 0);
+        if (entries.length === 0) return [];
+
+        const deepest = Math.max(...entries.map(entry => entry.depth));
+        return entries.filter(entry => entry.depth === deepest).map(entry => entry.action);
     }
 
     findFirstAvailableAction(playerId) {
