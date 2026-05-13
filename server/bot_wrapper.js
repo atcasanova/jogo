@@ -344,6 +344,43 @@ class BotWrapper {
     return outcomes;
   }
 
+  getHomeReachExitActions(playerId, actions) {
+    const avoid = [];
+    if (!this.game) return avoid;
+
+    for (const action of actions || []) {
+      if (action >= 70) continue;
+      const outcomes = this.simulateActionOutcomes(playerId, action);
+      if (outcomes.length === 0) continue;
+
+      const everyOutcomeLeavesReach = outcomes.every(outcome => {
+        let movedReachPiece = false;
+
+        for (const pieceId of outcome.movedPieceIds || []) {
+          const beforeMove = this.game.pieces.find(p => p.id === pieceId);
+          const afterMove = outcome.finalPieces && outcome.finalPieces[pieceId];
+          if (!beforeMove || !afterMove || !this.withinHomeEntryReach(beforeMove)) {
+            continue;
+          }
+
+          movedReachPiece = true;
+          const enteredHome = Boolean(afterMove.inHomeStretch || afterMove.completed);
+          if (enteredHome || this.withinHomeEntryReach(afterMove)) {
+            return false;
+          }
+        }
+
+        return movedReachPiece;
+      });
+
+      if (everyOutcomeLeavesReach) {
+        avoid.push(action);
+      }
+    }
+
+    return Array.from(new Set(avoid));
+  }
+
   getFixedPlayActions(playerId, actions) {
     const priority = [];
     const avoid = [];
@@ -565,6 +602,14 @@ class BotWrapper {
     const homeStretchMoveActions = this.getHomeStretchMoveActions(playerId, validActions);
     if (homeStretchMoveActions.length > 0) {
       return homeStretchMoveActions;
+    }
+
+    const homeReachExitActions = new Set(
+      this.getHomeReachExitActions(playerId, validActions).filter(action => validActionSet.has(action))
+    );
+    const reachSafeActions = validActions.filter(action => !homeReachExitActions.has(action));
+    if (reachSafeActions.length > 0 && reachSafeActions.length < validActions.length) {
+      return this.applyActionConstraints(playerId, reachSafeActions);
     }
 
     const fixedPlayMetadata = this.getFixedPlayActions(playerId, validActions);
