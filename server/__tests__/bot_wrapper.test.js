@@ -79,6 +79,94 @@ describe('BotWrapper live fixed play constraints', () => {
     expect(wrapper.applyActionConstraints(0, [1])).toEqual([1]);
   });
 
+  test('filters moves that take a piece out of home-stretch reach when another move exists', () => {
+    const wrapper = new BotWrapper(null);
+    const pieces = [
+      {
+        id: 'p0_1',
+        playerId: 0,
+        completed: false,
+        inPenaltyZone: false,
+        inHomeStretch: false,
+        position: { row: 0, col: 4 }
+      },
+      {
+        id: 'p0_2',
+        playerId: 0,
+        completed: false,
+        inPenaltyZone: false,
+        inHomeStretch: false,
+        position: { row: 0, col: 15 }
+      }
+    ];
+    wrapper.game = {
+      pieces,
+      players: [{ cards: [{ suit: '♠', value: '6' }] }],
+      piecesPerPlayer: 5,
+      partnerIdFor() {
+        return 2;
+      },
+      isPartner(a, b) {
+        return (a === 0 && b === 2) || (a === 2 && b === 0);
+      },
+      cloneForSimulation() {
+        const clonePieces = JSON.parse(JSON.stringify(pieces));
+        return {
+          pieces: clonePieces,
+          makeMove(pieceId) {
+            const piece = clonePieces.find(p => p.id === pieceId);
+            if (pieceId === 'p0_1') {
+              piece.position = { row: 0, col: 10 };
+            } else {
+              piece.position = { row: 0, col: 16 };
+            }
+            return { success: true };
+          }
+        };
+      }
+    };
+
+    expect(wrapper.applyActionConstraints(0, [1, 2])).toEqual([2]);
+  });
+
+  test('keeps home-stretch reach exit moves when they are forced', () => {
+    const wrapper = new BotWrapper(null);
+    const pieces = [
+      {
+        id: 'p0_1',
+        playerId: 0,
+        completed: false,
+        inPenaltyZone: false,
+        inHomeStretch: false,
+        position: { row: 0, col: 4 }
+      }
+    ];
+    wrapper.game = {
+      pieces,
+      players: [{ cards: [{ suit: '♠', value: '6' }] }],
+      piecesPerPlayer: 5,
+      partnerIdFor() {
+        return 2;
+      },
+      isPartner(a, b) {
+        return (a === 0 && b === 2) || (a === 2 && b === 0);
+      },
+      cloneForSimulation() {
+        const clonePieces = JSON.parse(JSON.stringify(pieces));
+        return {
+          pieces: clonePieces,
+          makeMove(pieceId) {
+            const piece = clonePieces.find(p => p.id === pieceId);
+            piece.position = { row: 0, col: 10 };
+            return { success: true };
+          }
+        };
+      }
+    };
+
+    expect(wrapper.applyActionConstraints(0, [1])).toEqual([1]);
+  });
+
   test('keeps only the deepest home-stretch entry action', () => {
     const game = new Game('deepest-entry');
     game.addPlayer('1', 'Alice', true);
