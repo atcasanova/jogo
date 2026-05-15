@@ -147,6 +147,30 @@ class BotWrapper {
     return selectedIndices.slice(0, 10);
   }
 
+  getFallbackDiscardAction(playerId) {
+    const cards = this.game && this.game.players && this.game.players[playerId]
+      ? this.game.players[playerId].cards
+      : [];
+    const cardIndices = Object.keys(cards || {}).map(Number).filter(idx => cards[idx]);
+    const discardCardIndices = this.getPreferredDiscardCardIndices(cards, cardIndices);
+    const fallbackIndex = discardCardIndices.length > 0 ? discardCardIndices[0] : cardIndices[0];
+    return fallbackIndex !== undefined ? 70 + fallbackIndex : null;
+  }
+
+  shouldFallbackToDiscard(playerId) {
+    return this.game &&
+      this.game.hasAnyValidMove &&
+      !this.game.hasAnyValidMove(playerId);
+  }
+
+  makeFallbackDiscardMove(playerId) {
+    const fallbackAction = this.getFallbackDiscardAction(playerId);
+    if (fallbackAction === null) {
+      throw new Error('No valid fallback discard');
+    }
+    return this.makeMove(playerId, fallbackAction);
+  }
+
 
   getTrackCoordinates() {
     const track = [];
@@ -668,9 +692,19 @@ class BotWrapper {
         playedCard = this.game.players[playerId].cards.find(card => card.value === '7');
         const moves = this.specialActions[actionId];
         if (!moves) {
+          if (this.shouldFallbackToDiscard(playerId)) {
+            return this.makeFallbackDiscardMove(playerId);
+          }
           throw new Error('Invalid special action');
         }
-        result = this.game.makeSpecialMove(moves);
+        try {
+          result = this.game.makeSpecialMove(moves);
+        } catch (e) {
+          if (this.shouldFallbackToDiscard(playerId)) {
+            return this.makeFallbackDiscardMove(playerId);
+          }
+          throw e;
+        }
         if (result && result.action === 'homeEntryChoice') {
           result = this.game.resumeSpecialMove(true);
         }
