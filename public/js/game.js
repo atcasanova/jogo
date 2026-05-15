@@ -223,6 +223,16 @@ document.addEventListener('DOMContentLoaded', () => {
       return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }
 
+    function cancelElementAnimations(element) {
+      element.getAnimations().forEach(animation => {
+        try {
+          animation.cancel();
+        } catch (error) {
+          console.warn('Erro ao cancelar animação anterior da peça:', error);
+        }
+      });
+    }
+
     function positionsEqual(a, b) {
       return Boolean(a && b && a.row === b.row && a.col === b.col);
     }
@@ -1205,6 +1215,7 @@ function updatePlayerLabels() {
     // Caso contrário, o navegador pode pintar um frame no destino durante a
     // animação da carta e só depois reposicionar a peça na origem.
     if (moved) {
+      cancelElementAnimations(pieceElement);
       pieceElement.style.transition = 'none';
       pieceElement.style.visibility = 'hidden';
     }
@@ -1228,13 +1239,17 @@ function updatePlayerLabels() {
           ];
 
       pieceElement.style.transform = keyframes[0].transform;
-      pieceElement.style.visibility = '';
+      // Mantém a peça real invisível até o instante em que a animação do
+      // tabuleiro começa. Assim, se o navegador pintar entre o append na célula
+      // final e o início da WAAPI, ele nunca exibe um frame no destino.
+      pieceElement.style.visibility = 'hidden';
       animations.push({
         element: pieceElement,
         from: moveDescriptor ? moveDescriptor.from : previousPiece.position,
         to: moveDescriptor ? moveDescriptor.to : piece.position,
         order: moveDescriptor ? moveDescriptor.order : animations.length,
         keyframes,
+        initialTransform: keyframes[0].transform,
         finalTransform: `rotate(${-rotation}deg)`
       });
     } else {
@@ -1270,17 +1285,28 @@ async function animatePieceMoves(animations) {
 
   for (const animation of animations) {
     highlightMoveCells(animation);
+    cancelElementAnimations(animation.element);
     animation.element.classList.add('moving');
-    await waitForNextFrame();
     animation.element.style.transition = 'none';
+    animation.element.style.transform = animation.initialTransform || animation.keyframes[0].transform;
+    animation.element.style.visibility = '';
+    await waitForNextFrame();
     const movement = animation.element.animate(animation.keyframes, {
       duration: MOVE_ANIMATION_DURATION_MS,
       easing: 'ease-in-out',
       fill: 'forwards'
     });
-    await movement.finished.catch(() => {});
-    animation.element.style.transform = animation.finalTransform;
-    animation.element.classList.remove('moving');
+
+    try {
+      await movement.finished;
+    } catch (error) {
+      // A animação pode ser cancelada por uma atualização mais nova do estado.
+    } finally {
+      animation.element.style.transform = animation.finalTransform;
+      animation.element.style.visibility = '';
+      movement.cancel();
+      animation.element.classList.remove('moving');
+    }
   }
 
   clearMoveHighlights();
