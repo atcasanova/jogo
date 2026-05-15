@@ -28,7 +28,7 @@ const rooms = new Map();
 
 const MOVE_ANIMATION_DURATION_MS = 1000;
 const CARD_HOLD_ANIMATION_DURATION_MS = 500;
-const CARD_TRAVEL_ANIMATION_DURATION_MS = 60 * 1000;
+const CARD_TRAVEL_ANIMATION_DURATION_MS = 1000;
 const TURN_ANIMATION_BUFFER_MS = 150;
 
 function getTurnAnimationDelay(moveAnimations, cardAnimation = null) {
