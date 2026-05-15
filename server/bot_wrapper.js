@@ -665,6 +665,7 @@ class BotWrapper {
           throw e;
         }
       } else if (actionId >= 60) {
+        playedCard = this.game.players[playerId].cards.find(card => card.value === '7');
         const moves = this.specialActions[actionId];
         if (!moves) {
           throw new Error('Invalid special action');
@@ -756,6 +757,7 @@ class BotWrapper {
         action: result && result.action ? result.action : 'move',
         captures: result && result.captures ? result.captures : [],
         moves: result && result.moves ? result.moves : null,
+        playedCard: playedCard ? { suit: playedCard.suit, value: playedCard.value } : null,
         gameState: this.getGameState(),
         gameEnded,
         winningTeam

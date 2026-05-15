@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pieceElements = {};
     const MOVE_ANIMATION_DURATION_MS = 1000;
     const CARD_HOLD_ANIMATION_DURATION_MS = 500;
-    const CARD_TRAVEL_ANIMATION_DURATION_MS = 60 * 1000;
+    const CARD_TRAVEL_ANIMATION_DURATION_MS = 1000;
     let boardAnimationPromise = Promise.resolve();
     let gameStateUpdateQueue = Promise.resolve();
     let isAnimatingBoard = false;
@@ -619,18 +619,20 @@ function handlePlayerInfo(data) {
         console.log('Posição do jogador:', playerPosition);
         }
 
+        const hasCardAnimation = Boolean(state.cardAnimation);
         const animationPromise = updateBoard(previousState);
         boardAnimationPromise = animationPromise.catch(error => {
           console.error('Erro ao animar movimento no tabuleiro:', error);
         });
         updateTeams();
-        updateDeckInfo();
+        updateDeckInfo(hasCardAnimation ? previousState : state);
         updateStats(state.stats);
         if (state.lastMove) {
             showLastMove(state.lastMove);
         }
 
         await boardAnimationPromise;
+        updateDeckInfo(state);
         updateTurnInfo();
         flushDeferredTurnEvents();
     }
@@ -1330,16 +1332,16 @@ function updateTurnInfo() {
   }
 }
  
-    function updateDeckInfo() {
-        if (!gameState) return;
+    function updateDeckInfo(stateOverride = gameState) {
+        if (!stateOverride) return;
         
         // Atualizar contadores
-        deckCount.textContent = gameState.deckCount || 0;
-        discardCount.textContent = gameState.discardCount || 0;
+        deckCount.textContent = stateOverride.deckCount || 0;
+        discardCount.textContent = stateOverride.discardCount || 0;
         
         // Mostrar carta no topo da pilha de descarte
-        if (gameState.discardPile && gameState.discardPile.length > 0) {
-            const card = gameState.discardPile[0];
+        if (stateOverride.discardPile && stateOverride.discardPile.length > 0) {
+            const card = stateOverride.discardPile[0];
             topDiscard.innerHTML = createCardHTML(card);
             topDiscard.classList.remove('hidden');
         } else {

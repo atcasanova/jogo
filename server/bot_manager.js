@@ -4,13 +4,20 @@ const BotWrapper = require('./bot_wrapper');
 const { logTurnState, logMoveDetails } = require('./log_utils');
 
 const MOVE_ANIMATION_DURATION_MS = 1000;
+const CARD_HOLD_ANIMATION_DURATION_MS = 500;
+const CARD_TRAVEL_ANIMATION_DURATION_MS = 1000;
 const TURN_ANIMATION_BUFFER_MS = 150;
 
-function getTurnAnimationDelay(moveAnimations) {
-  if (!Array.isArray(moveAnimations) || moveAnimations.length === 0) {
+function getTurnAnimationDelay(moveAnimations, cardAnimation = null) {
+  const pieceAnimationCount = Array.isArray(moveAnimations) ? moveAnimations.length : 0;
+  if (pieceAnimationCount === 0 && !cardAnimation) {
     return 0;
   }
-  return (moveAnimations.length * MOVE_ANIMATION_DURATION_MS) + TURN_ANIMATION_BUFFER_MS;
+
+  const cardDelay = cardAnimation
+    ? CARD_HOLD_ANIMATION_DURATION_MS + CARD_TRAVEL_ANIMATION_DURATION_MS
+    : 0;
+  return cardDelay + (pieceAnimationCount * MOVE_ANIMATION_DURATION_MS) + TURN_ANIMATION_BUFFER_MS;
 }
 
 
@@ -77,6 +84,17 @@ function buildMoveAnimations(game, previousPositions, primaryMoves = []) {
   });
 
   return orderMoveAnimations(animations);
+}
+
+function buildCardAnimation(card, playerPosition) {
+  if (!card || playerPosition === undefined || playerPosition === null) {
+    return null;
+  }
+
+  return {
+    card: { suit: card.suit, value: card.value },
+    playerPosition
+  };
 }
 
 function getMoveAnimationDirection(card, result) {
@@ -154,7 +172,10 @@ class BotManager {
           }
         }
       } else if (actionId >= 60) {
-        playedCard = { value: '7' };
+        playedCard = this.game.players[current.position].cards.find(card => card.value === '7') || {
+          value: '7',
+          suit: '♠'
+        };
       } else {
         let pieceNumber = actionId % 10;
         let cardIndex;
@@ -184,6 +205,7 @@ class BotManager {
       const result = this.wrapper.makeMove(current.position, actionId);
       const roomId = this.game.roomId;
       const stateForClients = result.gameState;
+      playedCard = result.playedCard || playedCard;
       if (actionId >= 60 && actionId < 70 && result.moves) {
         const primaryMoves = result.moves.map(move => ({
           pieceId: move.pieceId,
@@ -203,6 +225,7 @@ class BotManager {
           }]);
         }
       }
+      stateForClients.cardAnimation = buildCardAnimation(playedCard, current.position);
       this.io.to(roomId).emit('gameStateUpdate', stateForClients);
 
       if (actionId >= 60 && actionId < 70 && result.moves) {
@@ -257,7 +280,7 @@ class BotManager {
         break;
       }
 
-      const animationDelay = getTurnAnimationDelay(stateForClients.moveAnimations);
+      const animationDelay = getTurnAnimationDelay(stateForClients.moveAnimations, stateForClients.cardAnimation);
       if (animationDelay > 0) {
         await new Promise(resolve => setTimeout(resolve, animationDelay));
       }

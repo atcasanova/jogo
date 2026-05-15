@@ -266,4 +266,22 @@ describe('BotWrapper live fixed play constraints', () => {
 
     expect(wrapper.applyActionConstraints(2, [1, 2])).toEqual([1]);
   });
+  test('returns the played card for bot discard animations', () => {
+    const game = new Game('bot-played-card');
+    game.addPlayer('1', 'Alice', true);
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+    game.isActive = true;
+    game.currentPlayerIndex = 0;
+    game.players[0].cards = [{ suit: '♥', value: '2' }];
+
+    const wrapper = new BotWrapper(game);
+    const response = wrapper.makeMove(0, 70);
+
+    expect(response.success).toBe(true);
+    expect(response.playedCard).toEqual({ suit: '♥', value: '2' });
+  });
+
 });
