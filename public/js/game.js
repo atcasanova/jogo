@@ -121,6 +121,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const pieceElements = {};
     const MOVE_ANIMATION_DURATION_MS = 1000;
+    const CARD_HOLD_ANIMATION_DURATION_MS = 500;
+    const CARD_TRAVEL_ANIMATION_DURATION_MS = 60 * 1000;
     let boardAnimationPromise = Promise.resolve();
     let gameStateUpdateQueue = Promise.resolve();
     let isAnimatingBoard = false;
@@ -144,6 +146,68 @@ document.addEventListener('DOMContentLoaded', () => {
     function getDisplayValue(card) {
       return card.value === 'JOKER' ? 'C' : card.value;
     }
+
+    function createFloatingCardElement(card) {
+      const element = document.createElement('div');
+      element.className = 'card turn-card-animation';
+      element.innerHTML = createCardHTML(card);
+      return element;
+    }
+
+    function getPenaltyZoneAnchor(playerId) {
+      const anchors = [
+        { row: 2, col: 8 },
+        { row: 8, col: 16 },
+        { row: 16, col: 10 },
+        { row: 10, col: 2 }
+      ];
+      return anchors[playerId] || null;
+    }
+
+    function elementCenter(rect) {
+      return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      };
+    }
+
+    async function animatePlayedCard(cardAnimation) {
+      if (!cardAnimation || !cardAnimation.card) return;
+
+      const penaltyAnchor = getPenaltyZoneAnchor(cardAnimation.playerPosition);
+      const penaltyCell = penaltyAnchor ? getCell(penaltyAnchor.row, penaltyAnchor.col) : null;
+      const deckElement = document.querySelector('.deck .card-back') || document.querySelector('.deck-area');
+      if (!penaltyCell || !deckElement) return;
+
+      const startRect = penaltyCell.getBoundingClientRect();
+      const endRect = deckElement.getBoundingClientRect();
+      const startCenter = elementCenter(startRect);
+      const endCenter = elementCenter(endRect);
+      const floatingCard = createFloatingCardElement(cardAnimation.card);
+
+      floatingCard.style.left = `${startCenter.x}px`;
+      floatingCard.style.top = `${startCenter.y}px`;
+      document.body.appendChild(floatingCard);
+
+      await wait(CARD_HOLD_ANIMATION_DURATION_MS);
+      await waitForNextFrame();
+
+      const travel = floatingCard.animate([
+        { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+        {
+          transform: `translate(calc(-50% + ${endCenter.x - startCenter.x}px), calc(-50% + ${endCenter.y - startCenter.y}px)) scale(0.72)`,
+          opacity: 0.92
+        }
+      ], {
+        duration: CARD_TRAVEL_ANIMATION_DURATION_MS,
+        easing: 'ease-in-out',
+        fill: 'forwards'
+      });
+
+      await travel.finished.catch(() => {});
+      floatingCard.remove();
+    }
+
 
     function showStatusMessage(message, type = 'info') {
       turnMessage.textContent = message;
@@ -852,7 +916,7 @@ function updateBoard(previousState = null) {
   rotateBoard(false);
 
   console.log('Tabuleiro atualizado');
-  return animatePieceMoves(animations);
+  return animateTurnSequence(animations, gameState.cardAnimation);
 }
 
 
@@ -1166,14 +1230,27 @@ function updatePlayerLabels() {
   return animations.sort((a, b) => a.order - b.order);
 }
 
-async function animatePieceMoves(animations) {
-  if (!animations || animations.length === 0) {
+async function animateTurnSequence(animations, cardAnimation) {
+  if ((!animations || animations.length === 0) && !cardAnimation) {
     isAnimatingBoard = false;
     return;
   }
 
   isAnimatingBoard = true;
   isMyTurn = false;
+  showStatusMessage('Acompanhando a carta da jogada...', 'info');
+
+  await animatePlayedCard(cardAnimation);
+  await animatePieceMoves(animations);
+
+  isAnimatingBoard = false;
+}
+
+async function animatePieceMoves(animations) {
+  if (!animations || animations.length === 0) {
+    return;
+  }
+
   showStatusMessage('Acompanhando a jogada no tabuleiro...', 'info');
 
   for (const animation of animations) {
@@ -1192,7 +1269,6 @@ async function animatePieceMoves(animations) {
   }
 
   clearMoveHighlights();
-  isAnimatingBoard = false;
 }
 
 
