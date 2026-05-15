@@ -922,3 +922,13 @@
   color: #e8ecf3;
   border: 1px solid rgba(140, 246, 255, 0.16);
 }
+
+.turn-card-animation {
+    position: fixed;
+    z-index: 2500;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    cursor: default;
+    box-shadow: 0 22px 48px rgba(140, 246, 255, 0.35), 0 0 28px rgba(255, 125, 255, 0.28);
+}

@@ -27,13 +27,20 @@ app.use(express.static(path.join(__dirname, '../public')));
 const rooms = new Map();
 
 const MOVE_ANIMATION_DURATION_MS = 1000;
+const CARD_HOLD_ANIMATION_DURATION_MS = 500;
+const CARD_TRAVEL_ANIMATION_DURATION_MS = 60 * 1000;
 const TURN_ANIMATION_BUFFER_MS = 150;
 
-function getTurnAnimationDelay(moveAnimations) {
-  if (!Array.isArray(moveAnimations) || moveAnimations.length === 0) {
+function getTurnAnimationDelay(moveAnimations, cardAnimation = null) {
+  const pieceAnimationCount = Array.isArray(moveAnimations) ? moveAnimations.length : 0;
+  if (pieceAnimationCount === 0 && !cardAnimation) {
     return 0;
   }
-  return (moveAnimations.length * MOVE_ANIMATION_DURATION_MS) + TURN_ANIMATION_BUFFER_MS;
+
+  const cardDelay = cardAnimation
+    ? CARD_HOLD_ANIMATION_DURATION_MS + CARD_TRAVEL_ANIMATION_DURATION_MS
+    : 0;
+  return cardDelay + (pieceAnimationCount * MOVE_ANIMATION_DURATION_MS) + TURN_ANIMATION_BUFFER_MS;
 }
 
 function isTurnLocked(game) {
@@ -49,8 +56,8 @@ function rejectIfTurnLocked(game, socket) {
   return true;
 }
 
-function scheduleNextTurn(game, moveAnimations = []) {
-  const delay = getTurnAnimationDelay(moveAnimations);
+function scheduleNextTurn(game, moveAnimations = [], cardAnimation = null) {
+  const delay = getTurnAnimationDelay(moveAnimations, cardAnimation);
 
   if (game.turnTimer) {
     clearTimeout(game.turnTimer);
@@ -147,37 +154,35 @@ function capturePiecePositions(game) {
   return positions;
 }
 
-function animationLeavesDestination(animation, otherAnimation) {
-  return positionsEqual(animation.oldPosition, otherAnimation.newPosition);
-}
-
 function orderMoveAnimations(animations) {
-  const remaining = animations.map((animation, originalIndex) => ({
-    ...animation,
-    originalIndex
-  }));
-  const ordered = [];
+  const primaryAnimations = animations.filter(animation => animation.isPrimaryMove);
 
-  while (remaining.length > 0) {
-    const blockingIndex = remaining.findIndex(animation =>
-      remaining.some(otherAnimation =>
-        otherAnimation !== animation && animationLeavesDestination(animation, otherAnimation)
-      )
-    );
-    const nextIndex = blockingIndex === -1 ? 0 : blockingIndex;
-    const [nextAnimation] = remaining.splice(nextIndex, 1);
-    ordered.push(nextAnimation);
-  }
+  return animations
+    .map((animation, originalIndex) => {
+      const capturingMove = primaryAnimations.find(primary =>
+        primary.pieceId !== animation.pieceId &&
+        positionsEqual(primary.newPosition, animation.oldPosition)
+      );
 
-  return ordered.map(({ originalIndex, ...animation }, order) => ({
-    ...animation,
-    order
-  }));
+      return {
+        ...animation,
+        originalIndex,
+        order: capturingMove
+          ? capturingMove.order + 0.5
+          : (Number.isFinite(animation.order) ? animation.order : originalIndex)
+      };
+    })
+    .sort((a, b) => a.order - b.order || a.originalIndex - b.originalIndex)
+    .map(({ originalIndex, isPrimaryMove, ...animation }, order) => ({
+      ...animation,
+      order
+    }));
 }
 
 function buildMoveAnimations(game, previousPositions, primaryMoves = []) {
   const animations = primaryMoves.map((move, index) => ({
     ...move,
+    isPrimaryMove: true,
     order: index
   }));
   const primaryPieceIds = new Set(primaryMoves.map(move => move.pieceId));
@@ -198,6 +203,17 @@ function buildMoveAnimations(game, previousPositions, primaryMoves = []) {
   });
 
   return orderMoveAnimations(animations);
+}
+
+function buildCardAnimation(card, playerPosition) {
+  if (!card || playerPosition === undefined || playerPosition === null) {
+    return null;
+  }
+
+  return {
+    card: { suit: card.suit, value: card.value },
+    playerPosition
+  };
 }
 
 function getMoveAnimationDirection(card, moveResult) {
@@ -528,6 +544,7 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
     // Atualizar estado do jogo para todos já com o próximo jogador definido
     const updatedState = game.getGameState();
     updatedState.moveAnimations = buildMoveAnimations(game, previousPositions);
+    updatedState.cardAnimation = buildCardAnimation(card, currentPlayer.position);
     io.to(roomId).emit('gameStateUpdate', updatedState);
     announceHomeStretch(game, roomId);
     logTurnState(game);
@@ -558,7 +575,7 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
       return;
     }
     
-    scheduleNextTurn(game, updatedState.moveAnimations);
+    scheduleNextTurn(game, updatedState.moveAnimations, updatedState.cardAnimation);
   } catch (error) {
     console.error(`Erro ao descartar carta:`, error);
     socket.emit('error', error.message);
@@ -716,6 +733,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
         direction: 'direct'
       }]);
     }
+    updatedState.cardAnimation = buildCardAnimation(card, currentPlayer.position);
     io.to(roomId).emit('gameStateUpdate', updatedState);
     announceHomeStretch(game, roomId);
 
@@ -737,7 +755,7 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       return;
     }
 
-    scheduleNextTurn(game, updatedState.moveAnimations);
+    scheduleNextTurn(game, updatedState.moveAnimations, updatedState.cardAnimation);
 
     // Atualizar o estado salvo no histórico para refletir o jogo após todas as
     // alterações do movimento Joker
@@ -880,6 +898,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
         direction: getMoveAnimationDirection(playedCard, moveResult)
       }]);
     }
+    updatedState.cardAnimation = buildCardAnimation(playedCard, currentPlayer.position);
     io.to(roomId).emit('gameStateUpdate', updatedState);
     announceHomeStretch(game, roomId);
     logTurnState(game);
@@ -904,7 +923,7 @@ socket.on('makeMove', ({ roomId, pieceId, cardIndex, enterHome }) => {
       return;
     }
 
-    scheduleNextTurn(game, updatedState.moveAnimations);
+    scheduleNextTurn(game, updatedState.moveAnimations, updatedState.cardAnimation);
 
   } catch (error) {
     console.error(`Erro ao processar movimento:`, error);
@@ -951,6 +970,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         direction: getMoveAnimationDirection(playedCard, moveResult)
       }]);
     }
+    updatedState.cardAnimation = buildCardAnimation(playedCard, currentPlayer.position);
     io.to(roomId).emit('gameStateUpdate', updatedState);
     announceHomeStretch(game, roomId);
 
@@ -972,7 +992,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
       return;
     }
 
-    scheduleNextTurn(game, updatedState.moveAnimations);
+    scheduleNextTurn(game, updatedState.moveAnimations, updatedState.cardAnimation);
    } catch (error) {
      console.error('Erro ao confirmar entrada na vitória:', error);
      socket.emit('error', error.message);
@@ -1002,6 +1022,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     
     try {
       const currentPlayer = game.getCurrentPlayer();
+      const playedCard = currentPlayer.cards.find(card => card.value === '7') || { value: '7', suit: '♠' };
       const previousPositions = capturePiecePositions(game);
       const moveResult = game.makeSpecialMove(moves);
 
@@ -1051,6 +1072,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         }));
         updatedState.moveAnimations = buildMoveAnimations(game, previousPositions, primaryMoves);
       }
+      updatedState.cardAnimation = buildCardAnimation(playedCard, currentPlayer.position);
       io.to(roomId).emit('gameStateUpdate', updatedState);
       announceHomeStretch(game, roomId);
       logTurnState(game);
@@ -1070,7 +1092,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         return;
       }
       
-      scheduleNextTurn(game, updatedState.moveAnimations);
+      scheduleNextTurn(game, updatedState.moveAnimations, updatedState.cardAnimation);
 
     } catch (error) {
       socket.emit('error', error.message);
@@ -1121,6 +1143,9 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
     }
 
     try {
+      const playedCard = game.pendingSpecialMove
+        ? currentPlayer.cards[game.pendingSpecialMove.cardIndex]
+        : null;
       const previousPositions = capturePiecePositions(game);
       const moveResult = game.resumeSpecialMove(enterHome);
 
@@ -1170,6 +1195,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         }));
         updatedState.moveAnimations = buildMoveAnimations(game, previousPositions, primaryMoves);
       }
+      updatedState.cardAnimation = buildCardAnimation(playedCard || { value: '7', suit: '♠' }, currentPlayer.position);
       io.to(roomId).emit('gameStateUpdate', updatedState);
       announceHomeStretch(game, roomId);
       logTurnState(game);
@@ -1188,7 +1214,7 @@ socket.on('confirmHomeEntry', ({ roomId, pieceId, cardIndex, enterHome }) => {
         return;
       }
 
-      scheduleNextTurn(game, updatedState.moveAnimations);
+      scheduleNextTurn(game, updatedState.moveAnimations, updatedState.cardAnimation);
     } catch (error) {
       console.error('Erro ao confirmar entrada na vitória especial:', error);
       socket.emit('error', error.message);
