@@ -284,4 +284,50 @@ describe('BotWrapper live fixed play constraints', () => {
     expect(response.playedCard).toEqual({ suit: '♥', value: '2' });
   });
 
+  test('falls back to discarding a seven when bot selects stale special action with no valid moves', () => {
+    const game = new Game('bot-stale-special-discard');
+    game.addPlayer('1', 'Bot', true);
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+    game.isActive = true;
+    game.currentPlayerIndex = 0;
+    game.players[0].cards = [{ suit: '♠', value: '7' }];
+
+    const wrapper = new BotWrapper(game);
+    expect(game.hasAnyValidMove(0)).toBe(false);
+
+    const response = wrapper.makeMove(0, 60);
+
+    expect(response.success).toBe(true);
+    expect(response.action).toBe('discard');
+    expect(response.playedCard).toEqual({ suit: '♠', value: '7' });
+    expect(game.players[0].cards).toHaveLength(0);
+    expect(game.currentPlayerIndex).toBe(3);
+  });
+
+  test('falls back to discarding when bot special seven action becomes invalid and no moves remain', () => {
+    const game = new Game('bot-invalid-special-discard');
+    game.addPlayer('1', 'Bot', true);
+    game.addPlayer('2', 'Bob');
+    game.addPlayer('3', 'Carol');
+    game.addPlayer('4', 'Dave');
+    game.setupTeams();
+    game.isActive = true;
+    game.currentPlayerIndex = 0;
+    game.players[0].cards = [{ suit: '♠', value: '7' }];
+
+    const wrapper = new BotWrapper(game);
+    wrapper.specialActions[60] = [{ pieceId: 'p0_1', steps: 7 }];
+
+    const response = wrapper.makeMove(0, 60);
+
+    expect(response.success).toBe(true);
+    expect(response.action).toBe('discard');
+    expect(response.playedCard).toEqual({ suit: '♠', value: '7' });
+    expect(game.players[0].cards).toHaveLength(0);
+    expect(game.currentPlayerIndex).toBe(3);
+  });
+
 });
