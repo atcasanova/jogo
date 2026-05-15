@@ -1198,9 +1198,19 @@ function updatePlayerLabels() {
     const previousPiece = getPieceById(previousState, piece.id);
     const moveDescriptor = moveDescriptorByPiece.get(piece.id);
     const first = previousPieceRects[piece.id];
+    const moved = moveDescriptor || (previousPiece && !positionsEqual(previousPiece.position, piece.position));
+
+    // A peça precisa ser anexada à célula de destino para calcular o FLIP,
+    // mas não pode ficar visível ali antes de receber o transform inicial.
+    // Caso contrário, o navegador pode pintar um frame no destino durante a
+    // animação da carta e só depois reposicionar a peça na origem.
+    if (moved) {
+      pieceElement.style.transition = 'none';
+      pieceElement.style.visibility = 'hidden';
+    }
+
     cell.appendChild(pieceElement);
     const last = pieceElement.getBoundingClientRect();
-    const moved = moveDescriptor || (previousPiece && !positionsEqual(previousPiece.position, piece.position));
     const delta = first ? rectCenterDelta(first, last) : { x: 0, y: 0 };
     const deltaX = delta.x;
     const deltaY = delta.y;
@@ -1218,6 +1228,7 @@ function updatePlayerLabels() {
           ];
 
       pieceElement.style.transform = keyframes[0].transform;
+      pieceElement.style.visibility = '';
       animations.push({
         element: pieceElement,
         from: moveDescriptor ? moveDescriptor.from : previousPiece.position,
@@ -1226,6 +1237,8 @@ function updatePlayerLabels() {
         keyframes,
         finalTransform: `rotate(${-rotation}deg)`
       });
+    } else {
+      pieceElement.style.visibility = '';
     }
   });
 
