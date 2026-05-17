@@ -760,7 +760,7 @@ function flushDeferredTurnEvents() {
 function checkIfStuckInPenalty(cards, canMoveFlag) {
   if (!gameState || !gameState.pieces) return;
 
-  const cardElements = document.querySelectorAll('.card');
+  const cardElements = cardsContainer.querySelectorAll('.card');
 
   if (canMoveFlag === false) {
     showStatusMessage('Você não tem jogadas possíveis. Selecione uma carta para descartar.', 'error');
@@ -1382,9 +1382,10 @@ function updateTurnInfo() {
         if (stateOverride.discardPile && stateOverride.discardPile.length > 0) {
             const card = stateOverride.discardPile[0];
             topDiscard.innerHTML = createCardHTML(card);
-            topDiscard.classList.remove('hidden');
+            topDiscard.classList.remove('hidden', 'discard-only');
         } else {
             topDiscard.innerHTML = '';
+            topDiscard.classList.remove('discard-only');
             topDiscard.classList.add('hidden');
         }
     }
@@ -1609,7 +1610,7 @@ function handleCardClick(index) {
 
 // Adicione esta função auxiliar
 function isPlayerStuckInPenalty() {
-  const cardElements = document.querySelectorAll('.card');
+  const cardElements = cardsContainer.querySelectorAll('.card');
   return cardElements.length > 0 && cardElements[0].classList.contains('discard-only');
 }
 

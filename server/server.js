@@ -7,6 +7,7 @@ const { nanoid } = require('nanoid/non-secure');
 const { Game } = require('./game');
 const BotManager = require('./bot_manager');
 const { logTurnState, logMoveDetails } = require('./log_utils');
+const { replayHistoryForSave } = require('./replay_utils');
 const fs = require('fs');
 
 const REPLAY_DIR = path.join(__dirname, '../replays');
@@ -100,7 +101,7 @@ function saveReplay(game) {
   const data = {
     roomId: game.roomId,
     players: game.players.map(p => p.name),
-    history: game.history
+    history: replayHistoryForSave(game.history)
   };
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 
@@ -741,6 +742,15 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
       cards: currentPlayer.cards
     });
 
+    // Atualizar o estado salvo no histórico para refletir o jogo após todas as
+    // alterações do movimento Joker antes de qualquer replay ser salvo.
+    const snapState = game.getGameStateWithCards();
+    delete snapState.lastMove;
+    const snap = JSON.parse(JSON.stringify(snapState));
+    if (game.history.length > 0) {
+      game.history[game.history.length - 1].state = snap;
+    }
+
     if (game.checkWinCondition()) {
       saveReplay(game);
       io.to(roomId).emit('gameOver', {
@@ -756,15 +766,6 @@ socket.on('makeJokerMove', ({ roomId, pieceId, targetPieceId, cardIndex }) => {
     }
 
     scheduleNextTurn(game, updatedState.moveAnimations, updatedState.cardAnimation);
-
-    // Atualizar o estado salvo no histórico para refletir o jogo após todas as
-    // alterações do movimento Joker
-    const snapState = game.getGameStateWithCards();
-    delete snapState.lastMove;
-    const snap = JSON.parse(JSON.stringify(snapState));
-    if (game.history.length > 0) {
-      game.history[game.history.length - 1].state = snap;
-    }
   } catch (error) {
     console.error(`Erro ao processar movimento Joker:`, error);
     socket.emit('error', error.message);
