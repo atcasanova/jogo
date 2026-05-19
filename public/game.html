@@ -18,8 +18,6 @@
                 </div>
             </div>
 
-            <div id="last-move" class="last-move-message hidden"></div>
-
             <div class="turn-info">
                 <h3>Turno: <span id="current-player"></span></h3>
                 <div id="turn-message"></div>
@@ -43,8 +41,9 @@
             </div>
             <div id="play-builder" class="play-builder hidden" aria-live="polite">
                 <button id="reset-play-builder" class="play-builder-reset" title="Reiniciar jogada" type="button">↻</button>
-                <span id="play-builder-text">Jogar X com Y</span>
+                <span id="play-builder-text">Jogar __ com __</span>
             </div>
+            <div id="last-move" class="last-move-message hidden"></div>
             <div id="stats-panel" class="stats-panel hidden"></div>
         </div>
         
@@ -119,4 +118,3 @@
     <script src="js/game.js"></script>
 </body>
 </html>
-

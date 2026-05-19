@@ -396,14 +396,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderPlayBuilder() {
       if (!playBuilder || !playBuilderText) return;
       const selectedCard = selectedCardIndex !== null ? playerCards[selectedCardIndex] : null;
-      const cardValue = selectedCard ? getDisplayValue(selectedCard) : 'X';
+      const cardValue = selectedCard ? getDisplayValue(selectedCard) : '__';
       const pieceA = selectedPieceId ? gameState?.pieces?.find(p => p.id === selectedPieceId) : null;
       const pieceB = secondPieceId ? gameState?.pieces?.find(p => p.id === secondPieceId) : null;
-      const text = pieceB ? `Jogar ${cardValue} com ${pieceA ? pieceA.pieceId : 'Y'} e ${pieceB.pieceId}.` : `Jogar ${cardValue} com ${pieceA ? pieceA.pieceId : 'Y'}`;
+      const text = pieceB
+        ? `Jogar ${cardValue} com ${pieceA ? pieceA.pieceId : '__'} e ${pieceB.pieceId}.`
+        : `Jogar ${cardValue} com ${pieceA ? pieceA.pieceId : '__'}`;
       playBuilderText.textContent = text;
       if (isMyTurn || gameState?.lastMove) playBuilder.classList.remove('hidden');
       else playBuilder.classList.add('hidden');
-      if (!isMyTurn && gameState?.lastMove) playBuilderText.textContent = gameState.lastMove;
+      if (!isMyTurn && gameState?.lastMove) {
+        const lastMoveText = typeof gameState.lastMove === 'string'
+          ? gameState.lastMove
+          : gameState.lastMove.message;
+        if (lastMoveText) playBuilderText.textContent = lastMoveText;
+      }
     }
 
     function clearBoardSplitSliders() {
@@ -922,14 +929,38 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         w.className = `piece-split-slider-wrap ${vertical ? 'vertical' : ''}`;
         const out = document.createElement('span');
         const input = document.createElement('input');
+        const confirm = document.createElement('button');
         input.type='range'; input.min=Math.min(...validSplits); input.max=Math.max(...validSplits); input.value=boardSplitValue;
         input.addEventListener('input',()=>{ let val=parseInt(input.value,10); if(validSplits.length && !validSplits.includes(val)){ val = validSplits.reduce((a,b)=> Math.abs(b-val) < Math.abs(a-val) ? b : a); input.value=val; } boardSplitValue=val; document.querySelectorAll('.piece-split-slider-wrap .val').forEach((el,i)=> el.textContent = i===0?boardSplitValue:7-boardSplitValue); });
+        confirm.type = 'button';
+        confirm.className = 'piece-split-confirm';
+        confirm.textContent = '✓';
+        confirm.title = 'Confirmar divisão';
+        confirm.addEventListener('click', submitSpecialSplit);
         out.className='val'; out.textContent = isLeft ? boardSplitValue : 7-boardSplitValue;
-        w.append(out,input);
+        w.append(out,input,confirm);
         target.appendChild(w);
       };
       mk(a,true); mk(b,false);
       boardSplitMode = true;
+    }
+
+    function submitSpecialSplit() {
+        const val = boardSplitMode ? boardSplitValue : parseInt(splitSlider.value, 10);
+        if (validSplits.length > 0 && !validSplits.includes(val)) {
+            showStatusMessage('Divisão inválida', 'error');
+            return;
+        }
+        pendingSpecialMove = { pieceAId: selectedPieceId, pieceBId: secondPieceId };
+        socket.emit('makeSpecialMove', {
+            roomId,
+            moves: [
+                { pieceId: selectedPieceId, steps: val },
+                { pieceId: secondPieceId, steps: 7 - val }
+            ],
+            cardIndex: specialMoveCard
+        });
+        finalizeSpecialMove();
     }
 
     // Funções de atualização da interface
@@ -1924,23 +1955,7 @@ function makeMove() {
 
         splitSlider.addEventListener('input', updateSliderValues);
 
-        confirmSplitBtn.addEventListener('click', () => {
-            const val = boardSplitMode ? boardSplitValue : parseInt(splitSlider.value, 10);
-            if (validSplits.length > 0 && !validSplits.includes(val)) {
-                showStatusMessage('Divisão inválida', 'error');
-                return;
-            }
-            pendingSpecialMove = { pieceAId: selectedPieceId, pieceBId: secondPieceId };
-            socket.emit('makeSpecialMove', {
-                roomId,
-                moves: [
-                    { pieceId: selectedPieceId, steps: val },
-                    { pieceId: secondPieceId, steps: 7 - val }
-                ],
-                cardIndex: specialMoveCard
-            });
-            finalizeSpecialMove();
-        });
+        confirmSplitBtn.addEventListener('click', submitSpecialSplit);
 
         cancelJokerMoveBtn.addEventListener('click', () => {
             jokerDialog.classList.add('hidden');
@@ -1987,4 +2002,3 @@ function makeMove() {
     // Inicializar o jogo
     init();
 });
-
