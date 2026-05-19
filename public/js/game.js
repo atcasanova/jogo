@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const finalStatsDiv = document.getElementById('final-stats');
     const lastMoveDiv = document.getElementById('last-move');
     const playerHand = document.querySelector('.player-hand');
+    const playBuilder = document.getElementById('play-builder');
+    const playBuilderText = document.getElementById('play-builder-text');
+    const resetPlayBuilderBtn = document.getElementById('reset-play-builder');
     
     // Elementos do diálogo de movimento especial (carta 7)
     const specialMoveChoice = document.getElementById('special-move-choice');
@@ -87,6 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let awaitingSecondPiece = false;
     let validSplits = [];
     let pendingSpecialMove = null;
+    let boardSplitMode = false;
+    let boardSplitValue = 3;
     const playerColors = ['#3498db', '#f2f2f2', '#e74c3c', '#2ecc71'];
     const homeStretches = [
       [
@@ -376,6 +381,36 @@ document.addEventListener('DOMContentLoaded', () => {
       if (destination) destination.classList.add('move-destination');
     }
 
+
+    function resetPlayBuilder(clearCard = false) {
+      selectedPieceId = null;
+      secondPieceId = null;
+      awaitingSecondPiece = false;
+      if (clearCard) selectedCardIndex = null;
+      updateSelectedPiece();
+      updateSelectedCard();
+      renderPlayBuilder();
+      clearBoardSplitSliders();
+    }
+
+    function renderPlayBuilder() {
+      if (!playBuilder || !playBuilderText) return;
+      const selectedCard = selectedCardIndex !== null ? playerCards[selectedCardIndex] : null;
+      const cardValue = selectedCard ? getDisplayValue(selectedCard) : 'X';
+      const pieceA = selectedPieceId ? gameState?.pieces?.find(p => p.id === selectedPieceId) : null;
+      const pieceB = secondPieceId ? gameState?.pieces?.find(p => p.id === secondPieceId) : null;
+      const text = pieceB ? `Jogar ${cardValue} com ${pieceA ? pieceA.pieceId : 'Y'} e ${pieceB.pieceId}.` : `Jogar ${cardValue} com ${pieceA ? pieceA.pieceId : 'Y'}`;
+      playBuilderText.textContent = text;
+      if (isMyTurn || gameState?.lastMove) playBuilder.classList.remove('hidden');
+      else playBuilder.classList.add('hidden');
+      if (!isMyTurn && gameState?.lastMove) playBuilderText.textContent = gameState.lastMove;
+    }
+
+    function clearBoardSplitSliders() {
+      document.querySelectorAll('.piece-split-slider-wrap').forEach(el => el.remove());
+      boardSplitMode = false;
+    }
+
     function showLastMove(message) {
       if (!lastMoveDiv) return;
       if (message) {
@@ -640,6 +675,7 @@ function handlePlayerInfo(data) {
         if (state.lastMove) {
             showLastMove(state.lastMove);
         }
+        renderPlayBuilder();
 
         await boardAnimationPromise;
         updateDeckInfo(state);
@@ -729,6 +765,7 @@ function applyYourTurn(data) {
   console.log('É sua vez de jogar!', data);
   isMyTurn = true;
   showStatusMessage('É sua vez de jogar!', 'turn');
+  renderPlayBuilder();
 
   // Atualizar cartas na mão
   if (data && data.cards) {
@@ -778,6 +815,7 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
   } else {
     cardElements.forEach(card => card.classList.remove('discard-only'));
     showStatusMessage('É sua vez de jogar!', 'turn');
+  renderPlayBuilder();
   }
 }
 
@@ -866,11 +904,34 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         const mid = validSplits[Math.floor(validSplits.length / 2)];
         splitSlider.value = mid;
         updateSliderValues();
-        specialMoveChoice.classList.add('hidden');
-        specialMoveSlider.classList.remove('hidden');
-        specialMoveDialog.classList.remove('hidden');
+        specialMoveDialog.classList.add('hidden');
+        renderBoardSplitSliders();
     }
     
+
+    function renderBoardSplitSliders() {
+      clearBoardSplitSliders();
+      const a = document.querySelector(`.piece[data-id="${selectedPieceId}"]`);
+      const b = document.querySelector(`.piece[data-id="${secondPieceId}"]`);
+      if (!a || !b) return;
+      const ra = a.getBoundingClientRect();
+      const rb = b.getBoundingClientRect();
+      const vertical = Math.abs(ra.left - rb.left) < 40 || Math.abs(ra.top - rb.top) < 40;
+      const mk = (target, isLeft) => {
+        const w = document.createElement('div');
+        w.className = `piece-split-slider-wrap ${vertical ? 'vertical' : ''}`;
+        const out = document.createElement('span');
+        const input = document.createElement('input');
+        input.type='range'; input.min=Math.min(...validSplits); input.max=Math.max(...validSplits); input.value=boardSplitValue;
+        input.addEventListener('input',()=>{ let val=parseInt(input.value,10); if(validSplits.length && !validSplits.includes(val)){ val = validSplits.reduce((a,b)=> Math.abs(b-val) < Math.abs(a-val) ? b : a); input.value=val; } boardSplitValue=val; document.querySelectorAll('.piece-split-slider-wrap .val').forEach((el,i)=> el.textContent = i===0?boardSplitValue:7-boardSplitValue); });
+        out.className='val'; out.textContent = isLeft ? boardSplitValue : 7-boardSplitValue;
+        w.append(out,input);
+        target.appendChild(w);
+      };
+      mk(a,true); mk(b,false);
+      boardSplitMode = true;
+    }
+
     // Funções de atualização da interface
     function createBoard() {
         console.log('Criando tabuleiro 19x19');
@@ -1363,6 +1424,7 @@ function updateTurnInfo() {
   if (isCurrentPlayersTurn) {
     isMyTurn = true;
     showStatusMessage('É sua vez de jogar!', 'turn');
+  renderPlayBuilder();
     console.log('É SUA VEZ DE JOGAR!');
   } else {
     isMyTurn = false;
@@ -1554,9 +1616,11 @@ function handlePieceClick(pieceId) {
   if (selectedPieceId === pieceId) {
     selectedPieceId = null;
     updateSelectedPiece();
+  renderPlayBuilder();
   } else {
     selectedPieceId = pieceId;
     updateSelectedPiece();
+  renderPlayBuilder();
   }
 
   // Se já tiver uma carta selecionada, tentar fazer o movimento
@@ -1592,9 +1656,11 @@ function handleCardClick(index) {
   if (selectedCardIndex === index) {
     selectedCardIndex = null;
     updateSelectedCard();
+  renderPlayBuilder();
   } else {
     selectedCardIndex = index;
     updateSelectedCard();
+  renderPlayBuilder();
   }
   
   // Se já tiver uma peça selecionada, tentar fazer o movimento
@@ -1640,7 +1706,9 @@ function makeMove() {
   selectedPieceId = null;
   selectedCardIndex = null;
   updateSelectedPiece();
+  renderPlayBuilder();
   updateSelectedCard();
+  renderPlayBuilder();
 }
 
 
@@ -1683,10 +1751,12 @@ function makeMove() {
         secondPieceId = null;
         specialMoveCard = null;
         pendingSpecialMove = null;
+        clearBoardSplitSliders();
         selectedPieceId = null;
         selectedCardIndex = null;
         updateSelectedPiece();
         updateSelectedCard();
+        renderPlayBuilder();
     }
 
     function initiateSpecialMove() {
@@ -1855,7 +1925,7 @@ function makeMove() {
         splitSlider.addEventListener('input', updateSliderValues);
 
         confirmSplitBtn.addEventListener('click', () => {
-            const val = parseInt(splitSlider.value, 10);
+            const val = boardSplitMode ? boardSplitValue : parseInt(splitSlider.value, 10);
             if (validSplits.length > 0 && !validSplits.includes(val)) {
                 showStatusMessage('Divisão inválida', 'error');
                 return;
@@ -1887,6 +1957,7 @@ function makeMove() {
 
         window.addEventListener('resize', adjustBoardSize);
         window.addEventListener('orientationchange', adjustBoardSize);
+        resetPlayBuilderBtn?.addEventListener('click', () => resetPlayBuilder(true));
     }
 
     function updateSliderValues() {
