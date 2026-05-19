@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const playBuilder = document.getElementById('play-builder');
     const playBuilderText = document.getElementById('play-builder-text');
     const resetPlayBuilderBtn = document.getElementById('reset-play-builder');
+    const confirmPlayBuilderBtn = document.getElementById('confirm-play-builder');
     
     // Elementos do diálogo de movimento especial (carta 7)
     const specialMoveChoice = document.getElementById('special-move-choice');
@@ -403,6 +404,16 @@ document.addEventListener('DOMContentLoaded', () => {
         ? `Jogar ${cardValue} com ${pieceA ? pieceA.pieceId : '__'} e ${pieceB.pieceId}.`
         : `Jogar ${cardValue} com ${pieceA ? pieceA.pieceId : '__'}`;
       playBuilderText.textContent = text;
+      const shouldShowConfirm = (
+        isMyTurn
+        && selectedCard?.value === '7'
+        && selectedPieceId
+        && secondPieceId
+        && validSplits.length > 0
+        && !awaitingSecondPiece
+      );
+      confirmPlayBuilderBtn?.classList.toggle('hidden', !shouldShowConfirm);
+
       if (isMyTurn || gameState?.lastMove) playBuilder.classList.remove('hidden');
       else playBuilder.classList.add('hidden');
       if (!isMyTurn && gameState?.lastMove) {
@@ -911,6 +922,7 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         const mid = validSplits[Math.floor(validSplits.length / 2)];
         splitSlider.value = mid;
         updateSliderValues();
+        renderPlayBuilder();
         specialMoveDialog.classList.add('hidden');
         renderBoardSplitSliders();
     }
@@ -1639,6 +1651,7 @@ function handlePieceClick(pieceId) {
     }
     secondPieceId = pieceId;
     awaitingSecondPiece = false;
+    renderPlayBuilder();
     showSliderDialog();
     return;
   }
@@ -1973,6 +1986,7 @@ function makeMove() {
         window.addEventListener('resize', adjustBoardSize);
         window.addEventListener('orientationchange', adjustBoardSize);
         resetPlayBuilderBtn?.addEventListener('click', () => resetPlayBuilder(true));
+        confirmPlayBuilderBtn?.addEventListener('click', submitSpecialSplit);
     }
 
     function updateSliderValues() {

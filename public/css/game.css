@@ -929,16 +929,23 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.55rem;
-  padding: 0.45rem 0.7rem;
-  border-radius: 10px;
-  background: rgba(140, 246, 255, 0.14);
-  border: 1px solid rgba(140, 246, 255, 0.3);
+  gap: 0.45rem;
+  margin: -0.45rem auto -0.2rem;
+  width: fit-content;
+  max-width: min(92vw, 860px);
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(10, 14, 28, 0.76);
+  border: 1px solid rgba(140, 246, 255, 0.2);
   color: #dffaff;
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 0.82rem;
+  backdrop-filter: blur(3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  z-index: 4;
 }
 .play-builder-reset {
+  flex: 0 0 auto;
   border: none;
   width: 1.6rem;
   height: 1.6rem;
@@ -946,6 +953,21 @@
   background: rgba(255,255,255,0.15);
   color: #fff;
   cursor: pointer;
+}
+
+.play-builder-confirm {
+  border: 1px solid rgba(111, 255, 176, 0.45);
+  background: rgba(111, 255, 176, 0.18);
+  color: #d6ffe5;
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#play-builder-text {
+  white-space: nowrap;
 }
 .piece-split-slider-wrap {
   position: absolute;

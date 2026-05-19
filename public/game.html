@@ -39,14 +39,16 @@
                     <span id="discard-count">0</span>
                 </div>
             </div>
-            <div id="play-builder" class="play-builder hidden" aria-live="polite">
-                <button id="reset-play-builder" class="play-builder-reset" title="Reiniciar jogada" type="button">↻</button>
-                <span id="play-builder-text">Jogar __ com __</span>
-            </div>
             <div id="last-move" class="last-move-message hidden"></div>
             <div id="stats-panel" class="stats-panel hidden"></div>
         </div>
         
+        <div id="play-builder" class="play-builder hidden" aria-live="polite">
+            <button id="reset-play-builder" class="play-builder-reset" title="Reiniciar jogada" type="button">↻</button>
+            <span id="play-builder-text">Jogar __ com __</span>
+            <button id="confirm-play-builder" class="play-builder-confirm hidden" title="Concluir jogada da carta 7" type="button">Concluir</button>
+        </div>
+
         <div class="player-hand">
             <div id="cards-container"></div>
         </div>
