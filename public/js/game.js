@@ -16,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const gameOverDialog = document.getElementById('game-over');
     const winnersDiv = document.getElementById('winners');
     const finalStatsDiv = document.getElementById('final-stats');
-    const lastMoveDiv = document.getElementById('last-move');
     const playerHand = document.querySelector('.player-hand');
     const playBuilder = document.getElementById('play-builder');
     const playBuilderText = document.getElementById('play-builder-text');
@@ -428,15 +427,6 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.piece-split-slider-wrap').forEach(el => el.remove());
       boardSplitMode = false;
     }
-
-    function showLastMove(message) {
-      if (!lastMoveDiv) return;
-      if (message) {
-        lastMoveDiv.textContent = message;
-        lastMoveDiv.classList.remove('hidden');
-      } else {
-        lastMoveDiv.classList.add('hidden');
-      }
     }
 
     function adjustBoardSize() {
@@ -627,9 +617,6 @@ function handleGameStarted(state) {
   updateTurnInfo();
   updateDeckInfo();
   updateStats(state.stats);
-  if (state.lastMove) {
-    showLastMove(state.lastMove);
-  }
   gameOverDialog.classList.add('hidden');
 }
 
@@ -690,9 +677,6 @@ function handlePlayerInfo(data) {
         updateTeams();
         updateDeckInfo(hasCardAnimation ? previousState : state);
         updateStats(state.stats);
-        if (state.lastMove) {
-            showLastMove(state.lastMove);
-        }
         renderPlayBuilder();
 
         await boardAnimationPromise;
@@ -906,9 +890,7 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
     }
 
     function handleLastMove(data) {
-        if (data && data.message) {
-            showLastMove(data.message);
-        }
+        return data;
     }
 
     function handleValidSplits(data) {

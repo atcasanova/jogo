@@ -114,25 +114,6 @@
     box-shadow: 0 18px 45px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
-/* Mensagem da última jogada */
-#last-move {
-    background: linear-gradient(135deg, rgba(140, 246, 255, 0.22), rgba(255, 125, 255, 0.2));
-    padding: 4px 8px;
-    border-radius: 10px;
-    font-size: 0.75rem;
-    text-align: center;
-    margin-top: 0.35rem;
-    pointer-events: none;
-    color: #05060c;
-    font-weight: 700;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    box-shadow: 0 10px 25px rgba(140, 246, 255, 0.2);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    width: 100%;
-}
-
 .hidden {
     display: none !important;
 }
