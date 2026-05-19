@@ -932,3 +932,42 @@
     cursor: default;
     box-shadow: 0 22px 48px rgba(140, 246, 255, 0.35), 0 0 28px rgba(255, 125, 255, 0.28);
 }
+
+
+.play-builder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(140, 246, 255, 0.14);
+  border: 1px solid rgba(140, 246, 255, 0.3);
+  color: #dffaff;
+  font-weight: 700;
+}
+.play-builder-reset {
+  border: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  cursor: pointer;
+}
+.piece-split-slider-wrap {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: #dffaff;
+  background: rgba(8, 10, 25, 0.85);
+  padding: 0.2rem 0.3rem;
+  border-radius: 8px;
+  border: 1px solid rgba(140, 246, 255, 0.25);
+}
+.piece-split-slider-wrap input[type="range"] { width: 70px; }
+.piece-split-slider-wrap.vertical { flex-direction: column; }
