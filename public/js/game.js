@@ -1432,7 +1432,7 @@ function updatePlayerLabels() {
     if (moved) {
       cancelElementAnimations(pieceElement);
       pieceElement.style.transition = 'none';
-      pieceElement.style.visibility = 'hidden';
+      pieceElement.classList.add('pre-move-transparent');
     }
 
     cell.appendChild(pieceElement);
@@ -1457,7 +1457,7 @@ function updatePlayerLabels() {
       // Mantém a peça real invisível até o instante em que a animação do
       // tabuleiro começa. Assim, se o navegador pintar entre o append na célula
       // final e o início da WAAPI, ele nunca exibe um frame no destino.
-      pieceElement.style.visibility = 'hidden';
+      pieceElement.classList.add('pre-move-transparent');
       animations.push({
         element: pieceElement,
         from: moveDescriptor ? moveDescriptor.from : previousPiece.position,
@@ -1468,7 +1468,7 @@ function updatePlayerLabels() {
         finalTransform: `rotate(${-rotation}deg)`
       });
     } else {
-      pieceElement.style.visibility = '';
+      pieceElement.classList.remove('pre-move-transparent');
     }
   });
 
@@ -1504,7 +1504,7 @@ async function animatePieceMoves(animations) {
     animation.element.classList.add('moving');
     animation.element.style.transition = 'none';
     animation.element.style.transform = animation.initialTransform || animation.keyframes[0].transform;
-    animation.element.style.visibility = '';
+    animation.element.classList.remove('pre-move-transparent');
     await waitForNextFrame();
     const movement = animation.element.animate(animation.keyframes, {
       duration: MOVE_ANIMATION_DURATION_MS,
@@ -1518,7 +1518,7 @@ async function animatePieceMoves(animations) {
       // A animação pode ser cancelada por uma atualização mais nova do estado.
     } finally {
       animation.element.style.transform = animation.finalTransform;
-      animation.element.style.visibility = '';
+      animation.element.classList.remove('pre-move-transparent');
       movement.cancel();
       animation.element.classList.remove('moving');
     }
