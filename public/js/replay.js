@@ -25,6 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let replayData = [];
   let idx = 0;
   let pieceElements = {};
+  let isAnimating = false;
+
+  const REPLAY_SPEED_MULTIPLIER = 2;
+  const MOVE_ANIMATION_DURATION_MS = Math.round(1000 / REPLAY_SPEED_MULTIPLIER);
 
   function startReplay(dataArr) {
     if (!Array.isArray(dataArr) || dataArr.length === 0) return;
@@ -75,17 +79,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  prevBtn.addEventListener('click', () => {
+  prevBtn.addEventListener('click', async () => {
+    if (isAnimating) return;
     if (idx > 0) {
       idx--;
-      renderCurrent();
+      await renderCurrent();
     }
   });
 
-  nextBtn.addEventListener('click', () => {
+  nextBtn.addEventListener('click', async () => {
+    if (isAnimating) return;
     if (idx < replayData.length - 1) {
       idx++;
-      renderCurrent();
+      await renderCurrent();
     }
   });
 
@@ -122,14 +128,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return arr;
   }
 
-  function renderCurrent() {
+  async function renderCurrent() {
     const item = replayData[idx];
     if (!item || !item.state) return;
     const state = item.state;
     moveIndexSpan.textContent = `${idx + 1}/${replayData.length}`;
     lastMoveDiv.textContent = item.move || '';
     updateInfo(state);
-    updateBoard(state);
+    await updateBoard(state);
     const currentCards =
       state.currentPlayerCards ||
       (state.players &&
@@ -158,12 +164,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function updateBoard(state) {
+  async function updateBoard(state) {
+    clearMoveHighlights();
+
+    const previousRects = capturePieceRects();
+    const previousState = idx > 0 ? replayData[idx - 1]?.state : null;
+
     const cells = board.querySelectorAll('.cell');
     cells.forEach(cell => {
       const p = cell.querySelector('.piece');
       if (p) cell.removeChild(p);
     });
+
+    const movedPieces = [];
 
     state.pieces.forEach(piece => {
       const cell = getCell(piece.position.row, piece.position.col);
@@ -174,8 +187,85 @@ document.addEventListener('DOMContentLoaded', () => {
         el.className = `piece player${piece.playerId}`;
         pieceElements[piece.id] = el;
       }
+      el.className = `piece player${piece.playerId}`;
       cell.appendChild(el);
+
+      const prevPiece = previousState?.pieces?.find(p => p.id === piece.id);
+      if (!prevPiece || (prevPiece.position.row === piece.position.row && prevPiece.position.col === piece.position.col)) return;
+
+      const firstRect = previousRects[piece.id];
+      const lastRect = el.getBoundingClientRect();
+      if (!firstRect || !lastRect) return;
+
+      const deltaX = (firstRect.left + firstRect.width / 2) - (lastRect.left + lastRect.width / 2);
+      const deltaY = (firstRect.top + firstRect.height / 2) - (lastRect.top + lastRect.height / 2);
+      if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
+
+      movedPieces.push({
+        element: el,
+        deltaX,
+        deltaY,
+        from: prevPiece.position,
+        to: piece.position
+      });
     });
+
+    await animatePieceMoves(movedPieces);
+  }
+
+  function capturePieceRects() {
+    const rects = {};
+    Object.entries(pieceElements).forEach(([id, element]) => {
+      if (element && element.isConnected) {
+        rects[id] = element.getBoundingClientRect();
+      }
+    });
+    return rects;
+  }
+
+  function clearMoveHighlights() {
+    board.querySelectorAll('.move-origin, .move-destination').forEach(cell => {
+      cell.classList.remove('move-origin', 'move-destination');
+    });
+  }
+
+  function highlightMoveCells(move) {
+    const origin = getCell(move.from.row, move.from.col);
+    const destination = getCell(move.to.row, move.to.col);
+    origin?.classList.add('move-origin');
+    destination?.classList.add('move-destination');
+  }
+
+  async function animatePieceMoves(moves) {
+    if (!moves || moves.length === 0) return;
+
+    isAnimating = true;
+
+    for (const move of moves) {
+      highlightMoveCells(move);
+      move.element.classList.add('moving');
+      const animation = move.element.animate([
+        { transform: `translate(${move.deltaX}px, ${move.deltaY}px)` },
+        { transform: 'translate(0, 0)' }
+      ], {
+        duration: MOVE_ANIMATION_DURATION_MS,
+        easing: 'ease-in-out',
+        fill: 'forwards'
+      });
+
+      try {
+        await animation.finished;
+      } catch (error) {
+        // ignore
+      } finally {
+        animation.cancel();
+        move.element.style.transform = '';
+        move.element.classList.remove('moving');
+      }
+    }
+
+    clearMoveHighlights();
+    isAnimating = false;
   }
 
   function createBoard() {
