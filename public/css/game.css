@@ -951,8 +951,8 @@
   white-space: nowrap;
 }
 .piece-split-slider-wrap {
-  position: absolute;
-  z-index: 6;
+  position: fixed;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -962,6 +962,7 @@
   padding: 0.2rem 0.3rem;
   border-radius: 8px;
   border: 1px solid rgba(140, 246, 255, 0.25);
+  pointer-events: auto;
 }
 .piece-split-slider-wrap input[type="range"] { width: 70px; }
 .piece-split-slider-wrap.vertical { flex-direction: column; }

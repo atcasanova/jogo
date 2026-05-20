@@ -914,27 +914,72 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
       const a = document.querySelector(`.piece[data-id="${selectedPieceId}"]`);
       const b = document.querySelector(`.piece[data-id="${secondPieceId}"]`);
       if (!a || !b) return;
+
       const ra = a.getBoundingClientRect();
       const rb = b.getBoundingClientRect();
+      const boardRect = board.getBoundingClientRect();
       const vertical = Math.abs(ra.left - rb.left) < 40 || Math.abs(ra.top - rb.top) < 40;
-      const mk = (target, isLeft) => {
+
+      const placeWrap = (wrap, pieceRect, isRightSide) => {
+        const offset = 10;
+        const sliderWidth = vertical ? 44 : 150;
+        const sliderHeight = vertical ? 118 : 38;
+        const spaceRight = window.innerWidth - pieceRect.right;
+        const spaceLeft = pieceRect.left;
+
+        let left = pieceRect.left + (pieceRect.width - sliderWidth) / 2;
+        let top = pieceRect.bottom + offset;
+
+        if (top + sliderHeight > boardRect.bottom && !vertical) {
+          top = pieceRect.top - sliderHeight - offset;
+        }
+
+        if (vertical) {
+          if ((isRightSide && spaceRight > sliderWidth + offset) || spaceLeft < sliderWidth + offset) {
+            left = pieceRect.right + offset;
+          } else {
+            left = pieceRect.left - sliderWidth - offset;
+          }
+          top = pieceRect.top + (pieceRect.height - sliderHeight) / 2;
+        }
+
+        left = Math.max(6, Math.min(left, window.innerWidth - sliderWidth - 6));
+        top = Math.max(6, Math.min(top, window.innerHeight - sliderHeight - 6));
+
+        wrap.style.left = `${left}px`;
+        wrap.style.top = `${top}px`;
+      };
+
+      const mk = (pieceRect, isLeft, isRightSide) => {
         const w = document.createElement('div');
         w.className = `piece-split-slider-wrap ${vertical ? 'vertical' : ''}`;
         const out = document.createElement('span');
         const input = document.createElement('input');
         const confirm = document.createElement('button');
-        input.type='range'; input.min=Math.min(...validSplits); input.max=Math.max(...validSplits); input.value=boardSplitValue;
+
+        w.addEventListener('mousedown', (event) => event.stopPropagation());
+        w.addEventListener('click', (event) => event.stopPropagation());
+
+        input.type = 'range';
+        input.min = Math.min(...validSplits);
+        input.max = Math.max(...validSplits);
+        input.value = boardSplitValue;
         input.addEventListener('input',()=>{ let val=parseInt(input.value,10); if(validSplits.length && !validSplits.includes(val)){ val = validSplits.reduce((a,b)=> Math.abs(b-val) < Math.abs(a-val) ? b : a); input.value=val; } boardSplitValue=val; document.querySelectorAll('.piece-split-slider-wrap .val').forEach((el,i)=> el.textContent = i===0?boardSplitValue:7-boardSplitValue); });
+
         confirm.type = 'button';
         confirm.className = 'piece-split-confirm';
         confirm.textContent = '✓';
         confirm.title = 'Confirmar divisão';
         confirm.addEventListener('click', submitSpecialSplit);
+
         out.className='val'; out.textContent = isLeft ? boardSplitValue : 7-boardSplitValue;
         w.append(out,input,confirm);
-        target.appendChild(w);
+        placeWrap(w, pieceRect, isRightSide);
+        document.body.appendChild(w);
       };
-      mk(a,true); mk(b,false);
+
+      mk(ra, true, false);
+      mk(rb, false, true);
       boardSplitMode = true;
     }
 
