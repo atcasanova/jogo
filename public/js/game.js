@@ -898,8 +898,8 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
             showStatusMessage('Nenhuma divisão válida disponível', 'error');
             return;
         }
-        splitSlider.min = Math.min(...validSplits);
-        splitSlider.max = Math.max(...validSplits);
+        splitSlider.min = 1;
+        splitSlider.max = 6;
         const mid = validSplits[Math.floor(validSplits.length / 2)];
         boardSplitValue = mid;
         splitSlider.value = mid;
@@ -962,10 +962,20 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         w.addEventListener('click', (event) => event.stopPropagation());
 
         input.type = 'range';
-        input.min = Math.min(...validSplits);
-        input.max = Math.max(...validSplits);
-        input.value = boardSplitValue;
-        input.addEventListener('input',()=>{ let val=parseInt(input.value,10); if(validSplits.length && !validSplits.includes(val)){ val = validSplits.reduce((a,b)=> Math.abs(b-val) < Math.abs(a-val) ? b : a); input.value=val; } boardSplitValue=val; document.querySelectorAll('.piece-split-slider-wrap .val').forEach((el,i)=> el.textContent = i===0?boardSplitValue:7-boardSplitValue); });
+        input.min = 1;
+        input.max = 6;
+        input.value = isLeft ? boardSplitValue : 7 - boardSplitValue;
+        input.dataset.side = isLeft ? 'left' : 'right';
+        input.addEventListener('input', () => {
+          let rawVal = parseInt(input.value, 10);
+          if (Number.isNaN(rawVal)) return;
+          let val = input.dataset.side === 'right' ? 7 - rawVal : rawVal;
+          if (validSplits.length && !validSplits.includes(val)) {
+            val = validSplits.reduce((a, b) => Math.abs(b - val) < Math.abs(a - val) ? b : a);
+          }
+          boardSplitValue = val;
+          syncBoardSplitControls();
+        });
 
         confirm.type = 'button';
         confirm.className = 'piece-split-confirm';
@@ -982,6 +992,24 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
       mk(ra, true, false);
       mk(rb, false, true);
       boardSplitMode = true;
+    }
+
+
+
+    function syncBoardSplitControls() {
+      const leftVal = boardSplitValue;
+      const rightVal = 7 - boardSplitValue;
+
+      document.querySelectorAll('.piece-split-slider-wrap').forEach((wrap) => {
+        const input = wrap.querySelector('input[type="range"]');
+        const out = wrap.querySelector('.val');
+        if (!input || !out) return;
+
+        const side = input.dataset.side || 'left';
+        const sliderVal = side === 'right' ? rightVal : leftVal;
+        input.value = sliderVal;
+        out.textContent = sliderVal;
+      });
     }
 
     function submitSpecialSplit() {
