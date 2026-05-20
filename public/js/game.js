@@ -78,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let socket;
     let roomId;
     let playerId;
+    let reconnectOriginalId = null;
     let gameState;
     let playerPosition;
     let selectedPieceId = null;
@@ -536,7 +537,8 @@ function initSocketWithPlayerData(playerData) {
   socket = io();
   
   console.log(`Conectando como: ${playerData.name} (posição ${playerData.position})`);
-  
+  reconnectOriginalId = playerData.id;
+
   // Reconectar à sala com dados completos
   socket.emit('joinRoom', { 
     roomId: playerData.roomId,
@@ -603,7 +605,7 @@ function handleRoomJoined(data) {
     socket.emit('requestGameState', {
       roomId,
       playerName: data.playerName || storedName,
-      playerPosition: playerPosition
+      originalId: reconnectOriginalId
     });
   }
 }

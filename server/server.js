@@ -48,6 +48,62 @@ function isTurnLocked(game) {
   return Boolean(game && game.turnLockedUntil && Date.now() < game.turnLockedUntil);
 }
 
+
+function resolveReplayPath(fileParam) {
+  const normalizedDir = path.resolve(REPLAY_DIR);
+  const candidate = path.resolve(normalizedDir, String(fileParam || ''));
+  const insideDir = candidate === normalizedDir || candidate.startsWith(`${normalizedDir}${path.sep}`);
+  return insideDir ? candidate : null;
+}
+
+function normalizePlayerName(input) {
+  if (typeof input !== 'string') {
+    return null;
+  }
+
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.length > 24) {
+    return null;
+  }
+
+  if (!/^[\p{L}\p{N} _.-]+$/u.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+function validateReconnectionPlayer(game, playerName, originalId, originalPosition) {
+  if (typeof originalId !== 'string' || !originalId) {
+    return -1;
+  }
+
+  const byIdIndex = game.players.findIndex((player) => player.id === originalId);
+  if (byIdIndex === -1) {
+    return -1;
+  }
+
+  const expectedPlayer = game.players[byIdIndex];
+  if (!expectedPlayer || expectedPlayer.name !== playerName) {
+    return -1;
+  }
+
+  if (originalPosition === undefined || originalPosition === null) {
+    return byIdIndex;
+  }
+
+  const parsedPosition = Number.parseInt(originalPosition, 10);
+  if (!Number.isInteger(parsedPosition) || parsedPosition !== byIdIndex) {
+    return -1;
+  }
+
+  return byIdIndex;
+}
+
 function rejectIfTurnLocked(game, socket) {
   if (!isTurnLocked(game)) {
     return false;
@@ -120,8 +176,8 @@ app.get('/replays', (req, res) => {
 });
 
 app.get('/replays/:file', (req, res) => {
-  const resolved = path.resolve(REPLAY_DIR, req.params.file);
-  if (!resolved.startsWith(REPLAY_DIR)) {
+  const resolved = resolveReplayPath(req.params.file);
+  if (!resolved) {
     return res.status(400).send('Invalid file');
   }
   if (fs.existsSync(resolved)) {
@@ -291,13 +347,19 @@ io.on('connection', (socket) => {
 
   // Criar nova sala
   socket.on('createRoom', (playerName) => {
+    const sanitizedPlayerName = normalizePlayerName(playerName);
+    if (!sanitizedPlayerName) {
+      socket.emit('error', 'Nome de jogador inválido');
+      return;
+    }
+
     const roomId = nanoid(6);
     const game = new Game(roomId);
     
     rooms.set(roomId, game);
     
     // Adicionar o criador como primeiro jogador
-    game.addPlayer(socket.id, playerName);
+    game.addPlayer(socket.id, sanitizedPlayerName);
     
     // Entrar na sala Socket.io
     socket.join(roomId);
@@ -308,13 +370,19 @@ io.on('connection', (socket) => {
     // Atualizar lista de jogadores para todos na sala
     io.to(roomId).emit('updatePlayers', game.getPlayersInfo());
     
-    console.log(`Sala ${roomId} criada por ${playerName}`);
+    console.log(`Sala ${roomId} criada por ${sanitizedPlayerName}`);
   });
 
   // Entrar em uma sala existente
 // No arquivo server.js - Substitua todo o evento joinRoom por este código
 socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => {
-  console.log(`Tentando entrar na sala ${roomId} com o nome ${playerName} (posição original: ${originalPosition})`);
+  const sanitizedPlayerName = normalizePlayerName(playerName);
+  if (!sanitizedPlayerName) {
+    socket.emit('error', 'Nome de jogador inválido');
+    return;
+  }
+
+  console.log(`Tentando entrar na sala ${roomId} com o nome ${sanitizedPlayerName} (posição original: ${originalPosition})`);
   const game = rooms.get(roomId);
   
   if (!game) {
@@ -332,7 +400,7 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
     if (position >= 0 && position < game.players.length) {
       const player = game.players[position];
       
-      if (player && player.name === playerName) {
+      if (player && player.name === sanitizedPlayerName && player.id === originalId) {
         console.log(`Reconexão do jogador ${playerName} na posição ${position}`);
 
         // Cancelar limpeza da sala se estava agendada
@@ -348,7 +416,7 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
         socket.emit('roomJoined', {
           roomId,
           playerId: socket.id,
-          playerName: playerName,
+          playerName: sanitizedPlayerName,
           playerPosition: position,
           isReconnection: true,
           isCreator: position === 0
@@ -379,10 +447,10 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
   }
   
   // Se não encontrou pela posição, tentar pelo nome
-  const existingPlayerIndex = game.players.findIndex(p => p.name === playerName);
-  
+  const existingPlayerIndex = validateReconnectionPlayer(game, sanitizedPlayerName, originalId, originalPosition);
+
   if (existingPlayerIndex !== -1) {
-    console.log(`Reconexão do jogador ${playerName} na sala ${roomId}`);
+    console.log(`Reconexão do jogador ${sanitizedPlayerName} na sala ${roomId}`);
 
     // Cancelar limpeza da sala se estava agendada
     game.clearCleanupTimer();
@@ -398,7 +466,7 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
     socket.emit('roomJoined', {
       roomId,
       playerId: socket.id,
-      playerName: playerName,
+      playerName: sanitizedPlayerName,
       playerPosition: existingPlayerIndex,
       isReconnection: true,
       isCreator: existingPlayerIndex === 0
@@ -434,11 +502,11 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
   }
   
   // Adicionar jogador ao jogo
-  console.log(`Tentando adicionar jogador ${playerName} (${socket.id}) à sala ${roomId}`);
-  const added = game.addPlayer(socket.id, playerName);
+  console.log(`Tentando adicionar jogador ${sanitizedPlayerName} (${socket.id}) à sala ${roomId}`);
+  const added = game.addPlayer(socket.id, sanitizedPlayerName);
   
   if (!added) {
-    console.log(`ERRO: Não foi possível adicionar o jogador ${playerName} à sala ${roomId}`);
+    console.log(`ERRO: Não foi possível adicionar o jogador ${sanitizedPlayerName} à sala ${roomId}`);
     socket.emit('error', 'Não foi possível entrar na sala');
     return;
   }
@@ -451,7 +519,7 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
   socket.emit('roomJoined', {
     roomId,
     playerId: socket.id,
-    playerName: playerName,
+    playerName: sanitizedPlayerName,
     playerPosition: game.players.length - 1,
     isCreator: game.players.length === 1
   });
@@ -461,7 +529,7 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
   io.to(roomId).emit('updatePlayers', game.getPlayersInfo());
   console.log(`Lista de jogadores atualizada para sala ${roomId}. Total: ${game.players.length}`);
   
-  console.log(`${playerName} entrou na sala ${roomId}`);
+  console.log(`${sanitizedPlayerName} entrou na sala ${roomId}`);
   
   // Se a sala estiver completa, avisar o criador para definir os times
   if (game.players.length === 4) {
@@ -608,8 +676,14 @@ socket.on('discardCard', ({ roomId, cardIndex }) => {
 
 // No arquivo server.js - Modifique o evento requestGameState
 // Adicione este evento logo após o evento joinRoom
-socket.on('requestGameState', ({ roomId, playerName }) => {
-  console.log(`Jogador ${socket.id} solicitou estado do jogo para sala ${roomId} como ${playerName}`);
+socket.on('requestGameState', ({ roomId, playerName, originalId }) => {
+  const sanitizedPlayerName = normalizePlayerName(playerName);
+  if (!sanitizedPlayerName || typeof originalId !== 'string' || !originalId) {
+    socket.emit('error', 'Dados de reconexão inválidos');
+    return;
+  }
+
+  console.log(`Jogador ${socket.id} solicitou estado do jogo para sala ${roomId} como ${sanitizedPlayerName}`);
   const game = rooms.get(roomId);
   
   if (!game) {
@@ -619,7 +693,7 @@ socket.on('requestGameState', ({ roomId, playerName }) => {
   }
   
   // Encontrar o jogador pelo nome
-  const playerIndex = game.players.findIndex(p => p.name === playerName);
+  const playerIndex = game.players.findIndex((p) => p.name === sanitizedPlayerName && p.id === originalId);
   
   if (playerIndex !== -1) {
     // Cancelar limpeza da sala se estava agendada
@@ -629,7 +703,7 @@ socket.on('requestGameState', ({ roomId, playerName }) => {
     const oldId = game.players[playerIndex].id;
     game.players[playerIndex].id = socket.id;
     
-    console.log(`Jogador ${playerName} (posição ${playerIndex}) reconectado`);
+    console.log(`Jogador ${sanitizedPlayerName} (posição ${playerIndex}) reconectado`);
     
     // Enviar estado do jogo
     socket.emit('gameStateUpdate', game.getGameState());
@@ -649,7 +723,7 @@ socket.on('requestGameState', ({ roomId, playerName }) => {
       handleBotTurn(game);
     }
   } else {
-    console.log(`ERRO: Jogador ${playerName} não encontrado na sala ${roomId}`);
+    console.log(`ERRO: Jogador ${sanitizedPlayerName} não encontrado na sala ${roomId}`);
     socket.emit('error', 'Jogador não encontrado na sala');
   }
 });
