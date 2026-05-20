@@ -205,6 +205,10 @@
     --piece-shadow: #3da866;
 }
 
+.piece.pre-move-transparent {
+    opacity: 0.4;
+}
+
 .piece.moving {
     z-index: 12;
     box-shadow: 0 14px 24px rgba(0,0,0,0.45), 0 0 0 4px rgba(255,255,255,0.55), 0 0 32px rgba(255, 236, 122, 0.9);
