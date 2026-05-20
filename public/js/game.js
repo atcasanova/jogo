@@ -919,39 +919,66 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
       const ra = a.getBoundingClientRect();
       const rb = b.getBoundingClientRect();
       const boardRect = board.getBoundingClientRect();
-      const vertical = Math.abs(ra.left - rb.left) < 40 || Math.abs(ra.top - rb.top) < 40;
+      const piecesAreClose = Math.abs(ra.left - rb.left) < 48 || Math.abs(ra.top - rb.top) < 48;
+      const offset = 10;
 
-      const placeWrap = (wrap, pieceRect, isRightSide) => {
-        const offset = 10;
-        const sliderWidth = vertical ? 44 : 150;
-        const sliderHeight = vertical ? 118 : 38;
+      const dims = (isVertical) => ({
+        width: isVertical ? 44 : 150,
+        height: isVertical ? 118 : 38
+      });
+
+      const clampPosition = (pos, size) => ({
+        left: Math.max(6, Math.min(pos.left, window.innerWidth - size.width - 6)),
+        top: Math.max(6, Math.min(pos.top, window.innerHeight - size.height - 6))
+      });
+
+      const overlaps = (aRect, bRect) => (
+        aRect.left < bRect.right &&
+        aRect.right > bRect.left &&
+        aRect.top < bRect.bottom &&
+        aRect.bottom > bRect.top
+      );
+
+      const computePosition = (pieceRect, isRightSide, isVertical, preferAbove) => {
+        const size = dims(isVertical);
         const spaceRight = window.innerWidth - pieceRect.right;
         const spaceLeft = pieceRect.left;
 
-        let left = pieceRect.left + (pieceRect.width - sliderWidth) / 2;
-        let top = pieceRect.bottom + offset;
+        let left = pieceRect.left + (pieceRect.width - size.width) / 2;
+        let top = preferAbove ? pieceRect.top - size.height - offset : pieceRect.bottom + offset;
 
-        if (top + sliderHeight > boardRect.bottom && !vertical) {
-          top = pieceRect.top - sliderHeight - offset;
+        if (!isVertical) {
+          const overTop = top < boardRect.top;
+          const overBottom = top + size.height > boardRect.bottom;
+          if (overTop && !overBottom) top = pieceRect.bottom + offset;
+          if (overBottom && !overTop) top = pieceRect.top - size.height - offset;
         }
 
-        if (vertical) {
-          if ((isRightSide && spaceRight > sliderWidth + offset) || spaceLeft < sliderWidth + offset) {
+        if (isVertical) {
+          if ((isRightSide && spaceRight > size.width + offset) || spaceLeft < size.width + offset) {
             left = pieceRect.right + offset;
           } else {
-            left = pieceRect.left - sliderWidth - offset;
+            left = pieceRect.left - size.width - offset;
           }
-          top = pieceRect.top + (pieceRect.height - sliderHeight) / 2;
+          top = pieceRect.top + (pieceRect.height - size.height) / 2;
         }
 
-        left = Math.max(6, Math.min(left, window.innerWidth - sliderWidth - 6));
-        top = Math.max(6, Math.min(top, window.innerHeight - sliderHeight - 6));
-
-        wrap.style.left = `${left}px`;
-        wrap.style.top = `${top}px`;
+        return clampPosition({ left, top }, size);
       };
 
-      const mk = (pieceRect, isLeft, isRightSide) => {
+      const leftHorizontal = computePosition(ra, false, false, true);
+      const rightHorizontal = computePosition(rb, true, false, false);
+      const hSize = dims(false);
+      const horizontalOverlaps = overlaps(
+        { ...leftHorizontal, right: leftHorizontal.left + hSize.width, bottom: leftHorizontal.top + hSize.height },
+        { ...rightHorizontal, right: rightHorizontal.left + hSize.width, bottom: rightHorizontal.top + hSize.height }
+      );
+
+      const vertical = piecesAreClose || horizontalOverlaps;
+      const leftPosition = vertical ? computePosition(ra, false, true, true) : leftHorizontal;
+      const rightPosition = vertical ? computePosition(rb, true, true, false) : rightHorizontal;
+
+      const mk = (isLeft, position) => {
         const w = document.createElement('div');
         w.className = `piece-split-slider-wrap ${vertical ? 'vertical' : ''}`;
         const out = document.createElement('span');
@@ -985,12 +1012,13 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
 
         out.className='val'; out.textContent = isLeft ? boardSplitValue : 7-boardSplitValue;
         w.append(out,input,confirm);
-        placeWrap(w, pieceRect, isRightSide);
+        w.style.left = `${position.left}px`;
+        w.style.top = `${position.top}px`;
         document.body.appendChild(w);
       };
 
-      mk(ra, true, false);
-      mk(rb, false, true);
+      mk(true, leftPosition);
+      mk(false, rightPosition);
       boardSplitMode = true;
     }
 
