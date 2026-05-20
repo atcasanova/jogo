@@ -427,7 +427,6 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.piece-split-slider-wrap').forEach(el => el.remove());
       boardSplitMode = false;
     }
-    }
 
     function adjustBoardSize() {
       const info = document.querySelector('.game-info');
