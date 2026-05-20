@@ -30,6 +30,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const REPLAY_SPEED_MULTIPLIER = 2;
   const MOVE_ANIMATION_DURATION_MS = Math.round(1000 / REPLAY_SPEED_MULTIPLIER);
 
+  function parseReplayTimestamp(fileName) {
+    const match = /^([0-9]{10,})_/.exec(fileName || '');
+    if (!match) return null;
+    const timestamp = Number.parseInt(match[1], 10);
+    if (!Number.isFinite(timestamp)) return null;
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function formatReplayDate(fileName) {
+    const date = parseReplayTimestamp(fileName);
+    if (!date) return fileName;
+    return new Intl.DateTimeFormat('pt-BR', {
+      dateStyle: 'short',
+      timeStyle: 'medium'
+    }).format(date);
+  }
+
+  function isBotName(playerName) {
+    return /^bot\s*[1-4]$/i.test((playerName || '').trim());
+  }
+
+  function getHumanPlayers(players) {
+    if (!Array.isArray(players)) return [];
+    return players.filter(player => !isBotName(player));
+  }
+
   function startReplay(dataArr) {
     if (!Array.isArray(dataArr) || dataArr.length === 0) return;
     replayData = dataArr;
@@ -58,13 +85,25 @@ document.addEventListener('DOMContentLoaded', () => {
   if (fileList) {
     fetch('/replays')
       .then(res => res.json())
-      .then(files => {
+      .then(files => Promise.all(
+        files.map(f =>
+          fetch(`/replays/${encodeURIComponent(f.file)}`)
+            .then(res => res.json())
+            .then(data => ({ file: f.file, players: getHumanPlayers(data.players) }))
+            .catch(() => ({ file: f.file, players: [] }))
+        )
+      ))
+      .then(replays => {
         fileList.innerHTML = '';
-        files.forEach(f => {
+        replays.forEach(replay => {
           const li = document.createElement('li');
           const a = document.createElement('a');
-          a.href = `/replay?file=${encodeURIComponent(f.file)}`;
-          a.textContent = f.file;
+          a.href = `/replay?file=${encodeURIComponent(replay.file)}`;
+          const dateLabel = formatReplayDate(replay.file);
+          const playersLabel = replay.players.length > 0
+            ? replay.players.join(', ')
+            : 'Sem jogadores humanos';
+          a.textContent = `${dateLabel} - ${playersLabel}`;
           li.appendChild(a);
           fileList.appendChild(li);
         });
