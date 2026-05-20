@@ -901,6 +901,7 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         splitSlider.min = Math.min(...validSplits);
         splitSlider.max = Math.max(...validSplits);
         const mid = validSplits[Math.floor(validSplits.length / 2)];
+        boardSplitValue = mid;
         splitSlider.value = mid;
         updateSliderValues();
         renderPlayBuilder();
