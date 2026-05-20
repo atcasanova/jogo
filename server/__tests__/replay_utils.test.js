@@ -37,4 +37,25 @@ describe('replayHistoryForSave', () => {
     expect(isIntermediateJokerReplayEntry(finalJoker)).toBe(false);
     expect(replayHistoryForSave([finalJoker])).toEqual([finalJoker]);
   });
+
+  test('hides intermediate snapshots for card 7 before the turn advances', () => {
+    const intermediateSeven = {
+      move: 'Alice jogou um 7',
+      state: {
+        players,
+        currentPlayerIndex: 0,
+        pieces: [{ id: 'p0_1', inHomeStretch: true }]
+      }
+    };
+    const finalSeven = {
+      move: 'Alice jogou um 7',
+      state: {
+        players,
+        currentPlayerIndex: 1,
+        discardPile: [{ value: '7' }]
+      }
+    };
+
+    expect(replayHistoryForSave([intermediateSeven, finalSeven])).toEqual([finalSeven]);
+  });
 });

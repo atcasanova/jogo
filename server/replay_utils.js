@@ -16,8 +16,15 @@ function isJokerMove(entry) {
   return /(?:\bC\b|JOKER|Joker)/.test(move);
 }
 
-function isIntermediateJokerReplayEntry(entry) {
-  if (!isJokerMove(entry)) {
+function isSevenMove(entry) {
+  const move = entry && entry.move;
+  if (!move) return false;
+
+  return /(?:\b7\b)/.test(move);
+}
+
+function isIntermediateSpecialReplayEntry(entry) {
+  if (!isJokerMove(entry) && !isSevenMove(entry)) {
     return false;
   }
 
@@ -32,13 +39,17 @@ function isIntermediateJokerReplayEntry(entry) {
   );
 }
 
+function isIntermediateJokerReplayEntry(entry) {
+  return isIntermediateSpecialReplayEntry(entry) && isJokerMove(entry);
+}
+
 function replayHistoryForSave(history) {
   if (!Array.isArray(history)) {
     return [];
   }
 
   return history
-    .filter(entry => !isIntermediateJokerReplayEntry(entry))
+    .filter(entry => !isIntermediateSpecialReplayEntry(entry))
     .map(entry => JSON.parse(JSON.stringify(entry)));
 }
 
