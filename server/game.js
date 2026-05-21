@@ -84,6 +84,7 @@ class Game {
     
     this.players.push({
       id,
+      originalId: id,
       name,
       cards: [],
       position: this.players.length, // 0, 1, 2 ou 3
@@ -1670,4 +1671,3 @@ discardCard(cardIndex) {
 }
 
 module.exports = { Game };
-

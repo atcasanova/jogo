@@ -82,7 +82,9 @@ function validateReconnectionPlayer(game, playerName, originalId, originalPositi
     return -1;
   }
 
-  const byIdIndex = game.players.findIndex((player) => player.id === originalId);
+  const byIdIndex = game.players.findIndex(
+    (player) => player.id === originalId || player.originalId === originalId
+  );
   if (byIdIndex === -1) {
     return -1;
   }
@@ -400,7 +402,11 @@ socket.on('joinRoom', ({ roomId, playerName, originalPosition, originalId }) => 
     if (position >= 0 && position < game.players.length) {
       const player = game.players[position];
       
-      if (player && player.name === sanitizedPlayerName && player.id === originalId) {
+      if (
+        player &&
+        player.name === sanitizedPlayerName &&
+        (player.id === originalId || player.originalId === originalId)
+      ) {
         console.log(`Reconexão do jogador ${playerName} na posição ${position}`);
 
         // Cancelar limpeza da sala se estava agendada
@@ -693,7 +699,11 @@ socket.on('requestGameState', ({ roomId, playerName, originalId }) => {
   }
   
   // Encontrar o jogador pelo nome
-  const playerIndex = game.players.findIndex((p) => p.name === sanitizedPlayerName && p.id === originalId);
+  const playerIndex = game.players.findIndex(
+    (p) =>
+      p.name === sanitizedPlayerName &&
+      (p.id === originalId || p.originalId === originalId)
+  );
   
   if (playerIndex !== -1) {
     // Cancelar limpeza da sala se estava agendada
@@ -1355,4 +1365,3 @@ if (require.main === module) {
 }
 
 module.exports = { app, server };
-
