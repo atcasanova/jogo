@@ -30,6 +30,10 @@ from config import (
     NO_PROGRESS_PENALTY,
     REPEATED_STATE_THRESHOLD,
     REPEATED_STATE_PENALTY,
+    PARTNER_CAPTURE_NO_BOARD_PENALTY,
+    PARTNER_CAPTURE_NO_HOME_REACH_PENALTY,
+    PARTNER_CAPTURE_NEXT_TURN_RISK_PENALTY,
+    PARTNER_CAPTURE_NEXT_TURN_SAFE_BONUS,
 )
 
 # Simplified reward system used for initial curriculum training
@@ -181,6 +185,7 @@ class GameEnvironment:
             'eight_card_penalty': 0,
             'eight_home_entry_boost': 0,
             'stuck_smart_card_discard': 0,
+            'partner_capture_lookahead': 0,
             'long_game': 0,
             'win': 0,
             'loss': 0,
@@ -207,6 +212,7 @@ class GameEnvironment:
             'eight_card_penalty': 0.0,
             'eight_home_entry_boost': 0.0,
             'stuck_smart_card_discard': 0.0,
+            'partner_capture_lookahead': 0.0,
             'long_game': 0.0,
             'win': 0.0,
             'loss': 0.0,
@@ -690,6 +696,35 @@ class GameEnvironment:
                 return True
         return False
 
+    def _count_active_pieces(self, player_id: int) -> int:
+        """Count non-completed pieces that are currently out of penalty."""
+        active = 0
+        for piece in self.game_state.get('pieces', []):
+            if piece.get('playerId') != player_id or piece.get('completed'):
+                continue
+            if not piece.get('inPenaltyZone', piece.get('in_penalty')):
+                active += 1
+        return active
+
+    def _can_player_reach_home_soon(self, player_id: int) -> bool:
+        """Return whether a player has at least one piece within home-entry reach."""
+        for piece in self.game_state.get('pieces', []):
+            if piece.get('playerId') != player_id or piece.get('completed'):
+                continue
+            if self._within_home_entry_reach(piece):
+                return True
+        return False
+
+    def _next_turn_capture_risk(self, player_id: int) -> int:
+        """Count how many of a player's active pieces are exposed to quick capture."""
+        threatened = 0
+        for piece in self.game_state.get('pieces', []):
+            if piece.get('playerId') != player_id or piece.get('completed'):
+                continue
+            if self._piece_is_threatened(piece):
+                threatened += 1
+        return threatened
+
     def _summarize_actions(self, player_id: int) -> Dict[str, float]:
         """Summarize legal actions into normalized metadata features."""
         actions = list(self.last_valid_actions.get(player_id, []))
@@ -843,18 +878,25 @@ class GameEnvironment:
             act for act in self.last_fixed_play_actions.get(player_id, []) if act in valid_action_set
         ]
         self.last_fixed_play_actions[player_id] = fixed_play_actions
-        if fixed_play_actions:
-            # Fixed tactical plays are treated like home-stretch entries: if a
-            # legal move can make an urgent capture/setup, hide lower-value
-            # alternatives from the learner so training reinforces the tactic.
-            self.last_valid_actions[player_id] = fixed_play_actions
-            return fixed_play_actions
 
         avoid_actions = {act for act in self.last_avoid_actions.get(player_id, []) if act in valid_action_set}
         self.last_avoid_actions[player_id] = [act for act in unique_actions if act in avoid_actions]
-        filtered_actions = [act for act in unique_actions if act not in avoid_actions]
-        if filtered_actions:
-            unique_actions = filtered_actions
+
+        # Keep the full legal action set whenever possible and only bias order:
+        # 1) fixed tactical candidates first
+        # 2) neutral actions
+        # 3) avoid-list actions last
+        #
+        # This prevents hard constraints from forcing a move before the reward
+        # model can evaluate if it is actually advantageous in-context.
+        if fixed_play_actions or avoid_actions:
+            fixed_set = set(fixed_play_actions)
+            front = [act for act in unique_actions if act in fixed_set and act not in avoid_actions]
+            middle = [act for act in unique_actions if act not in fixed_set and act not in avoid_actions]
+            back = [act for act in unique_actions if act in avoid_actions]
+            ordered_actions = front + middle + back
+            if ordered_actions:
+                unique_actions = ordered_actions
 
         # Return the complete set of non-entry valid actions only when no
         # homestretch-entry action is available.
@@ -1076,6 +1118,8 @@ class GameEnvironment:
 
         captures = response.get('captures') or []
         capture_occurred = bool(captures)
+        partner_capture_lookahead_reward = 0.0
+        partner_capture_events = 0
         played_card_value = response.get('playedCardValue')
         special_move = response.get('specialMove') if isinstance(response, dict) else None
         if isinstance(special_move, dict) and special_move.get('cardValue'):
@@ -1160,6 +1204,45 @@ class GameEnvironment:
             self.reward_event_counts['capture'] += 1
             self.reward_event_totals['capture'] += cap
             weighted_reward += cap
+
+            partner_id = None
+            if len(my_team) == 2:
+                partner_id = my_team[0] if my_team[1] == player_id else my_team[1]
+
+            if partner_id is not None:
+                for capture in captures:
+                    captured_id = capture.get('pieceId') if isinstance(capture, dict) else None
+                    if not captured_id:
+                        continue
+                    captured_before = prev_pieces.get(captured_id)
+                    if not captured_before:
+                        continue
+                    if int(captured_before.get('playerId', -1)) != int(partner_id):
+                        continue
+
+                    partner_capture_events += 1
+                    if self._count_active_pieces(partner_id) <= 0:
+                        partner_capture_lookahead_reward += PARTNER_CAPTURE_NO_BOARD_PENALTY
+                    if not self._can_player_reach_home_soon(partner_id):
+                        partner_capture_lookahead_reward += PARTNER_CAPTURE_NO_HOME_REACH_PENALTY
+
+                    risk_after = self._next_turn_capture_risk(partner_id)
+                    if risk_after > 0:
+                        partner_capture_lookahead_reward += (
+                            PARTNER_CAPTURE_NEXT_TURN_RISK_PENALTY * float(risk_after)
+                        )
+                    else:
+                        partner_capture_lookahead_reward += PARTNER_CAPTURE_NEXT_TURN_SAFE_BONUS
+
+                if partner_capture_events > 0:
+                    weighted_reward += partner_capture_lookahead_reward
+                    self.reward_event_counts['partner_capture_lookahead'] = (
+                        self.reward_event_counts.get('partner_capture_lookahead', 0) + partner_capture_events
+                    )
+                    self.reward_event_totals['partner_capture_lookahead'] = (
+                        self.reward_event_totals.get('partner_capture_lookahead', 0.0)
+                        + partner_capture_lookahead_reward
+                    )
 
         if progress_reward > 0:
             progress_reward *= late_game_factor

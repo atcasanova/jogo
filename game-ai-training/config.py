@@ -153,6 +153,14 @@ NO_PROGRESS_PENALTY = -0.8
 REPEATED_STATE_THRESHOLD = 3
 REPEATED_STATE_PENALTY = -0.6
 
+# One-turn lookahead shaping for partner captures.
+# Penalize captures that block partner development or expose the partner to an
+# easy recapture on the next round.
+PARTNER_CAPTURE_NO_BOARD_PENALTY = -3.0
+PARTNER_CAPTURE_NO_HOME_REACH_PENALTY = -2.0
+PARTNER_CAPTURE_NEXT_TURN_RISK_PENALTY = -4.0
+PARTNER_CAPTURE_NEXT_TURN_SAFE_BONUS = 1.5
+
 # Clip range for the per-step weighted reward sum.
 REWARD_CLIP_RANGE = (-1200.0, 1200.0)
 
