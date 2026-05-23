@@ -1577,7 +1577,14 @@ class Game {
       ];
       const clone = this.cloneForSimulation();
       try {
-        clone.makeSpecialMove(moves);
+        // Validate split using the exact piece order selected in the UI.
+        // `makeSpecialMove` can auto-retry with reversed order after a failure,
+        // which is correct for execution but wrong for slider suggestions.
+        for (const move of moves) {
+          const piece = clone.pieces.find(p => p.id === move.pieceId);
+          if (!piece) throw new Error('Peça inválida');
+          clone.movePieceForward(piece, move.steps, null);
+        }
         valid.push(s);
       } catch (e) {
         continue;
