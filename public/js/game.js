@@ -852,13 +852,16 @@ function flushDeferredTurnEvents() {
 
 // Adicione esta função para verificar se o jogador está preso no castigo
 function checkIfStuckInPenalty(cards, canMoveFlag) {
-  if (!gameState || !gameState.pieces) return;
-
   const cardElements = cardsContainer.querySelectorAll('.card');
 
   if (canMoveFlag === false) {
     showStatusMessage('Você não tem jogadas possíveis. Selecione uma carta para descartar.', 'error');
     cardElements.forEach(card => card.classList.add('discard-only'));
+    return;
+  }
+
+  if (!gameState || !gameState.pieces) {
+    cardElements.forEach(card => card.classList.remove('discard-only'));
     return;
   }
 
@@ -872,7 +875,7 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
   } else {
     cardElements.forEach(card => card.classList.remove('discard-only'));
     showStatusMessage('É sua vez de jogar!', 'turn');
-  renderPlayBuilder();
+    renderPlayBuilder();
   }
 }
 
