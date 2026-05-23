@@ -1,8 +1,10 @@
 """Run tournaments between saved bot models in text mode."""
 
+import argparse
 import os
 import random
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List
 
 from ai.environment import GameEnvironment
@@ -11,6 +13,25 @@ from config import MODEL_DIR, LOG_DIR
 
 
 MAX_STEPS = 1000
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for tournament execution."""
+    parser = argparse.ArgumentParser(description="Run model tournaments.")
+    parser.add_argument(
+        "--num_games",
+        type=int,
+        default=100,
+        help="Total number of games to run across all environments.",
+    )
+    parser.add_argument(
+        "--num_envs",
+        type=int,
+        default=1,
+        help="Number of parallel game environments to run.",
+    )
+    return parser.parse_args()
+
 
 def shuffle_bots(bots: List[GameBot]) -> None:
     """Randomize seating while keeping fixed teams."""
@@ -43,6 +64,7 @@ def update_partner_stats(
             entry_a["wins"] += 1
             entry_b["wins"] += 1
 
+
 def list_model_dirs() -> List[str]:
     """Return available subdirectories in ``models/`` containing bot files."""
     dirs = []
@@ -56,6 +78,7 @@ def list_model_dirs() -> List[str]:
         if any(f.startswith("bot_") and f.endswith(".pth") for f in os.listdir(path)):
             dirs.append(entry)
     return dirs
+
 
 def choose_dir(name: str, options: List[str]) -> str:
     """Prompt the user to select a model directory."""
@@ -110,14 +133,9 @@ def load_bots(env: GameEnvironment, dirs: List[str]) -> List[GameBot]:
         bots.append(bot)
     return bots
 
-def play_game(env: GameEnvironment, bots: List[GameBot]) -> List[int]:
-    """Run a single game without training.
 
-    Returns
-    -------
-    List[int]
-        The positions of any winning players, or an empty list if no winner.
-    """
+def play_game(env: GameEnvironment, bots: List[GameBot]) -> List[int]:
+    """Run a single game without training."""
     bot_names = [f"Bot_{b.bot_id}" for b in bots]
     env.reset(bot_names=bot_names)
     step = 0
@@ -146,7 +164,53 @@ def play_game(env: GameEnvironment, bots: List[GameBot]) -> List[int]:
     return winners
 
 
+def run_single_game(game_index: int, seats: List[str], team0: str, team1: str) -> Dict[str, object]:
+    """Run one tournament match in an isolated environment."""
+    env = GameEnvironment()
+    if not env.start_node_game():
+        raise RuntimeError("Failed to start game process")
+
+    bots = load_bots(env, seats)
+    shuffle_bots(bots)
+    winners = play_game(env, bots)
+
+    result: Dict[str, object] = {
+        "game_index": game_index,
+        "winners": winners,
+        "bot_stats": {
+            b.bot_id: {
+                "wins": b.wins,
+                "games_played": b.games_played,
+                "model_dir": b.model_dir,
+                "algorithm": b.algorithm,
+            }
+            for b in bots
+        },
+        "partners": [(bots[0].bot_id, bots[2].bot_id), (bots[1].bot_id, bots[3].bot_id)],
+        "log_path": None,
+    }
+
+    if winners:
+        winning_team = 0 if winners[0] in {0, 2} else 1
+        win_model = team0 if winning_team == 0 else team1
+        lose_model = team1 if winning_team == 0 else team0
+        win_seats = "_".join(f"p{w}" for w in sorted(winners))
+        lose_seats = "_".join(f"p{s}" for s in sorted({0, 1, 2, 3} - set(winners)))
+        filename = f"{win_model}_{win_seats}_vs_{lose_model}_{lose_seats}_g{game_index + 1}.json"
+        os.makedirs(LOG_DIR, exist_ok=True)
+        log_path = os.path.join(LOG_DIR, filename)
+        env.save_history(log_path)
+        result["log_path"] = log_path
+
+    env.close()
+    return result
+
+
 def main() -> None:
+    args = parse_args()
+    num_games = max(1, args.num_games)
+    num_envs = max(1, args.num_envs)
+
     options = list_model_dirs()
     if len(options) < 1:
         print("No model directories found in 'models/'")
@@ -156,71 +220,58 @@ def main() -> None:
     team1 = choose_dir("Team 1 (seats 1 & 3)", options)
     seats = [team0, team1, team0, team1]
 
-    env = GameEnvironment()
-    if not env.start_node_game():
-        print("Failed to start game process")
-        return
-
-    bots = load_bots(env, seats)
-
     partner_stats: Dict[int, Dict[int, Dict[str, int]]] = defaultdict(
         lambda: defaultdict(lambda: {"wins": 0, "games": 0})
     )
+    bot_totals: Dict[int, Dict[str, object]] = defaultdict(
+        lambda: {"wins": 0, "games_played": 0, "model_dir": "", "algorithm": ""}
+    )
 
-    num_games = 100
-    print(f"Running {num_games} games...\n")
-    for i in range(num_games):
-        shuffle_bots(bots)
-        winners = play_game(env, bots)
-        update_partner_stats(partner_stats, bots, winners)
-        if winners:
-            winning_team = 0 if winners[0] in {0, 2} else 1
-            win_model = team0 if winning_team == 0 else team1
-            lose_model = team1 if winning_team == 0 else team0
-            win_seats = "_".join(f"p{w}" for w in sorted(winners))
-            lose_seats = "_".join(
-                f"p{s}" for s in sorted({0, 1, 2, 3} - set(winners))
-            )
-            filename = f"{win_model}_{win_seats}_vs_{lose_model}_{lose_seats}.json"
-            os.makedirs(LOG_DIR, exist_ok=True)
-            log_path = os.path.join(LOG_DIR, filename)
-            env.save_history(log_path)
-            print(
-                f"Game {i + 1}: winners {', '.join(str(w) for w in winners)}"
-            )
-        else:
-            print(f"Game {i + 1}: no winner")
-        env.reset()
+    print(f"Running {num_games} games with {num_envs} environment(s)...\n")
+    with ThreadPoolExecutor(max_workers=num_envs) as executor:
+        futures = [
+            executor.submit(run_single_game, i, seats, team0, team1)
+            for i in range(num_games)
+        ]
 
-        if (i + 1) % 10 == 0:
-            print(f"Completed {i + 1} games")
-            for b in sorted(bots, key=lambda bot: bot.bot_id):
-                win_rate = b.wins / b.games_played if b.games_played else 0
-                print(
-                    f"Bot {b.bot_id} ({b.algorithm}) from {b.model_dir} - "
-                    f"wins: {b.wins}/{b.games_played} ({win_rate:.2%})"
-                )
-                for pid, stat in partner_stats[b.bot_id].items():
-                    rate = stat["wins"] / stat["games"] if stat["games"] else 0
-                    print(
-                        f"  With Bot {pid}: {stat['wins']}/{stat['games']} "
-                        f"({rate:.2%})"
-                    )
+        completed = 0
+        for future in as_completed(futures):
+            result = future.result()
+            completed += 1
+            winners = result["winners"]
 
-    env.close()
+            if winners:
+                print(f"Game {result['game_index'] + 1}: winners {', '.join(str(w) for w in winners)}")
+            else:
+                print(f"Game {result['game_index'] + 1}: no winner")
 
-    for b in sorted(bots, key=lambda bot: bot.bot_id):
-        win_rate = b.wins / b.games_played if b.games_played else 0
+            for bot_id, stats in result["bot_stats"].items():
+                total = bot_totals[bot_id]
+                total["wins"] += stats["wins"]
+                total["games_played"] += stats["games_played"]
+                total["model_dir"] = stats["model_dir"]
+                total["algorithm"] = stats["algorithm"]
+
+            for a, b in result["partners"]:
+                partner_stats[a][b]["games"] += 1
+                partner_stats[b][a]["games"] += 1
+                if winners and ({a, b} == {0, 2} and winners[0] in {0, 2} or {a, b} == {1, 3} and winners[0] in {1, 3}):
+                    partner_stats[a][b]["wins"] += 1
+                    partner_stats[b][a]["wins"] += 1
+
+            if completed % 10 == 0:
+                print(f"Completed {completed} games")
+
+    for bot_id in sorted(bot_totals):
+        stats = bot_totals[bot_id]
+        win_rate = stats["wins"] / stats["games_played"] if stats["games_played"] else 0
         print(
-            f"Bot {b.bot_id} ({b.algorithm}) from {b.model_dir} - "
-            f"wins: {b.wins}/{b.games_played} ({win_rate:.2%})"
+            f"Bot {bot_id} ({stats['algorithm']}) from {stats['model_dir']} - "
+            f"wins: {stats['wins']}/{stats['games_played']} ({win_rate:.2%})"
         )
-        for pid, stat in partner_stats[b.bot_id].items():
+        for pid, stat in partner_stats[bot_id].items():
             rate = stat["wins"] / stat["games"] if stat["games"] else 0
-            print(
-                f"  With Bot {pid}: {stat['wins']}/{stat['games']} "
-                f"({rate:.2%})"
-            )
+            print(f"  With Bot {pid}: {stat['wins']}/{stat['games']} ({rate:.2%})")
 
 
 if __name__ == "__main__":
