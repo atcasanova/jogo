@@ -163,6 +163,16 @@
     border: 1px solid rgba(140, 246, 255, 0.35);
 }
 
+.cell.preview-target {
+    box-shadow: inset 0 0 0 3px var(--preview-color, #7ef3ff);
+    animation: preview-blink 0.9s ease-in-out infinite;
+}
+
+@keyframes preview-blink {
+    0%, 100% { background-color: rgba(126, 243, 255, 0.08); }
+    50% { background-color: color-mix(in srgb, var(--preview-color, #7ef3ff) 28%, transparent); }
+}
+
 .piece {
     width: 80%;
     height: 80%;
