@@ -176,6 +176,18 @@ document.addEventListener('DOMContentLoaded', () => {
       return { steps: parsed, isForward: true };
     }
 
+    function calculateNewPosition(currentPos, steps, isForward) {
+      const track = getTrackCoordinates();
+      const currentIndex = track.findIndex(pos => positionsEqual(pos, currentPos));
+      if (currentIndex === -1) return currentPos;
+
+      const nextIndex = isForward
+        ? (currentIndex + steps) % track.length
+        : (currentIndex - steps + track.length) % track.length;
+
+      return track[nextIndex];
+    }
+
     function getPreviewDestination(piece, card) {
       const move = getCardStepsForPreview(card);
       if (!piece || !move || piece.completed) return null;
