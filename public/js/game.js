@@ -1470,7 +1470,9 @@ function updatePlayerLabels() {
       });
       pieceElement.addEventListener('mouseenter', () => {
         if (selectedCardIndex === null || selectedPieceId) return;
-        showMovePreview(piece, playerCards[selectedCardIndex]);
+        const livePiece = gameState?.pieces?.find(currentPiece => currentPiece.id === piece.id);
+        if (!livePiece) return;
+        showMovePreview(livePiece, playerCards[selectedCardIndex]);
       });
       pieceElement.addEventListener('mouseleave', clearMovePreview);
       ensurePieceLabel(pieceElement, piece);
