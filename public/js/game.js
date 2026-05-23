@@ -134,6 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isAnimatingBoard = false;
     let pendingYourTurnData = null;
     let pendingCardsData = null;
+    let previewedCell = null;
 
     function setPieceNumbersVisible(visible) {
       board?.classList.toggle('show-piece-numbers', visible);
@@ -151,6 +152,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getDisplayValue(card) {
       return card.value === 'JOKER' ? 'C' : card.value;
+    }
+
+    function isDesktopHoverPreviewEnabled() {
+      return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    }
+
+    function clearMovePreview() {
+      if (!previewedCell) return;
+      previewedCell.classList.remove('preview-target');
+      previewedCell.style.removeProperty('--preview-color');
+      previewedCell = null;
+    }
+
+    function getCardStepsForPreview(card) {
+      if (!card || card.value === '7' || card.value === 'JOKER') return null;
+      if (card.value === 'A') return { steps: 1, isForward: true };
+      if (card.value === '8') return { steps: 8, isForward: false };
+      if (['J', 'Q', 'K'].includes(card.value)) return { steps: 10, isForward: true };
+      if (card.value === 'T') return { steps: 10, isForward: true };
+      const parsed = parseInt(card.value, 10);
+      if (Number.isNaN(parsed)) return null;
+      return { steps: parsed, isForward: true };
+    }
+
+    function getPreviewDestination(piece, card) {
+      const move = getCardStepsForPreview(card);
+      if (!piece || !move || piece.completed) return null;
+      if (piece.inPenaltyZone) {
+        if (['A', 'K', 'Q', 'J'].includes(card.value)) {
+          const startPositions = [
+            { row: 0, col: 8 },
+            { row: 8, col: 18 },
+            { row: 18, col: 10 },
+            { row: 10, col: 0 }
+          ];
+          return startPositions[piece.playerId] || null;
+        }
+        return null;
+      }
+      if (piece.inHomeStretch) return null;
+      return calculateNewPosition(piece.position, move.steps, move.isForward);
+    }
+
+    function showMovePreview(piece, card) {
+      clearMovePreview();
+      if (!isDesktopHoverPreviewEnabled() || !piece || !card) return;
+      const destination = getPreviewDestination(piece, card);
+      if (!destination) return;
+      const cell = getCell(destination.row, destination.col);
+      if (!cell) return;
+      cell.classList.add('preview-target');
+      cell.style.setProperty('--preview-color', playerColors[piece.playerId] || '#7ef3ff');
+      previewedCell = cell;
     }
 
     function createFloatingCardElement(card) {
@@ -1113,6 +1167,7 @@ function updateBoard(previousState = null) {
   if (!gameState) return Promise.resolve();
 
   clearJokerMode();
+  clearMovePreview();
   clearMoveHighlights();
   const previousPieceRects = capturePieceRects();
   
@@ -1410,6 +1465,11 @@ function updatePlayerLabels() {
         e.stopPropagation();
         handlePieceClick(piece.id);
       });
+      pieceElement.addEventListener('mouseenter', () => {
+        if (selectedCardIndex === null || selectedPieceId) return;
+        showMovePreview(piece, playerCards[selectedCardIndex]);
+      });
+      pieceElement.addEventListener('mouseleave', clearMovePreview);
       ensurePieceLabel(pieceElement, piece);
       pieceElements[piece.id] = pieceElement;
       cell.appendChild(pieceElement);
@@ -1684,6 +1744,12 @@ function updateCards(cards) {
     `;
     
     cardElement.addEventListener('click', () => handleCardClick(index));
+    cardElement.addEventListener('mouseenter', () => {
+      if (!selectedPieceId || selectedCardIndex !== null) return;
+      const piece = gameState?.pieces?.find(p => p.id === selectedPieceId);
+      showMovePreview(piece, card);
+    });
+    cardElement.addEventListener('mouseleave', clearMovePreview);
     
     cardsContainer.appendChild(cardElement);
   });
@@ -1716,6 +1782,7 @@ function updateCards(cards) {
     }
     
 function handlePieceClick(pieceId) {
+  clearMovePreview();
   if (jokerTargets && jokerTargets.valid.includes(pieceId)) {
     socket.emit('makeJokerMove', {
       roomId,
@@ -1795,6 +1862,7 @@ function handlePieceClick(pieceId) {
   // No arquivo game.js do cliente
 // No arquivo game.js - Modifique a função handleCardClick
 function handleCardClick(index) {
+  clearMovePreview();
   if (!isMyTurn) {
     showStatusMessage('Não é sua vez de jogar!', 'error');
     return;
@@ -1849,6 +1917,7 @@ function discardCard(cardIndex) {
 
 // Modifique a função makeMove
 function makeMove() {
+  clearMovePreview();
   if (!isMyTurn || !selectedPieceId || selectedCardIndex === null) return;
   
   console.log(`Tentando mover peça ${selectedPieceId} com carta ${selectedCardIndex}`);
