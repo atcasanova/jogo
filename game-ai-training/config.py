@@ -97,15 +97,15 @@ REWARD_WEIGHTS = {
     # before to reduce farming of intermediate rewards without closing games.
     'home_completion': 35.0,
     # Make homestretch entry overwhelmingly preferred whenever it is available.
-    'home_entry': 250.0,
+    'home_entry': 420.0,
     # Heavily punish rejecting or missing a valid home entry so bots learn this
     # is never an acceptable alternative to entering the homestretch.
-    'skip_home': -250.0,
-    'missed_home_entry': -250.0,
+    'skip_home': -420.0,
+    'missed_home_entry': -420.0,
     # Small tactical bonuses to improve credit assignment.
-    'home_entry_progress': 1.0,
-    'capture': 2.0,
-    'safe_move': 1.0,
+    'home_entry_progress': 2.5,
+    'capture': 3.0,
+    'safe_move': 1.5,
     # Team outcome signal.
     'win': 100.0,
     'loss': -80.0,
