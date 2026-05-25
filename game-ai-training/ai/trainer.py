@@ -176,7 +176,6 @@ class TrainingManager:
             limit += int(STAGE5_TURN_LIMIT_BOOST)
         return limit
 
-    
     def create_bots(self, num_bots=4):
         self.bots = []
         self.trainable_bots = []
