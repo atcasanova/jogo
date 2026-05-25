@@ -1198,6 +1198,8 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
     function updateSplitMovePreview() {
       clearMovePreview();
       if (!boardSplitMode || !selectedPieceId || !secondPieceId) return;
+      const leftVal = boardSplitValue;
+      const rightVal = 7 - boardSplitValue;
       const pieceA = gameState?.pieces?.find((p) => p.id === selectedPieceId);
       const pieceB = gameState?.pieces?.find((p) => p.id === secondPieceId);
       if (!pieceA || !pieceB) return;
@@ -1556,9 +1558,9 @@ function updatePlayerLabels() {
         handlePieceClick(piece.id);
       });
       pieceElement.addEventListener('mouseenter', () => {
-        if (selectedCardIndex === null || selectedPieceId) return;
+        if (!isMyTurn || selectedCardIndex === null || selectedPieceId) return;
         const livePiece = gameState?.pieces?.find(currentPiece => currentPiece.id === piece.id);
-        if (!livePiece) return;
+        if (!livePiece || !canControlPiece(playerPosition, livePiece.playerId)) return;
         showMovePreview(livePiece, playerCards[selectedCardIndex]);
       });
       pieceElement.addEventListener('mouseleave', clearMovePreview);
