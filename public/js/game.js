@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isAnimatingBoard = false;
     let pendingYourTurnData = null;
     let pendingCardsData = null;
-    let previewedCell = null;
+    let previewedCells = [];
 
     function setPieceNumbersVisible(visible) {
       board?.classList.toggle('show-piece-numbers', visible);
@@ -159,10 +159,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function clearMovePreview() {
-      if (!previewedCell) return;
-      previewedCell.classList.remove('preview-target');
-      previewedCell.style.removeProperty('--preview-color');
-      previewedCell = null;
+      if (!previewedCells.length) return;
+      previewedCells.forEach((cell) => {
+        cell.classList.remove('preview-target');
+        cell.style.removeProperty('--preview-color');
+      });
+      previewedCells = [];
     }
 
     function getCardStepsForPreview(card) {
@@ -174,6 +176,35 @@ document.addEventListener('DOMContentLoaded', () => {
       const parsed = parseInt(card.value, 10);
       if (Number.isNaN(parsed)) return null;
       return { steps: parsed, isForward: true };
+    }
+
+    function addPreviewCell(row, col, color) {
+      const cell = getCell(row, col);
+      if (!cell) return;
+      cell.classList.add('preview-target');
+      cell.style.setProperty('--preview-color', color);
+      previewedCells.push(cell);
+    }
+
+    function homeEntryOption(piece, steps) {
+      if (!piece || piece.completed || piece.inPenaltyZone || piece.inHomeStretch) return null;
+      const entrances = [
+        { row: 0, col: 4 },
+        { row: 4, col: 18 },
+        { row: 18, col: 14 },
+        { row: 14, col: 0 }
+      ];
+      const entrance = entrances[piece.playerId];
+      const track = getTrackCoordinates();
+      const currentIndex = positionIndex(track, piece.position);
+      const entranceIndex = positionIndex(track, entrance);
+      if (currentIndex === -1 || entranceIndex === -1) return null;
+      const distanceToEntrance = (entranceIndex - currentIndex + track.length) % track.length;
+      if (distanceToEntrance >= steps) return null;
+      const remaining = steps - distanceToEntrance;
+      const stretch = homeStretchForPlayer(piece.playerId) || [];
+      if (remaining < 1 || remaining > stretch.length) return null;
+      return { boardTarget: calculateNewPosition(piece.position, steps, true), homeTarget: stretch[remaining - 1] };
     }
 
     function calculateNewPosition(currentPos, steps, isForward) {
@@ -210,13 +241,35 @@ document.addEventListener('DOMContentLoaded', () => {
     function showMovePreview(piece, card) {
       clearMovePreview();
       if (!isDesktopHoverPreviewEnabled() || !piece || !card) return;
+      const color = playerColors[piece.playerId] || '#7ef3ff';
+
+      if (card.value === 'JOKER') {
+        const occupiedPositions = (gameState?.pieces || []).filter(p =>
+          !p.completed && !p.inPenaltyZone && !p.inHomeStretch && p.id !== piece.id
+        );
+        occupiedPositions.forEach((p) => addPreviewCell(p.position.row, p.position.col, color));
+        return;
+      }
+
+      if (card.value === '7') {
+        for (let step = 1; step <= 7; step++) {
+          const pos = calculateNewPosition(piece.position, step, true);
+          addPreviewCell(pos.row, pos.col, color);
+        }
+        const entry = homeEntryOption(piece, 7);
+        if (entry?.homeTarget) {
+          addPreviewCell(entry.homeTarget.row, entry.homeTarget.col, color);
+        }
+        return;
+      }
+
       const destination = getPreviewDestination(piece, card);
       if (!destination) return;
-      const cell = getCell(destination.row, destination.col);
-      if (!cell) return;
-      cell.classList.add('preview-target');
-      cell.style.setProperty('--preview-color', playerColors[piece.playerId] || '#7ef3ff');
-      previewedCell = cell;
+      const entry = getCardStepsForPreview(card) ? homeEntryOption(piece, getCardStepsForPreview(card).steps) : null;
+      addPreviewCell(destination.row, destination.col, color);
+      if (entry?.homeTarget) {
+        addPreviewCell(entry.homeTarget.row, entry.homeTarget.col, color);
+      }
     }
 
     function createFloatingCardElement(card) {
@@ -493,6 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function clearBoardSplitSliders() {
       document.querySelectorAll('.piece-split-slider-wrap').forEach(el => el.remove());
       boardSplitMode = false;
+      clearMovePreview();
     }
 
     function adjustBoardSize() {
@@ -1119,6 +1173,7 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
       mk(true, leftPosition);
       mk(false, rightPosition);
       boardSplitMode = true;
+      updateSplitMovePreview();
     }
 
 
@@ -1137,6 +1192,26 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         input.value = sliderVal;
         out.textContent = sliderVal;
       });
+      updateSplitMovePreview();
+    }
+
+    function updateSplitMovePreview() {
+      clearMovePreview();
+      if (!boardSplitMode || !selectedPieceId || !secondPieceId) return;
+      const pieceA = gameState?.pieces?.find((p) => p.id === selectedPieceId);
+      const pieceB = gameState?.pieces?.find((p) => p.id === secondPieceId);
+      if (!pieceA || !pieceB) return;
+
+      const previewForPiece = (piece, steps) => {
+        const color = playerColors[piece.playerId] || '#7ef3ff';
+        const pos = calculateNewPosition(piece.position, steps, true);
+        addPreviewCell(pos.row, pos.col, color);
+        const entry = homeEntryOption(piece, steps);
+        if (entry?.homeTarget) addPreviewCell(entry.homeTarget.row, entry.homeTarget.col, color);
+      };
+
+      previewForPiece(pieceA, leftVal);
+      previewForPiece(pieceB, rightVal);
     }
 
     function submitSpecialSplit() {
