@@ -166,7 +166,7 @@ def play_game(env: GameEnvironment, bots: List[GameBot]) -> List[int]:
 
 def run_single_game(game_index: int, seats: List[str], team0: str, team1: str) -> Dict[str, object]:
     """Run one tournament match in an isolated environment."""
-    env = GameEnvironment()
+    env = GameEnvironment(enforce_action_constraints=False)
     if not env.start_node_game():
         raise RuntimeError("Failed to start game process")
 
