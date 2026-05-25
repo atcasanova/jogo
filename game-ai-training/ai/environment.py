@@ -86,7 +86,13 @@ def prioritize_home_entry_actions(valid_actions: List[int], home_entry_actions: 
 
 
 class GameEnvironment:
-    def __init__(self, env_id: int = 0, pieces_per_player: int = 5, turn_limit: int = 500):
+    def __init__(
+        self,
+        env_id: int = 0,
+        pieces_per_player: int = 5,
+        turn_limit: int = 500,
+        enforce_action_constraints: bool = True,
+    ):
         self.node_process = None
         self.game_state = None
         self.action_space_size = 80
@@ -95,6 +101,10 @@ class GameEnvironment:
 
         self.pieces_per_player = pieces_per_player
         self.turn_limit = turn_limit
+        # Training uses strict action constraints to shape policy behavior.
+        # Tournament evaluation can disable these constraints to let bots
+        # choose from the full legal action set.
+        self.enforce_action_constraints = enforce_action_constraints
 
         # identifier for logging when multiple environments are used
         self.env_id = env_id
@@ -851,7 +861,7 @@ class GameEnvironment:
             act for act in self.last_home_entry_actions.get(player_id, []) if act in valid_action_set
         ]
         self.last_home_entry_actions[player_id] = home_entry_actions
-        if home_entry_actions:
+        if home_entry_actions and self.enforce_action_constraints:
             # Homestretch entry is a rule-level priority for the training policy:
             # when any legal action can enter home, mask out every alternative so
             # the bot cannot learn to prefer captures, setup moves, or discards.
@@ -865,7 +875,7 @@ class GameEnvironment:
             act for act in self.last_home_stretch_move_actions.get(player_id, []) if act in valid_action_set
         ]
         self.last_home_stretch_move_actions[player_id] = home_stretch_move_actions
-        if home_stretch_move_actions:
+        if home_stretch_move_actions and self.enforce_action_constraints:
             # Once a piece is already in the homestretch, moving it deeper with
             # A/2/3/4 or a split 7 is mandatory so bots keep organizing pieces
             # instead of wasting winning positions on unrelated moves.
