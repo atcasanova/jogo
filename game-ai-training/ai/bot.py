@@ -111,9 +111,11 @@ class GameBot:
             dist = torch.distributions.Categorical(probs)
             action = dist.sample()
 
-            self.last_log_prob = dist.log_prob(action)
+            # Store rollout statistics detached from the forward graph.
+            # PPO uses these as fixed "old policy/value" references during replay.
+            self.last_log_prob = dist.log_prob(action).detach()
             self.last_entropy = dist.entropy().item()
-            self.last_value = value.squeeze(0)
+            self.last_value = value.squeeze(0).detach()
             return int(action.item())
 
     def remember(self, state, action, reward, next_state, done, game_won=False, extra_advantage: float = 0.0):
@@ -125,8 +127,8 @@ class GameBot:
                     action,
                     reward,
                     done,
-                    self.last_log_prob,
-                    self.last_value,
+                    self.last_log_prob.detach(),
+                    self.last_value.detach(),
                     self.last_entropy,
                     game_won,
                     extra_advantage,
