@@ -1068,7 +1068,6 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
 
       const computeDiagonalPosition = (pieceRect, pairCenter, sideHint) => {
         const size = dims(false);
-        const boardCenterX = boardRect.left + boardRect.width / 2;
         const boardCenterY = boardRect.top + boardRect.height / 2;
         const isNearTop = pairCenter.y < boardCenterY;
         const horizontalSide = sideHint || (pieceRect.left + pieceRect.width / 2 < pairCenter.x ? 'left' : 'right');
@@ -1076,9 +1075,14 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         const left = horizontalSide === 'left'
           ? pieceRect.left - size.width - offset
           : pieceRect.right + offset;
-        const top = isNearTop
+        let top = isNearTop
           ? pieceRect.bottom + offset
           : pieceRect.top - size.height - offset;
+
+        const overTop = top < boardRect.top;
+        const overBottom = top + size.height > boardRect.bottom;
+        if (overTop && !overBottom) top = pieceRect.bottom + offset;
+        if (overBottom && !overTop) top = pieceRect.top - size.height - offset;
 
         return clampPosition({ left, top }, size);
       };
