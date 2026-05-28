@@ -1110,6 +1110,7 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         return clampPosition({ left, top }, size);
       };
 
+      const isMobileSplitLayout = window.matchMedia('(max-width: 768px)').matches;
       const leftHorizontal = computePosition(ra, false, false, true);
       const rightHorizontal = computePosition(rb, true, false, false);
       const hSize = dims(false);
@@ -1131,10 +1132,32 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         rightPosition = computeDiagonalPosition(rb, pairCenter, 'right');
       }
 
+      if (isMobileSplitLayout) {
+        const size = dims(false);
+        const boardCenterX = boardRect.left + (boardRect.width / 2);
+        const boardCenterY = boardRect.top + (boardRect.height / 2);
+        const horizontalGap = 12;
+        leftPosition = clampPosition({
+          left: boardCenterX - size.width - horizontalGap,
+          top: boardCenterY - (size.height / 2)
+        }, size);
+        rightPosition = clampPosition({
+          left: boardCenterX + horizontalGap,
+          top: boardCenterY - (size.height / 2)
+        }, size);
+      }
+
+      const pieceNumberFromId = (pieceId) => {
+        if (!pieceId) return '?';
+        const m = pieceId.match(/_(\d+)$/);
+        return m ? m[1] : pieceId;
+      };
+
       const mk = (isLeft, position) => {
         const w = document.createElement('div');
-        w.className = `piece-split-slider-wrap ${vertical ? 'vertical' : ''}`;
+        w.className = `piece-split-slider-wrap ${vertical ? 'vertical' : ''} ${isMobileSplitLayout ? 'mobile-centered' : ''}`;
         const out = document.createElement('span');
+        const label = document.createElement('span');
         const input = document.createElement('input');
         const confirm = document.createElement('button');
 
@@ -1163,8 +1186,10 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         confirm.title = 'Confirmar divisão';
         confirm.addEventListener('click', submitSpecialSplit);
 
+        label.className = 'piece-split-piece-label';
+        label.textContent = `Peça ${pieceNumberFromId(isLeft ? selectedPieceId : secondPieceId)}`;
         out.className='val'; out.textContent = isLeft ? boardSplitValue : 7-boardSplitValue;
-        w.append(out,input,confirm);
+        w.append(label, out, input, confirm);
         w.style.left = `${position.left}px`;
         w.style.top = `${position.top}px`;
         document.body.appendChild(w);

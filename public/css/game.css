@@ -978,6 +978,21 @@
   border: 1px solid rgba(140, 246, 255, 0.25);
   pointer-events: auto;
 }
+
+.piece-split-piece-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  opacity: 0.95;
+}
+.piece-split-slider-wrap .val {
+  min-width: 1.1rem;
+  text-align: center;
+  font-weight: 700;
+}
+.piece-split-slider-wrap.mobile-centered {
+  flex-direction: row;
+}
 .piece-split-slider-wrap input[type="range"] { width: 70px; }
 .piece-split-slider-wrap.vertical { flex-direction: column; }
 .piece-split-confirm {
