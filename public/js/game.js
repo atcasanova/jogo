@@ -1046,7 +1046,6 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
       const boardRect = board.getBoundingClientRect();
       const centerA = { x: ra.left + ra.width / 2, y: ra.top + ra.height / 2 };
       const centerB = { x: rb.left + rb.width / 2, y: rb.top + rb.height / 2 };
-      const piecesAreClose = Math.abs(centerA.x - centerB.x) < 62 && Math.abs(centerA.y - centerB.y) < 62;
       const offset = 10;
 
       const dims = (isVertical) => ({
@@ -1058,13 +1057,6 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         left: Math.max(6, Math.min(pos.left, window.innerWidth - size.width - 6)),
         top: Math.max(6, Math.min(pos.top, window.innerHeight - size.height - 6))
       });
-
-      const overlaps = (aRect, bRect) => (
-        aRect.left < bRect.right &&
-        aRect.right > bRect.left &&
-        aRect.top < bRect.bottom &&
-        aRect.bottom > bRect.top
-      );
 
       const computeDiagonalPosition = (pieceRect, pairCenter, sideHint) => {
         const size = dims(false);
@@ -1087,53 +1079,13 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         return clampPosition({ left, top }, size);
       };
 
-      const computePosition = (pieceRect, isRightSide, isVertical, preferAbove) => {
-        const size = dims(isVertical);
-        const spaceRight = window.innerWidth - pieceRect.right;
-        const spaceLeft = pieceRect.left;
-
-        let left = pieceRect.left + (pieceRect.width - size.width) / 2;
-        let top = preferAbove ? pieceRect.top - size.height - offset : pieceRect.bottom + offset;
-
-        if (!isVertical) {
-          const overTop = top < boardRect.top;
-          const overBottom = top + size.height > boardRect.bottom;
-          if (overTop && !overBottom) top = pieceRect.bottom + offset;
-          if (overBottom && !overTop) top = pieceRect.top - size.height - offset;
-        }
-
-        if (isVertical) {
-          if ((isRightSide && spaceRight > size.width + offset) || spaceLeft < size.width + offset) {
-            left = pieceRect.right + offset;
-          } else {
-            left = pieceRect.left - size.width - offset;
-          }
-          top = pieceRect.top + (pieceRect.height - size.height) / 2;
-        }
-
-        return clampPosition({ left, top }, size);
+      const pairCenter = {
+        x: (centerA.x + centerB.x) / 2,
+        y: (centerA.y + centerB.y) / 2
       };
-
-      const leftHorizontal = computePosition(ra, false, false, true);
-      const rightHorizontal = computePosition(rb, true, false, false);
-      const hSize = dims(false);
-      const horizontalOverlaps = overlaps(
-        { ...leftHorizontal, right: leftHorizontal.left + hSize.width, bottom: leftHorizontal.top + hSize.height },
-        { ...rightHorizontal, right: rightHorizontal.left + hSize.width, bottom: rightHorizontal.top + hSize.height }
-      );
-
-      const vertical = !piecesAreClose && horizontalOverlaps;
-      let leftPosition = vertical ? computePosition(ra, false, true, true) : leftHorizontal;
-      let rightPosition = vertical ? computePosition(rb, true, true, false) : rightHorizontal;
-
-      if (piecesAreClose) {
-        const pairCenter = {
-          x: (centerA.x + centerB.x) / 2,
-          y: (centerA.y + centerB.y) / 2
-        };
-        leftPosition = computeDiagonalPosition(ra, pairCenter, 'left');
-        rightPosition = computeDiagonalPosition(rb, pairCenter, 'right');
-      }
+      const vertical = false;
+      const leftPosition = computeDiagonalPosition(ra, pairCenter, 'left');
+      const rightPosition = computeDiagonalPosition(rb, pairCenter, 'right');
 
       const mk = (isLeft, position) => {
         const w = document.createElement('div');
