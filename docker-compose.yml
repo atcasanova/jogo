@@ -2,7 +2,7 @@ services:
   game-server:
     build: .
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3003:3000"
     volumes:
       - ./server:/app/server
       - ./public:/app/public

@@ -5,7 +5,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const roomCodeSpan = document.getElementById('room-code');
     const team1Players = document.getElementById('team1-players');
     const team2Players = document.getElementById('team2-players');
+    const team1ProgressText = document.getElementById('team1-progress-text');
+    const team2ProgressText = document.getElementById('team2-progress-text');
+    const team1ProgressBar = document.getElementById('team1-progress-bar');
+    const team2ProgressBar = document.getElementById('team2-progress-bar');
     const currentPlayerSpan = document.getElementById('current-player');
+    const gameInfo = document.querySelector('.game-info');
+    const team1Line = document.querySelector('.team-line.team1');
+    const team2Line = document.querySelector('.team-line.team2');
+    const turnInfo = document.querySelector('.turn-info');
+    const turnKicker = document.getElementById('turn-kicker');
     const turnMessage = document.getElementById('turn-message');
     const cardsContainer = document.getElementById('cards-container');
     const deckCount = document.getElementById('deck-count');
@@ -14,9 +23,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const specialMoveDialog = document.getElementById('special-move-dialog');
     const jokerDialog = document.getElementById('joker-dialog');
     const gameOverDialog = document.getElementById('game-over');
+    const homeEntryDialog = document.getElementById('home-entry-dialog');
+    const homeEntryBackdrop = document.getElementById('home-entry-backdrop');
+    const homeEntryConfirm = document.getElementById('home-entry-confirm');
+    const homeEntryCancel = document.getElementById('home-entry-cancel');
     const winnersDiv = document.getElementById('winners');
     const finalStatsDiv = document.getElementById('final-stats');
     const playerHand = document.querySelector('.player-hand');
+    const gameContainer = document.querySelector('.game-container');
+    const boardContainer = document.querySelector('.board-container');
     const playBuilder = document.getElementById('play-builder');
     const playBuilderText = document.getElementById('play-builder-text');
     const resetPlayBuilderBtn = document.getElementById('reset-play-builder');
@@ -38,6 +53,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelJokerMoveBtn = document.getElementById('cancel-joker-move');
 
     const statsPanel = document.getElementById('stats-panel');
+    const gameToast = document.getElementById('game-toast');
+    const gameToastIcon = document.getElementById('game-toast-icon');
+    const gameToastMessage = document.getElementById('game-toast-message');
+    const gameToastClose = document.getElementById('game-toast-close');
+    const helpToggle = document.getElementById('help-toggle');
+    const helpPanel = document.getElementById('rules-help-panel');
+    const helpClose = document.getElementById('help-close');
 
     let isDraggingHand = false;
     let handOffsetX = 0;
@@ -84,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedPieceId = null;
     let selectedCardIndex = null;
     let isMyTurn = false;
+    let canMoveThisTurn = null;
     let specialMoveCard = null;
     let jokerTargets = null;
     let playerCards = [];
@@ -91,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let awaitingSecondPiece = false;
     let validSplits = [];
     let pendingSpecialMove = null;
+    let pendingHomeEntry = null;
     let boardSplitMode = false;
     let boardSplitValue = 3;
     const playerColors = ['#3498db', '#f2f2f2', '#e74c3c', '#2ecc71'];
@@ -135,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingYourTurnData = null;
     let pendingCardsData = null;
     let previewedCells = [];
+    let toastTimer = null;
 
     function setPieceNumbersVisible(visible) {
       board?.classList.toggle('show-piece-numbers', visible);
@@ -340,6 +365,39 @@ document.addEventListener('DOMContentLoaded', () => {
       turnMessage.classList.add(type);
     }
 
+    function showToast(message, type = 'info', duration = 4200) {
+      if (!gameToast || !gameToastMessage) return;
+
+      clearTimeout(toastTimer);
+      gameToastMessage.textContent = message;
+      gameToastIcon.textContent = type === 'error' ? '!' : type === 'turn' ? '✦' : 'i';
+      gameToast.className = `game-toast ${type}`;
+
+      if (duration > 0) {
+        toastTimer = setTimeout(() => {
+          gameToast.classList.add('hidden');
+        }, duration);
+      }
+    }
+
+    function hideToast() {
+      clearTimeout(toastTimer);
+      gameToast?.classList.add('hidden');
+    }
+
+    function setHelpPanelOpen(open) {
+      helpPanel?.classList.toggle('hidden', !open);
+      helpToggle?.setAttribute('aria-expanded', String(open));
+    }
+
+    function notifyAndReturnToLobby(message) {
+      showStatusMessage(message, 'error');
+      showToast(message, 'error', 0);
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1400);
+    }
+
     function wait(ms) {
       return new Promise(resolve => setTimeout(resolve, ms));
     }
@@ -541,6 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
           : gameState.lastMove.message;
         if (lastMoveText) playBuilderText.textContent = lastMoveText;
       }
+      scheduleBoardSize();
     }
 
     function clearBoardSplitSliders() {
@@ -549,34 +608,73 @@ document.addEventListener('DOMContentLoaded', () => {
       clearMovePreview();
     }
 
+    function cssPixels(style, property) {
+      const value = Number.parseFloat(style.getPropertyValue(property));
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function isFlowElement(element) {
+      if (!element) return false;
+      const style = window.getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.position !== 'fixed';
+    }
+
     function adjustBoardSize() {
+      if (!board || !gameContainer || !boardContainer) return;
+
       const info = document.querySelector('.game-info');
-      const hand = playerHand;
+      const containerStyle = window.getComputedStyle(gameContainer);
+      const boardStyle = window.getComputedStyle(boardContainer);
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+      const visualViewportHeight = window.visualViewport?.height || window.innerHeight;
+      const viewportHeight = Math.min(window.innerHeight, visualViewportHeight);
+      const outerPaddingX = cssPixels(containerStyle, 'padding-left') + cssPixels(containerStyle, 'padding-right');
+      const outerPaddingY = cssPixels(containerStyle, 'padding-top') + cssPixels(containerStyle, 'padding-bottom');
+      const rowGap = cssPixels(containerStyle, 'row-gap') || cssPixels(containerStyle, 'gap');
+      const gridGapCount = 3;
+      const boardPaddingX = cssPixels(boardStyle, 'padding-left') + cssPixels(boardStyle, 'padding-right');
+      const boardPaddingY = cssPixels(boardStyle, 'padding-top') + cssPixels(boardStyle, 'padding-bottom');
+      const boardBorderX = cssPixels(boardStyle, 'border-left-width') + cssPixels(boardStyle, 'border-right-width');
+      const boardBorderY = cssPixels(boardStyle, 'border-top-width') + cssPixels(boardStyle, 'border-bottom-width');
 
-      const cssMax = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.65);
-      let size = cssMax;
+      const getSiblingHeight = () => [info, playBuilder, playerHand]
+        .filter(isFlowElement)
+        .reduce((total, element) => total + element.getBoundingClientRect().height, 0);
 
-      if (info && hand) {
-        const availableWithHand = window.innerHeight - info.offsetHeight - hand.offsetHeight - 32;
-        if (availableWithHand < 0) {
-          hand.classList.add('floating');
-          hand.style.bottom = '10px';
-          hand.style.left = '50%';
-          hand.style.transform = 'translateX(-50%)';
-          const available = window.innerHeight - info.offsetHeight - 16;
-          size = Math.min(cssMax, available);
-        } else {
-          hand.classList.remove('floating');
-          hand.style.left = '';
-          hand.style.top = '';
-          hand.style.bottom = '';
-          hand.style.transform = '';
-          size = Math.min(cssMax, availableWithHand);
-        }
+      let siblingHeight = getSiblingHeight();
+
+      // The board is one grid row alongside the header, optional play builder,
+      // and hand. Reserve the real measured heights and every grid gap instead
+      // of relying on a fixed viewport subtraction.
+      let availableBoardRowHeight = viewportHeight - outerPaddingY - siblingHeight - (rowGap * gridGapCount);
+      let availableBoardHeight = availableBoardRowHeight - boardPaddingY - boardBorderY;
+
+      const containerWidth = gameContainer.getBoundingClientRect().width || viewportWidth;
+      const availableBoardWidth = Math.min(viewportWidth - outerPaddingX, containerWidth - outerPaddingX)
+        - boardPaddingX - boardBorderX;
+      const size = Math.floor(Math.max(1, Math.min(availableBoardWidth, availableBoardHeight)));
+
+      // Keep the hand in normal flow so it is always fully visible. On small
+      // screens its cards scroll horizontally, never the whole game viewport.
+      if (playerHand) {
+        playerHand.classList.remove('floating');
+        playerHand.style.left = '';
+        playerHand.style.top = '';
+        playerHand.style.bottom = '';
+        playerHand.style.transform = '';
       }
 
       board.style.width = `${size}px`;
       board.style.height = `${size}px`;
+    }
+
+    let resizeFrame = null;
+    function scheduleBoardSize() {
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        adjustBoardSize();
+      });
     }
 
     function isPartner(id1, id2) {
@@ -598,6 +696,77 @@ document.addEventListener('DOMContentLoaded', () => {
       return hasAllPiecesInHomeStretch(controllerId) && isPartner(controllerId, ownerId);
     }
 
+    function isPenaltyExitCard(card) {
+      return Boolean(card && ['A', 'J', 'Q', 'K'].includes(card.value));
+    }
+
+    function canPotentiallyPlayCard(piece, card) {
+      if (!piece || !card || piece.completed || !canControlPiece(playerPosition, piece.playerId)) {
+        return false;
+      }
+
+      if (piece.inPenaltyZone) {
+        return isPenaltyExitCard(card);
+      }
+
+      if (card.value === 'JOKER') {
+        return !piece.inHomeStretch && gameState.pieces.some(target =>
+          target.id !== piece.id &&
+          target.playerId !== piece.playerId &&
+          !target.completed &&
+          !target.inPenaltyZone &&
+          !target.inHomeStretch
+        );
+      }
+
+      if (card.value === '8') {
+        return !piece.inHomeStretch;
+      }
+
+      if (card.value === '7') {
+        return piece.inHomeStretch ? canMoveInHomeStretch(piece) : true;
+      }
+
+      return true;
+    }
+
+    function cardHasPotentialMove(card) {
+      if (!gameState?.pieces || !card || canMoveThisTurn === false) return false;
+      return gameState.pieces.some(piece => canPotentiallyPlayCard(piece, card));
+    }
+
+    function updatePieceAffordances() {
+      const selectedCard = selectedCardIndex !== null ? playerCards[selectedCardIndex] : null;
+      const canChoose = isMyTurn && canMoveThisTurn !== false;
+
+      Object.entries(pieceElements).forEach(([pieceId, element]) => {
+        const piece = gameState?.pieces?.find(currentPiece => currentPiece.id === pieceId);
+        const canUse = canChoose && piece && (
+          selectedCard
+            ? canPotentiallyPlayCard(piece, selectedCard)
+            : playerCards.some(card => canPotentiallyPlayCard(piece, card))
+        );
+        element.classList.toggle('piece-playable', Boolean(canUse));
+        element.classList.toggle('piece-muted', Boolean(canChoose && selectedCard && !canUse));
+      });
+    }
+
+    function applyCardAffordances() {
+      const cardElements = cardsContainer.querySelectorAll('.card');
+      cardElements.forEach((cardElement, index) => {
+        const card = playerCards[index];
+        const playable = isMyTurn && canMoveThisTurn !== false && cardHasPotentialMove(card);
+        const discardOnly = isMyTurn && !playable;
+
+        cardElement.classList.toggle('playable', playable);
+        cardElement.classList.toggle('discard-only', discardOnly);
+        cardElement.classList.toggle('turn-muted', !isMyTurn);
+        cardElement.setAttribute('aria-label', card ? `Carta ${getDisplayValue(card)}${playable ? ', jogada disponível' : discardOnly ? ', clique para descartar' : ''}` : 'Carta');
+      });
+
+      updatePieceAffordances();
+    }
+
     // Inicializar o jogo
    // No arquivo game.js - Modifique a função init
 function init() {
@@ -607,8 +776,7 @@ function init() {
   playerId = urlParams.get('playerId');
   
   if (!roomId) {
-    alert('Sala não especificada');
-    window.location.href = '/';
+    notifyAndReturnToLobby('Sala não especificada. Voltando para o início...');
     return;
   }
   
@@ -618,8 +786,7 @@ function init() {
   
   if (!playerDataString) {
     console.error('Dados do jogador não encontrados');
-    alert('Erro ao recuperar dados do jogador. Redirecionando para a página inicial.');
-    window.location.href = '/';
+    notifyAndReturnToLobby('Não foi possível recuperar seus dados. Voltando para o início...');
     return;
   }
   
@@ -647,8 +814,7 @@ function init() {
     
   } catch (error) {
     console.error('Erro ao parsear dados do jogador:', error);
-    alert('Erro ao recuperar dados do jogador. Redirecionando para a página inicial.');
-    window.location.href = '/';
+    notifyAndReturnToLobby('Não foi possível abrir esta partida. Voltando para o início...');
   }
 }
 
@@ -854,23 +1020,52 @@ function clearJokerMode() {
   jokerTargets = null;
 }
 
-function handleHomeEntryChoice(data) {
-  const choice = confirm('Sua peça pode entrar na zona de vitória. Deseja entrar?');
+function setHomeEntryDialogOpen(open) {
+  homeEntryDialog?.classList.toggle('hidden', !open);
+  homeEntryBackdrop?.classList.toggle('hidden', !open);
+  homeEntryBackdrop?.setAttribute('aria-hidden', String(!open));
+  if (open) homeEntryConfirm?.focus();
+}
+
+function submitHomeEntryChoice(enterHome) {
+  if (!pendingHomeEntry) return;
+
+  const pending = pendingHomeEntry;
+  pendingHomeEntry = null;
+  setHomeEntryDialogOpen(false);
+
+  if (pending.type === 'special') {
+    socket.emit('confirmSpecialHomeEntry', {
+      roomId,
+      enterHome
+    });
+    finalizeSpecialMove();
+    return;
+  }
+
   socket.emit('confirmHomeEntry', {
     roomId,
-    pieceId: data.pieceId,
-    cardIndex: data.cardIndex,
-    enterHome: choice
+    pieceId: pending.pieceId,
+    cardIndex: pending.cardIndex,
+    enterHome
   });
 }
 
+function handleHomeEntryChoice(data) {
+  pendingHomeEntry = {
+    type: 'regular',
+    pieceId: data.pieceId,
+    cardIndex: data.cardIndex
+  };
+  setHomeEntryDialogOpen(true);
+}
+
 function handleHomeEntryChoiceSpecial(data) {
-  const choice = confirm('Sua peça pode entrar na zona de vitória. Deseja entrar?');
-  socket.emit('confirmSpecialHomeEntry', {
-    roomId,
-    enterHome: choice
-  });
-  finalizeSpecialMove();
+  pendingHomeEntry = {
+    type: 'special',
+    pieceId: data?.pieceId
+  };
+  setHomeEntryDialogOpen(true);
 }
    
 
@@ -887,7 +1082,9 @@ function handleYourTurn(data) {
 function applyYourTurn(data) {
   console.log('É sua vez de jogar!', data);
   isMyTurn = true;
+  canMoveThisTurn = data?.canMove !== false;
   showStatusMessage('É sua vez de jogar!', 'turn');
+  showToast('Sua vez de jogar — escolha uma carta.', 'turn', 3200);
   renderPlayBuilder();
 
   // Atualizar cartas na mão
@@ -918,16 +1115,16 @@ function flushDeferredTurnEvents() {
 
 // Adicione esta função para verificar se o jogador está preso no castigo
 function checkIfStuckInPenalty(cards, canMoveFlag) {
-  const cardElements = cardsContainer.querySelectorAll('.card');
+  canMoveThisTurn = canMoveFlag !== false;
 
   if (canMoveFlag === false) {
     showStatusMessage('Você não tem jogadas possíveis. Selecione uma carta para descartar.', 'error');
-    cardElements.forEach(card => card.classList.add('discard-only'));
+    applyCardAffordances();
     return;
   }
 
   if (!gameState || !gameState.pieces) {
-    cardElements.forEach(card => card.classList.remove('discard-only'));
+    applyCardAffordances();
     return;
   }
 
@@ -937,12 +1134,12 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
 
   if (allInPenalty && !hasExitCard) {
     showStatusMessage('Você não tem A, K, Q ou J para sair do castigo. Selecione uma carta para descartar.', 'error');
-    cardElements.forEach(card => card.classList.add('discard-only'));
+    canMoveThisTurn = false;
   } else {
-    cardElements.forEach(card => card.classList.remove('discard-only'));
     showStatusMessage('É sua vez de jogar!', 'turn');
     renderPlayBuilder();
   }
+  applyCardAffordances();
 }
 
     function handleGameOver(data) {
@@ -1002,8 +1199,9 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         window.location.href = '/';
     }
     
-    function handleError(message) {
-        showStatusMessage(`Erro: ${message}`, 'error');
+function handleError(message) {
+        showStatusMessage(message, 'error');
+        showToast(message, 'error');
         if (pendingSpecialMove && pendingSpecialMove.pieceAId !== pendingSpecialMove.pieceBId) {
             socket.emit('getValidSplits', {
                 roomId,
@@ -1041,6 +1239,10 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
       const b = document.querySelector(`.piece[data-id="${secondPieceId}"]`);
       if (!a || !b) return;
 
+      const p1 = gameState?.pieces?.find(p => p.id === selectedPieceId);
+      const p2 = gameState?.pieces?.find(p => p.id === secondPieceId);
+      if (!p1 || !p2) return;
+
       const ra = a.getBoundingClientRect();
       const rb = b.getBoundingClientRect();
       const boardRect = board.getBoundingClientRect();
@@ -1049,7 +1251,7 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
       const offset = 10;
 
       const dims = (isVertical) => ({
-        width: isVertical ? 44 : 150,
+        width: isVertical ? 44 : 170,
         height: isVertical ? 118 : 38
       });
 
@@ -1084,12 +1286,60 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         y: (centerA.y + centerB.y) / 2
       };
       const vertical = false;
-      const leftPosition = computeDiagonalPosition(ra, pairCenter, 'left');
-      const rightPosition = computeDiagonalPosition(rb, pairCenter, 'right');
+      let leftPosition = computeDiagonalPosition(ra, pairCenter, 'left');
+      let rightPosition = computeDiagonalPosition(rb, pairCenter, 'right');
 
-      const mk = (isLeft, position) => {
+      // Resolve overlaps
+      const margin = 10;
+      const size = dims(false);
+      
+      const checkOverlap = (pA, pB) => {
+        return (pA.left < pB.left + size.width + margin &&
+                pA.left + size.width + margin > pB.left &&
+                pA.top < pB.top + size.height + margin &&
+                pA.top + size.height + margin > pB.top);
+      };
+
+      if (checkOverlap(leftPosition, rightPosition)) {
+        if (leftPosition.top <= rightPosition.top) {
+          const mid = (leftPosition.top + rightPosition.top) / 2;
+          leftPosition.top = mid - (size.height + margin) / 2;
+          rightPosition.top = mid + (size.height + margin) / 2;
+        } else {
+          const mid = (leftPosition.top + rightPosition.top) / 2;
+          rightPosition.top = mid - (size.height + margin) / 2;
+          leftPosition.top = mid + (size.height + margin) / 2;
+        }
+        
+        leftPosition = clampPosition(leftPosition, size);
+        rightPosition = clampPosition(rightPosition, size);
+        
+        if (checkOverlap(leftPosition, rightPosition)) {
+          if (leftPosition.left <= rightPosition.left) {
+            const mid = (leftPosition.left + rightPosition.left) / 2;
+            leftPosition.left = mid - (size.width + margin) / 2;
+            rightPosition.left = mid + (size.width + margin) / 2;
+          } else {
+            const mid = (leftPosition.left + rightPosition.left) / 2;
+            rightPosition.left = mid - (size.width + margin) / 2;
+            leftPosition.left = mid + (size.width + margin) / 2;
+          }
+          leftPosition = clampPosition(leftPosition, size);
+          rightPosition = clampPosition(rightPosition, size);
+        }
+      }
+
+      const mk = (isLeft, position, piece) => {
         const w = document.createElement('div');
         w.className = `piece-split-slider-wrap ${vertical ? 'vertical' : ''}`;
+        
+        const badge = document.createElement('span');
+        badge.className = 'slider-piece-badge';
+        badge.textContent = `P${piece.pieceId}`;
+        const pieceColor = playerColors[piece.playerId] || '#7ef3ff';
+        badge.style.borderColor = pieceColor;
+        badge.style.color = pieceColor;
+
         const out = document.createElement('span');
         const input = document.createElement('input');
         const confirm = document.createElement('button');
@@ -1119,15 +1369,16 @@ function checkIfStuckInPenalty(cards, canMoveFlag) {
         confirm.title = 'Confirmar divisão';
         confirm.addEventListener('click', submitSpecialSplit);
 
-        out.className='val'; out.textContent = isLeft ? boardSplitValue : 7-boardSplitValue;
-        w.append(out,input,confirm);
+        out.className = 'val'; 
+        out.textContent = isLeft ? boardSplitValue : 7 - boardSplitValue;
+        w.append(badge, out, input, confirm);
         w.style.left = `${position.left}px`;
         w.style.top = `${position.top}px`;
         document.body.appendChild(w);
       };
 
-      mk(true, leftPosition);
-      mk(false, rightPosition);
+      mk(true, leftPosition, p1);
+      mk(false, rightPosition, p2);
       boardSplitMode = true;
       updateSplitMovePreview();
     }
@@ -1241,6 +1492,7 @@ function updateBoard(previousState = null) {
 
   // Posicionar peças
   const animations = positionPieces(previousState, previousPieceRects);
+  updatePieceAffordances();
 
   updatePlayerLabels();
 
@@ -1279,7 +1531,7 @@ function rotateBoard(rotatePieces = true) {
     labelsContainer.style.transform = `rotate(${rotation}deg)`;
     const labels = labelsContainer.querySelectorAll('.player-label');
     labels.forEach(label => {
-      label.style.transform = `rotate(${-rotation}deg)`;
+      label.style.transform = `var(--label-shift, translate(0, 0)) var(--label-adjust, translate(0, 0)) rotate(${-rotation}deg)`;
     });
   }
 }
@@ -1358,6 +1610,26 @@ function updatePlayerLabels() {
     const orientation = orientationMap[p.position];
     const base = basePositions[orientation];
     const pos = rotatePosition(base, rotation);
+    const labelSide = pos.rowEnd <= 2
+      ? 'top'
+      : pos.rowStart >= 16
+        ? 'bottom'
+        : pos.colEnd <= 2
+          ? 'left'
+          : 'right';
+    label.dataset.side = labelSide;
+
+    // Bot 2 sits slightly too close to the track in the current mobile view.
+    // Convert a screen-right nudge into the label container's rotated axis.
+    if (p.id === 'bot_1' || /^bot\s*2$/i.test(p.name || '')) {
+      const screenRightAdjustments = {
+        0: 'translateX(0.75rem)',
+        90: 'translateY(-0.75rem)',
+        180: 'translateX(-0.75rem)',
+        270: 'translateY(0.75rem)'
+      };
+      label.style.setProperty('--label-adjust', screenRightAdjustments[rotation] || 'translateX(0.75rem)');
+    }
 
     label.style.gridRowStart = pos.rowStart + 1;
     label.style.gridRowEnd = pos.rowEnd + 2;
@@ -1664,6 +1936,31 @@ async function animatePieceMoves(animations) {
 
         fillTeam(team1Players, gameState.teams[0]);
         fillTeam(team2Players, gameState.teams[1]);
+        updateTeamProgress();
+        scheduleBoardSize();
+    }
+
+    function updateTeamProgress() {
+        if (!gameState?.teams || !gameState?.pieces) return;
+
+        const progressItems = [
+            { team: gameState.teams[0], text: team1ProgressText, bar: team1ProgressBar },
+            { team: gameState.teams[1], text: team2ProgressText, bar: team2ProgressBar }
+        ];
+
+        progressItems.forEach(({ team, text, bar }) => {
+            const playerPositions = new Set(team.map(player => player.position));
+            const completed = gameState.pieces.filter(piece =>
+                playerPositions.has(piece.playerId) && piece.completed
+            ).length;
+            const percentage = Math.min(100, completed * 10);
+
+            if (text) text.textContent = `${completed}/10`;
+            if (bar) {
+                bar.style.width = `${percentage}%`;
+                bar.parentElement?.setAttribute('aria-valuenow', String(completed));
+            }
+        });
     }
     
 // No arquivo game.js do cliente
@@ -1686,17 +1983,32 @@ function updateTurnInfo() {
   
   // Verificar se é a vez do jogador atual
   const isCurrentPlayersTurn = currentPlayer.id === playerId;
+  const currentTeamIndex = gameState.teams?.findIndex(team =>
+    team.some(player => player.position === currentPlayer.position)
+  );
+
+  turnInfo?.classList.toggle('my-turn', isCurrentPlayersTurn);
+  turnInfo?.classList.toggle('watching-turn', !isCurrentPlayersTurn);
+  gameInfo?.classList.toggle('is-my-turn', isCurrentPlayersTurn);
+  team1Line?.classList.toggle('is-current', currentTeamIndex === 0);
+  team2Line?.classList.toggle('is-current', currentTeamIndex === 1);
   
   if (isCurrentPlayersTurn) {
     isMyTurn = true;
+    turnKicker.textContent = 'Sua vez agora';
     showStatusMessage('É sua vez de jogar!', 'turn');
-  renderPlayBuilder();
+    renderPlayBuilder();
+    applyCardAffordances();
     console.log('É SUA VEZ DE JOGAR!');
   } else {
     isMyTurn = false;
+    canMoveThisTurn = null;
+    turnKicker.textContent = 'Acompanhando a mesa';
     showStatusMessage(`Aguardando jogada de ${currentPlayer.name}...`, 'info');
+    applyCardAffordances();
     console.log(`Aguardando jogada de ${currentPlayer.name}`);
   }
+  scheduleBoardSize();
 }
  
     function updateDeckInfo(stateOverride = gameState) {
@@ -1777,6 +2089,8 @@ function updateCards(cards) {
   
   if (!cards || cards.length === 0) {
     console.error('Nenhuma carta para exibir');
+    cardsContainer.classList.remove('compact');
+    updatePieceAffordances();
     return;
   }
   
@@ -1804,14 +2118,7 @@ function updateCards(cards) {
     cardsContainer.appendChild(cardElement);
   });
 
-  // Ajusta o tamanho das cartas conforme o espaço disponível
-  const shouldCompact =
-    cards.length >= 6 || cardsContainer.scrollWidth > cardsContainer.clientWidth;
-  cardsContainer.classList.toggle('compact', shouldCompact);
-
-  // Recalcula o tamanho do tabuleiro após renderizar a mão,
-  // garantindo que haja espaço para visualizar as cartas
-  adjustBoardSize();
+  applyCardAffordances();
 
   console.log('Cartas atualizadas no DOM:', cardsContainer.children.length);
 }
@@ -1915,14 +2222,17 @@ function handleCardClick(index) {
   clearMovePreview();
   if (!isMyTurn) {
     showStatusMessage('Não é sua vez de jogar!', 'error');
+    showToast('Aguarde o seu turno para jogar.', 'error', 2600);
     return;
   }
   
   console.log('Clique na carta com índice:', index);
-  
-  // Verificar se o jogador está preso no castigo
-  if (isPlayerStuckInPenalty()) {
-    // Descartar a carta diretamente
+
+  const card = playerCards[index];
+  if (!card) return;
+
+  if (canMoveThisTurn === false || !cardHasPotentialMove(card)) {
+    showToast('Essa carta não tem uma jogada válida agora. Ela será descartada.', 'info', 2400);
     discardCard(index);
     return;
   }
@@ -1988,7 +2298,7 @@ function makeMove() {
 }
 
 
-    function updateSelectedPiece() {
+function updateSelectedPiece() {
         // Remover seleção de todas as peças
         const pieces = document.querySelectorAll('.piece');
         pieces.forEach(piece => {
@@ -2000,8 +2310,9 @@ function makeMove() {
             const piece = document.querySelector(`.piece[data-id="${selectedPieceId}"]`);
             if (piece) {
                 piece.classList.add('selected');
-            }
         }
+      }
+      updatePieceAffordances();
     }
     
     function updateSelectedCard() {
@@ -2014,10 +2325,11 @@ function makeMove() {
         // Adicionar seleção à carta escolhida
         if (selectedCardIndex !== null) {
             const card = document.querySelector(`.card[data-index="${selectedCardIndex}"]`);
-            if (card) {
+        if (card) {
                 card.classList.add('selected');
             }
         }
+        applyCardAffordances();
     }
 
     function finalizeSpecialMove() {
@@ -2182,6 +2494,25 @@ function makeMove() {
     }
     
     function setupEventListeners() {
+        gameToastClose?.addEventListener('click', hideToast);
+        helpToggle?.addEventListener('click', () => {
+            setHelpPanelOpen(helpPanel?.classList.contains('hidden'));
+        });
+        helpClose?.addEventListener('click', () => setHelpPanelOpen(false));
+        homeEntryConfirm?.addEventListener('click', () => submitHomeEntryChoice(true));
+        homeEntryCancel?.addEventListener('click', () => submitHomeEntryChoice(false));
+        homeEntryBackdrop?.addEventListener('click', () => submitHomeEntryChoice(false));
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                if (!homeEntryDialog?.classList.contains('hidden')) {
+                    submitHomeEntryChoice(false);
+                    return;
+                }
+                setHelpPanelOpen(false);
+                jokerDialog.classList.add('hidden');
+            }
+        });
+
         samePieceBtn.addEventListener('click', () => {
             pendingSpecialMove = { pieceAId: selectedPieceId, pieceBId: selectedPieceId };
             socket.emit('makeSpecialMove', {
@@ -2215,8 +2546,19 @@ function makeMove() {
             window.location.href = '/';
         });
 
-        window.addEventListener('resize', adjustBoardSize);
-        window.addEventListener('orientationchange', adjustBoardSize);
+        window.addEventListener('resize', scheduleBoardSize);
+        window.addEventListener('orientationchange', scheduleBoardSize);
+        window.addEventListener('load', scheduleBoardSize);
+        window.visualViewport?.addEventListener('resize', scheduleBoardSize);
+        window.visualViewport?.addEventListener('scroll', scheduleBoardSize);
+        document.fonts?.ready?.then(scheduleBoardSize);
+
+        if (window.ResizeObserver) {
+            const layoutObserver = new ResizeObserver(scheduleBoardSize);
+            [gameInfo, playerHand, playBuilder].forEach(element => {
+                if (element) layoutObserver.observe(element);
+            });
+        }
         resetPlayBuilderBtn?.addEventListener('click', () => resetPlayBuilder(true));
         confirmPlayBuilderBtn?.addEventListener('click', submitSpecialSplit);
     }

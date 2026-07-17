@@ -29,9 +29,9 @@ RUN npm install --omit=dev
 # ────────────────────────────────────────────────
 # 5) Install Python requirements
 # ────────────────────────────────────────────────
-COPY game-ai-training/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
+COPY game-ai-training/requirements-runtime.txt .
+RUN pip install --no-cache-dir numpy>=1.21.0 && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 # ────────────────────────────────────────────────
 # 6) Copy the rest of the source tree
 # ────────────────────────────────────────────────

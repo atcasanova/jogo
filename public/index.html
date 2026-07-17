@@ -3,27 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>O jogo</title>
+    <title>O JOGO — partidas online em duplas</title>
 		<meta property="og:image" content="http://jogo.bru.to/jogo.png">
 		<meta property="og:title" content="Bora jogar o jogo">	
 		<meta property="og:url" content="http://jogo.bru.to/">	
-		<meta property="og:description" content="Bora!">
+		<meta property="og:description" content="Uma partida rápida de estratégia em duplas.">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
-    <div class="container">
-        <h1>O JOGO Online</h1>
+<body class="lobby-body">
+    <div class="container lobby-container">
+        <header class="site-nav">
+            <a class="brand-wordmark" href="/" aria-label="O JOGO — início">✦ O JOGO</a>
+            <a class="rules-link" href="/regras">Como jogar <span aria-hidden="true">↗</span></a>
+        </header>
+
+        <div class="page-heading">
+            <p class="eyebrow">Partidas online em duplas</p>
+            <h1><span>O JOGO</span> Online</h1>
+            <p class="site-subtitle">Estratégia, cartas e aquela captura inesperada no caminho.</p>
+        </div>
         
         <div id="welcome-screen">
-            <div class="form-group">
-                <label for="player-name">Seu Nome:</label>
-                <input type="text" id="player-name" placeholder="Digite seu nome" required>
-            </div>
-            
-            <div class="button-group">
-                <button id="create-room-btn" class="btn primary">Criar Nova Sala</button>
-                <button id="join-room-btn" class="btn secondary">Entrar em Sala Existente</button>
+            <section class="welcome-hero" aria-labelledby="welcome-title">
+                <div class="welcome-copy">
+                    <p class="hero-kicker">Uma mesa. Quatro jogadores. Uma dupla campeã.</p>
+                    <h2 id="welcome-title">Bora colocar as peças em movimento?</h2>
+                    <p>Crie uma sala com a sua turma ou entre usando um código. Em poucos cliques, a partida começa.</p>
+                    <div class="hero-pills" aria-label="Resumo do jogo">
+                        <span>♟ 4 jogadores</span>
+                        <span>◎ 2 duplas</span>
+                        <span>★ 1 objetivo</span>
+                    </div>
+                </div>
+
+                <div class="table-preview" aria-hidden="true">
+                    <div class="preview-orbit preview-orbit-one"></div>
+                    <div class="preview-orbit preview-orbit-two"></div>
+                    <span class="preview-piece preview-piece-one"></span>
+                    <span class="preview-piece preview-piece-two"></span>
+                    <span class="preview-piece preview-piece-three"></span>
+                    <span class="preview-piece preview-piece-four"></span>
+                    <div class="preview-center"><span>✦</span><small>JOGUE</small></div>
+                </div>
+            </section>
+
+            <div class="welcome-grid">
+                <div class="quick-guide" aria-label="Como começar">
+                    <div class="guide-step">
+                        <span class="guide-number">01</span>
+                        <div><strong>Escolha seu nome</strong><p>É assim que sua dupla vai reconhecer você.</p></div>
+                    </div>
+                    <div class="guide-step">
+                        <span class="guide-number">02</span>
+                        <div><strong>Crie ou entre</strong><p>Compartilhe o código e convide até quatro pessoas.</p></div>
+                    </div>
+                    <div class="guide-step">
+                        <span class="guide-number">03</span>
+                        <div><strong>Monte a dupla</strong><p>Quando a sala estiver cheia, escolham os times.</p></div>
+                    </div>
+                </div>
+
+                <div class="entry-card">
+                    <p class="eyebrow">Comece por aqui</p>
+                    <div class="form-group">
+                        <label for="player-name">Como podemos chamar você?</label>
+                        <input type="text" id="player-name" placeholder="Digite seu nome" autocomplete="nickname" required>
+                    </div>
+
+                    <div class="button-group entry-actions">
+                        <button id="create-room-btn" class="btn primary">Criar nova sala <span aria-hidden="true">→</span></button>
+                        <button id="join-room-btn" class="btn secondary">Entrar em uma sala</button>
+                    </div>
+                    <a class="inline-rules-link" href="/regras">Ainda não conhece as regras? <span>Aprenda em 1 minuto →</span></a>
+                </div>
             </div>
         </div>
         
@@ -42,7 +95,10 @@
         <div id="waiting-room" class="hidden">
             <h2>Sala: <span id="room-code"></span></h2>
             <p>Compartilhe este código com os outros jogadores</p>
-            <button id="copy-link-btn" class="btn secondary">Copiar link</button>
+            <div class="button-group">
+                <button id="copy-link-btn" class="btn secondary">Copiar link</button>
+                <a class="btn secondary rules-button-link" href="/regras" target="_blank" rel="noopener">Ver regras</a>
+            </div>
             
             <div class="players-list">
                 <h3>Jogadores:</h3>
@@ -73,4 +129,3 @@
     <script src="js/index.js"></script>
 </body>
 </html>
-

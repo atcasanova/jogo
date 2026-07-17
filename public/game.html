@@ -10,23 +10,57 @@
 <body>
     <div class="game-container">
         <div class="game-info">
-            <div class="room-info">
-                <div class="room-code">Sala: <span id="room-code"></span></div>
-                <div class="teams-info">
-                    <div class="team-line team1">Time 1: <span id="team1-players"></span></div>
-                    <div class="team-line team2">Time 2: <span id="team2-players"></span></div>
+            <div class="game-topbar">
+                <div class="room-info">
+                    <div class="room-code">Sala: <span id="room-code"></span></div>
+                    <a class="game-rules-link" href="/regras" target="_blank" rel="noopener">Como jogar ↗</a>
+                </div>
+                <div class="teams-info" aria-label="Progresso dos times">
+                    <div class="team-line team1">
+                        <div class="team-line-head"><span class="team-label">Time 1</span><strong id="team1-progress-text">0/10</strong></div>
+                        <span id="team1-players" class="team-players" aria-label="Peças do Time 1"></span>
+                        <span class="team-progress" role="progressbar" aria-label="Progresso do Time 1" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0"><span id="team1-progress-bar"></span></span>
+                    </div>
+                    <div class="team-line team2">
+                        <div class="team-line-head"><span class="team-label">Time 2</span><strong id="team2-progress-text">0/10</strong></div>
+                        <span id="team2-players" class="team-players" aria-label="Peças do Time 2"></span>
+                        <span class="team-progress" role="progressbar" aria-label="Progresso do Time 2" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0"><span id="team2-progress-bar"></span></span>
+                    </div>
                 </div>
             </div>
 
             <div class="turn-info">
-                <h3>Turno: <span id="current-player"></span></h3>
+                <span id="turn-kicker" class="turn-kicker">Estado da partida</span>
+                <h3>Turno de <span id="current-player"></span></h3>
                 <div id="turn-message"></div>
             </div>
+        </div>
+
+        <div id="game-toast" class="game-toast hidden" role="status" aria-live="polite">
+            <span id="game-toast-icon" class="game-toast-icon" aria-hidden="true">!</span>
+            <span id="game-toast-message"></span>
+            <button id="game-toast-close" class="game-toast-close" type="button" aria-label="Fechar mensagem">×</button>
         </div>
         
         <div class="board-container">
             <div id="board"></div>
             <div id="player-labels"></div>
+
+            <button id="help-toggle" class="help-toggle" type="button" aria-expanded="false" aria-controls="rules-help-panel" title="Ajuda rápida">?</button>
+            <aside id="rules-help-panel" class="rules-help-panel hidden" aria-label="Ajuda rápida">
+                <div class="help-panel-header">
+                    <div><span class="help-panel-kicker">Jogue sem parar</span><h2>Ajuda rápida</h2></div>
+                    <button id="help-close" class="help-close" type="button" aria-label="Fechar ajuda">×</button>
+                </div>
+                <p class="help-panel-intro">Escolha uma carta e depois uma peça destacada. Se nenhuma jogada for possível, a carta pode ser descartada.</p>
+                <div class="help-rules-grid">
+                    <span><strong>A / J / Q / K</strong> sai do castigo</span>
+                    <span><strong>7</strong> soma 7 passos</span>
+                    <span><strong>8</strong> volta 8 casas</span>
+                    <span><strong>★</strong> copia uma posição adversária</span>
+                </div>
+                <a class="help-full-link" href="/regras" target="_blank" rel="noopener">Ver regras completas ↗</a>
+            </aside>
             
             <div class="deck-area">
                 <div class="deck">
@@ -111,6 +145,23 @@
             <div class="button-group">
                 <button id="rematch-btn" class="btn primary">Revanche</button>
                 <button id="exit-btn" class="btn secondary">Sair</button>
+            </div>
+        </div>
+
+        <div id="home-entry-backdrop" class="home-entry-backdrop hidden" aria-hidden="true"></div>
+        <div id="home-entry-dialog" class="dialog hidden home-entry-dialog" role="dialog" aria-modal="true" aria-labelledby="home-entry-title" aria-describedby="home-entry-description">
+            <div class="home-entry-badge"><span aria-hidden="true">✦</span> Reta final</div>
+            <div class="dialog-header">
+                <h2 id="home-entry-title">Sua peça pode avançar</h2>
+                <p id="home-entry-description" class="dialog-subtitle">Ela alcançou a entrada da zona de vitória. Você quer entrar agora?</p>
+            </div>
+            <div class="home-entry-note">
+                <span class="home-entry-note-icon" aria-hidden="true">↗</span>
+                <span>Entrar deixa a peça mais perto de completar o objetivo do seu time.</span>
+            </div>
+            <div class="button-group home-entry-actions">
+                <button id="home-entry-cancel" class="btn secondary" type="button">Continuar na pista</button>
+                <button id="home-entry-confirm" class="btn primary" type="button">Entrar na zona de vitória</button>
             </div>
         </div>
     </div>

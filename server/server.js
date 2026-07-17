@@ -24,6 +24,10 @@ const io = new Server(server);
 // Servir arquivos estáticos
 app.use(express.static(path.join(__dirname, '../public')));
 
+app.get('/regras', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/regras.html'));
+});
+
 // Armazenar salas e jogos ativos
 const rooms = new Map();
 
