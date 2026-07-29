@@ -1,0 +1,4 @@
+# Dependencies for the optional Django Health Check module.
+Django>=4.2,<6
+requests>=2.31,<3
+WeasyPrint>=61,<67

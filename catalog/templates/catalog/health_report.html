@@ -1,0 +1,20 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>
+body{font:11px Arial,sans-serif;color:#17202a}h1,h2,h3{color:#17365d}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #adb5bd;padding:6px;text-align:left}th{background:#e9f2fb}.critical{color:#a40000}.medium{color:#8a6200}.page-break{break-before:page}@page{size:A4;margin:16mm}
+</style></head><body>
+<h1>🩺 Relatório Executivo de Saúde F5 BIG-IP</h1><p><b>Data da Extração:</b> {{ generated_at|date:"d/m/Y - H:i" }}<br><b>Escopo:</b> {{ results|length }} appliance(s).</p>
+<h2>1. Visão Global do Ambiente</h2>
+<p><b>Resumo Executivo da IA:</b> {{ ai_analysis.executive_summary }}</p>
+<p><small>Fonte do diagnóstico: {{ ai_analysis.source }}{% if ai_analysis.warning %} — {{ ai_analysis.warning }}{% endif %}</small></p>
+<table><thead><tr><th>Hostname</th><th>Role / HA</th><th>CPU TMM</th><th>Memória TMM</th><th>Disco /var</th><th>Sync</th><th>Alertas</th></tr></thead><tbody>
+{% for item in results %}<tr><td>{{ item.hostname|default:item.address }}</td><td>{{ item.role|default:"Indisponível" }}</td><td>{{ item.cpu_tmm|default_if_none:"N/D" }}{% if item.cpu_tmm != None %}%{% endif %}</td><td>{{ item.memory_tmm|default_if_none:"N/D" }}{% if item.memory_tmm != None %}%{% endif %}</td><td>{{ item.disk_var|default_if_none:"N/D" }}{% if item.disk_var != None %}%{% endif %}</td><td>{{ item.sync|default:"N/D" }}</td><td>{% if item.error %}Falha de coleta: {{ item.error }}{% else %}{{ item.offline_nodes }} node(s), {{ item.offline_virtuals }} VIP(s) offline{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+<h2>2. Análise Detalhada por Appliance</h2>
+{% for item in results %}<h3>2.{{ forloop.counter }} BIG-IP: {{ item.hostname|default:item.address }}</h3>
+{% if item.error %}<p class="critical"><b>Falha de coleta:</b> {{ item.error }}</p>{% else %}
+<p><b>Status DSC:</b> {{ item.role }} | <b>ConfigSync:</b> {{ item.sync }}</p>
+{% if item.ai_diagnostic %}<p><b>Avaliação técnica da IA:</b> {{ item.ai_diagnostic }}</p>{% endif %}
+<table><tr><th>Métrica</th><th>Consumo</th><th>Limite</th></tr><tr><td>CPU TMM</td><td>{{ item.cpu_tmm|default_if_none:"N/D" }}%</td><td>80%</td></tr><tr><td>Memória TMM</td><td>{{ item.memory_tmm|default_if_none:"N/D" }}%</td><td>85%</td></tr><tr><td>Memória Host</td><td>{{ item.memory_host|default_if_none:"N/D" }}%</td><td>85%</td></tr><tr><td>Disco /var</td><td>{{ item.disk_var|default_if_none:"N/D" }}%</td><td>80%</td></tr></table>
+<p><b>Logs:</b> {{ item.log_note }}</p>{% endif %}{% endfor %}
+<h2 class="page-break">3. Guia de Resolução (Action Plan &amp; Troubleshooting)</h2>
+{% for action in action_plan %}<h3 class="{% if action.priority == 'Crítica' %}critical{% else %}medium{% endif %}">{{ action.priority }} — {{ action.title }}</h3><p><b>{{ action.device }}:</b> {{ action.instruction }}</p>{% empty %}<p>Nenhuma anomalia classificada foi detectada.</p>{% endfor %}
+</body></html>
